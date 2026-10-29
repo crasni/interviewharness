@@ -17,3 +17,23 @@ test('candidate starts a coding round and sees the room', async () => {
 
   await closeApp(app);
 });
+
+test('with no model picked yet, Start waits for one and asks for it', async () => {
+  const { app, window } = await launchApp({ modelPicked: false });
+
+  const step = window.getByRole('region', { name: 'Pick a model' });
+  await expect(step).toBeVisible();
+  await expect(step.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
+  await expect(window.getByRole('button', { name: 'Start coding round' })).toBeDisabled();
+
+  await closeApp(app);
+});
+
+test('once a model is picked, the step is gone', async () => {
+  const { app, window } = await launchApp();
+
+  await expect(window.getByRole('region', { name: 'Pick a model' })).toHaveCount(0);
+  await expect(window.getByRole('button', { name: 'Start coding round' })).toBeEnabled();
+
+  await closeApp(app);
+});

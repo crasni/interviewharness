@@ -4,14 +4,14 @@
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (built and tested against fakes; the owner verifies one real ChatGPT login)
 
-- [ ] The providers package exists, depends on engine (not desktop), and the layering test proves it
-- [ ] With no model set, Start is blocked and the first-run step shows; after login a round can start
-- [ ] Continue with ChatGPT completes the browser login and returns to the app without copying codes
-- [ ] Credentials are encrypted with async safeStorage; the basic_text path saves with owner-only permissions and shows its note once
-- [ ] No environment variable or other tool's credential is ever read; no key or token reaches the renderer, a log or a round folder
-- [ ] Adapter tests run the login and chat streaming against a fake loopback server; credential store tests use a temp folder
+- [x] The providers package exists, depends on engine (not desktop), and the layering test proves it
+- [x] With no model set, Start is blocked and the first-run step shows; after login a round can start
+- [x] Continue with ChatGPT completes the browser login and returns to the app without copying codes
+- [x] Credentials are encrypted with async safeStorage; the basic_text path saves with owner-only permissions and shows its note once
+- [x] No environment variable or other tool's credential is ever read; no key or token reaches the renderer, a log or a round folder
+- [x] Adapter tests run the login and chat streaming against a fake loopback server; credential store tests use a temp folder
 - [ ] Manually verified once against a real ChatGPT plan
 
 Spec: `.scratch/v0-1/spec.md`.

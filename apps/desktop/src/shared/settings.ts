@@ -1,4 +1,7 @@
+import type { ModelChoice } from '@interviewharness/providers';
 import { isTheme, type Theme } from './api.ts';
+
+export type { ModelChoice };
 
 export const textSizes = ['small', 'medium', 'large'] as const;
 export type TextSize = (typeof textSizes)[number];
@@ -7,7 +10,7 @@ export type TalkMode = (typeof talkModes)[number];
 export const codeLanguages = ['python', 'javascript', 'typescript', 'java', 'cpp', 'go'] as const;
 export type CodeLanguage = (typeof codeLanguages)[number];
 
-/** How the room looks and behaves for this candidate. Never changes how the interviewer judges them. */
+/** The candidate's choices: how the room looks and behaves, and which model the interviewer runs on. None changes how the interviewer judges them. */
 export type Settings = {
   textSize: TextSize;
   theme: Theme;
@@ -21,6 +24,10 @@ export type Settings = {
   /** Dragged sizes in px; null means the default size. */
   problemWidth: number | null;
   conversationHeight: number | null;
+  /** The model that writes the interviewer's words. A round can't start without one. Logins live in the credential store. */
+  interviewerModel: ModelChoice | null;
+  /** Whether the candidate has been told their login isn't encrypted on this machine (Linux with no keyring). */
+  unencryptedLoginNoted: boolean;
 };
 
 export const defaultSettings: Settings = {
@@ -33,6 +40,8 @@ export const defaultSettings: Settings = {
   highlighting: true,
   problemWidth: null,
   conversationHeight: null,
+  interviewerModel: null,
+  unencryptedLoginNoted: false,
 };
 
 const oneOf =
@@ -42,6 +51,14 @@ const oneOf =
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const isSize = (value: unknown): value is number | null =>
   value === null || (typeof value === 'number' && Number.isFinite(value) && value > 0);
+
+const modelProviders: readonly ModelChoice['provider'][] = ['chatgpt'];
+const isModelChoice = (value: unknown): value is ModelChoice | null => {
+  if (value === null) return true;
+  if (typeof value !== 'object') return false;
+  const { provider, model, ...rest } = value as Record<string, unknown>;
+  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && !Object.keys(rest).length;
+};
 
 const validators: { [K in keyof Settings]: (value: unknown) => value is Settings[K] } = {
   textSize: oneOf(textSizes),
@@ -53,6 +70,8 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   highlighting: isBoolean,
   problemWidth: isSize,
   conversationHeight: isSize,
+  interviewerModel: isModelChoice,
+  unencryptedLoginNoted: isBoolean,
 };
 
 /**

@@ -18,6 +18,14 @@ const forbidden = [
   ['packages/engine/src/x.ts', "import '@interviewharness/desktop';"],
   ['packages/engine/src/x.ts', "import '../../../apps/desktop/src/shared/api.ts';"],
   ['packages/engine/src/x.ts', "import 'electron';"],
+  ['packages/engine/src/x.ts', "import '@interviewharness/providers';"],
+  ['packages/engine/src/x.ts', "import '../../providers/src/index.ts';"],
+  ['packages/engine/src/x.ts', "import '@earendil-works/pi-ai';"],
+  ['packages/providers/src/x.ts', "import '@interviewharness/desktop';"],
+  ['packages/providers/src/x.ts', "import '../../../apps/desktop/src/shared/api.ts';"],
+  ['packages/providers/src/x.ts', "import 'electron';"],
+  ['apps/desktop/src/main/x.ts', "import '@earendil-works/pi-ai';"],
+  ['apps/desktop/src/main/x.ts', "import '@earendil-works/pi-ai/models';"],
 ];
 
 for (const [file, source] of forbidden) {
@@ -30,6 +38,9 @@ const allowed = [
   ['packages/engine/src/x.ts', "import '@interviewharness/core';"],
   ['packages/engine/src/x.ts', "import './round.ts';"],
   ['apps/desktop/src/main/x.ts', "import '@interviewharness/engine';"],
+  ['packages/providers/src/x.ts', "import '@interviewharness/engine';"],
+  ['packages/providers/src/x.ts', "import '@earendil-works/pi-ai';"],
+  ['apps/desktop/src/main/x.ts', "import '@interviewharness/providers';"],
 ];
 
 for (const [file, source] of allowed) {

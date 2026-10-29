@@ -1,13 +1,13 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { createLineBook, type Model } from '@interviewharness/engine';
-import { scriptedModel } from '@interviewharness/engine/test';
+import { createLineBook } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
+import { setUpModels } from './model-setup.ts';
 import { loadProblems } from './problems.ts';
 import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
@@ -22,18 +22,11 @@ else carryOverOldDataFolder(join(app.getPath('appData'), '@interviewharness', 'd
 
 const settings = openSettingsFile(dataDir());
 
-// End-to-end tests set this to a script of replies (see the engine's scriptedModel), so they run with no
-// network or keys. Never in a packaged app. Real providers arrive with the model setup; until then, with
-// no model, the interviewer says the example lines as written.
-const model: Model | null = app.isPackaged ? null : fakeModel(process.env.INTERVIEWHARNESS_FAKE_MODEL);
-
-function fakeModel(script: string | undefined) {
-  if (!script) return null;
-  try {
-    return scriptedModel(JSON.parse(script)).model;
-  } catch (error) {
-    throw new Error(`INTERVIEWHARNESS_FAKE_MODEL is not a JSON script of replies: ${String(error)}`, { cause: error });
-  }
+/** Changes settings from main, and tells every window. */
+function changeSettings(changes: Parameters<typeof settings.change>[0]) {
+  const values = settings.change(changes);
+  for (const each of BrowserWindow.getAllWindows()) each.webContents.send(channels.settingsChanged, values);
+  return values;
 }
 
 // Only Two sum so far (v0.1b adds more); every folder is read and checked at startup all the same.
@@ -41,6 +34,8 @@ const problem = loadProblems().get('two-sum')!;
 
 let window: BrowserWindow | null = null;
 let round: ActiveRound | null = null;
+
+const models = setUpModels({ dataDir: dataDir(), settings: { values: settings.values, change: changeSettings }, window: () => window });
 
 // Only coding rounds exist so far; the start screen shows the others as disabled.
 const availableKinds: readonly RoundKind[] = ['coding'];
@@ -56,6 +51,7 @@ function endCurrentRound() {
 ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
   if (!availableKinds.includes(kind)) throw new Error(`Round kind not available yet: ${kind}`);
   endCurrentRound();
+  const model = models.interviewerModel();
   round = runRound({
     kind,
     clock: systemClock,
@@ -93,6 +89,10 @@ ipcMain.on(channels.changeSettings, (event, changes: unknown) => {
     if (other.webContents !== event.sender) other.webContents.send(channels.settingsChanged, values);
   }
 });
+
+ipcMain.handle(channels.continueWithChatGPT, () => models.continueWithChatGPT());
+
+ipcMain.on(channels.cancelLogin, () => models.cancelLogin());
 
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';

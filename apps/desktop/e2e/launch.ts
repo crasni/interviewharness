@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ModelScript } from '@interviewharness/engine/test';
@@ -9,12 +9,23 @@ export const stopTalkingButton = (window: Page) => window.getByRole('button', { 
 
 /**
  * Launches the built app in a hidden window, with its own throwaway data folder (or `dataDir`, to relaunch).
- * With `model`, the interviewer's words come from that script of replies (the engine's scriptedModel).
+ * - `model`: a script of replies for the interviewer's words (the engine's scriptedModel). Without one,
+ *   it says the example lines as written. No test ever reaches a real model.
+ * - `modelPicked`: a new data folder starts with a model already picked, so Start works at once.
+ *   False shows the first-run step instead.
  */
 export async function launchApp({
-  dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-')),
+  dataDir,
   model,
-}: { dataDir?: string; model?: ModelScript } = {}) {
+  modelPicked = true,
+}: { dataDir?: string; model?: ModelScript; modelPicked?: boolean } = {}) {
+  if (!dataDir) {
+    dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-'));
+    if (modelPicked) {
+      const settings = { version: 1, interviewerModel: { provider: 'chatgpt', model: 'gpt-5-mini' } };
+      writeFileSync(join(dataDir, 'settings.json'), JSON.stringify(settings));
+    }
+  }
   const app = await electron.launch({
     args: ['.'],
     cwd: join(import.meta.dirname, '..'),
@@ -22,7 +33,7 @@ export async function launchApp({
       ...process.env,
       INTERVIEWHARNESS_DATA_DIR: dataDir,
       INTERVIEWHARNESS_HIDDEN_WINDOW: '1',
-      ...(model ? { INTERVIEWHARNESS_FAKE_MODEL: JSON.stringify(model) } : {}),
+      INTERVIEWHARNESS_FAKE_MODEL: model ? JSON.stringify(model) : 'example-lines',
     },
     // No emulated colour scheme: Playwright's default (light) would hide the theme the app sets itself.
     colorScheme: null,

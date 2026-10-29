@@ -22,6 +22,10 @@ const api: HarnessApi = {
       return () => ipcRenderer.off(channels.settingsChanged, handler);
     },
   },
+  models: {
+    continueWithChatGPT: () => ipcRenderer.invoke(channels.continueWithChatGPT),
+    cancelLogin: () => ipcRenderer.send(channels.cancelLogin),
+  },
 };
 
 contextBridge.exposeInMainWorld('harness', api);

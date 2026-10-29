@@ -42,7 +42,22 @@ export interface HarnessApi {
     /** Subscribes to changes made elsewhere (main, or another window); returns an unsubscribe function. */
     onChange(listener: (values: Settings) => void): () => void;
   };
+  /** Picking the interviewer's model. Logins stay in main; the renderer only learns whether one worked. */
+  models: {
+    /**
+     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. On success the choice
+     * is saved in settings (and announced through settings.onChange).
+     */
+    continueWithChatGPT(): Promise<LoginResult>;
+    /** Gives up on a login that is waiting for the browser. */
+    cancelLogin(): void;
+  };
 }
+
+export type LoginResult =
+  /** `unencryptedNote`: say once that the login isn't encrypted on this machine (Linux with no keyring). */
+  | { ok: true; unencryptedNote: boolean }
+  | { ok: false; cancelled: boolean; error: string };
 
 export const channels = {
   startRound: 'round:start',
@@ -54,6 +69,8 @@ export const channels = {
   getSettings: 'settings:get',
   changeSettings: 'settings:change',
   settingsChanged: 'settings:changed',
+  continueWithChatGPT: 'models:chatgpt-login',
+  cancelLogin: 'models:cancel-login',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

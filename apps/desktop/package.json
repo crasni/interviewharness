@@ -1,6 +1,7 @@
 {
   "name": "@interviewharness/desktop",
   "productName": "InterviewHarness",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -20,6 +21,7 @@
     "@codemirror/lang-javascript": "6.2.5",
     "@interviewharness/core": "workspace:*",
     "@interviewharness/engine": "workspace:*",
+    "@interviewharness/providers": "workspace:*",
     "lucide-react": "1.64.0"
   },
   "devDependencies": {

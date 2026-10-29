@@ -8,7 +8,8 @@ let window: Page;
 let dataDir: string;
 
 test.beforeEach(async () => {
-  ({ app, window, dataDir } = await launchApp());
+  // A brand-new data folder, as on a first launch.
+  ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 });
 
 test.afterEach(async () => {

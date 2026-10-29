@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { defaultSettings, type Settings, validSettings } from '../shared/settings.ts';
+import { type WriteOptions, writeFileAtomically } from './atomic-write.ts';
 
 /** The shape settings.json is written in. Bump it, and add a migration below, when a setting changes meaning. */
 export const settingsVersion = 1;
@@ -35,7 +35,7 @@ export function migrateSettings(
  * The candidate's settings, kept in settings.json in the data folder. Main owns the file:
  * the renderer only reads and changes it over IPC.
  */
-export function openSettingsFile(dir: string, { rename: renameFile = rename, retryDelayMs = 50 }: WriteOptions = {}) {
+export function openSettingsFile(dir: string, writeOptions: WriteOptions = {}) {
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'settings.json');
   const fresh = !existsSync(path);
@@ -54,7 +54,7 @@ export function openSettingsFile(dir: string, { rename: renameFile = rename, ret
       pending = false;
       const text = `${JSON.stringify({ ...kept, ...values }, null, 2)}\n`;
       try {
-        await writeAtomically(path, text, renameFile, retryDelayMs);
+        await writeFileAtomically(path, text, writeOptions);
       } catch (error) {
         // The settings still apply for this run; the next change tries again.
         console.error('Could not save settings.json:', error);
@@ -81,17 +81,6 @@ export function openSettingsFile(dir: string, { rename: renameFile = rename, ret
 }
 
 export type SettingsFile = ReturnType<typeof openSettingsFile>;
-
-interface WriteOptions {
-  /** Tests stand in a rename that fails the way Windows does when another program holds the file. */
-  rename?: (from: string, to: string) => Promise<void>;
-  /** The wait before the first retry; it doubles with each one. */
-  retryDelayMs?: number;
-}
-
-/** Errors Windows gives while an antivirus or indexer briefly holds the file. They pass, so they're worth retrying. */
-const lockedCodes = new Set(['EPERM', 'EBUSY', 'EACCES']);
-const renameAttempts = 5;
 
 /**
  * The settings the file holds, or null if it can't be read or isn't a settings object at all.
@@ -120,35 +109,5 @@ function backUp(path: string, dir: string) {
     writeFileSync(backup, readFileSync(path));
   } catch {
     // Unreadable as well: the defaults are written over it, which is still better than not starting.
-  }
-}
-
-/** Writes to a temporary file, flushes it to disk, then renames it over the real one, so a crash never leaves half a file. */
-async function writeAtomically(
-  path: string,
-  text: string,
-  renameFile: NonNullable<WriteOptions['rename']>,
-  retryDelayMs: number,
-) {
-  const temp = `${path}.${process.pid}.tmp`;
-  const handle = await open(temp, 'w');
-  try {
-    await handle.writeFile(text, 'utf8');
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await renameFile(temp, path);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code ?? '';
-      if (!lockedCodes.has(code) || attempt === renameAttempts) {
-        await rm(temp, { force: true });
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)));
-    }
   }
 }
