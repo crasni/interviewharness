@@ -3,7 +3,7 @@ import type { RoundKind } from '@interviewharness/core';
 import { createLineBook } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import { type CandidateSignal, candidateSignalTypes, channels } from '../shared/api.ts';
+import { channels, isCandidateSignal } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { createEventsLog } from './events-log.ts';
 
@@ -32,9 +32,8 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
 
-ipcMain.on(channels.signal, (_event, signal: CandidateSignal) => {
-  if (!(candidateSignalTypes as readonly string[]).includes(signal?.type)) return;
-  round?.signal(signal);
+ipcMain.on(channels.signal, (_event, signal: unknown) => {
+  if (isCandidateSignal(signal)) round?.signal(signal);
 });
 
 // Automated UI tests set this so the window never appears on the developer's screen.

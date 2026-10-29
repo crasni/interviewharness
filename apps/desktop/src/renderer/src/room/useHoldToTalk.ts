@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 /** Hold Space to talk. Ignored while typing in a text field or editor, so Space still types. */
 export function useHoldToTalk(onStart: () => void, onEnd: () => void) {
   const [talking, setTalking] = useState(false);
 
-  useEffect(() => {
+  // Layout effect: attached before the room first paints, so a key pressed as soon as it appears counts.
+  useLayoutEffect(() => {
     let held = false;
 
     function down(event: KeyboardEvent) {

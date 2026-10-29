@@ -34,18 +34,20 @@
 }
 
 .room-presence {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(var(--field-min), auto);
   align-items: center;
-  gap: var(--space-4);
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-top: var(--rule);
   min-height: var(--space-16);
 }
 
 .room-subtitle {
-  flex: 1;
   font-size: var(--text-lg);
   line-height: var(--leading-lg);
+  font-weight: var(--weight-medium);
 }
 
 /* Inverted while the candidate holds the floor. */
@@ -66,4 +68,46 @@
 
 .room-dev button {
   padding: var(--space-1) var(--space-2);
+}
+
+.room-talk-status {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: end;
+}
+
+.room-candidate {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+/* The candidate's own words: lighter weight than the subtitle, so the interviewer reads first. */
+.room-candidate-words {
+  font-weight: var(--weight-regular);
+}
+
+.say {
+  grid-column: 3;
+}
+
+.say-input {
+  width: 100%;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--rule);
+  padding: var(--space-1) var(--space-2);
+}
+
+.say-input::placeholder {
+  color: var(--ink);
+  font-style: italic;
+}
+
+.say-input:focus {
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: calc(var(--hairline) * -1);
 }

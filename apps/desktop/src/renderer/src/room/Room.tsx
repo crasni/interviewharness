@@ -1,25 +1,44 @@
 import type { RoundSnapshot } from '@interviewharness/engine';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { PresenceDot, type PresenceState } from '../ui/PresenceDot.tsx';
 import './room.css';
+import { SayField } from './SayField.tsx';
 import { useHoldToTalk } from './useHoldToTalk.ts';
 
 export function Room({ initial }: { initial: RoundSnapshot }) {
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
   const [subtitle, setSubtitle] = useState('');
+  const [candidateWords, setCandidateWords] = useState('');
 
   const talking = useHoldToTalk(
     useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
     useCallback(() => window.harness.signal({ type: 'talk-end' }), []),
   );
 
-  useEffect(
+  // Subscribed before the room first paints, so no decision sent as it opens is missed.
+  useLayoutEffect(
     () =>
       window.harness.onDecision((decision) => {
-        if (decision.kind === 'backchannel') setPresence('nodding');
-        setSubtitle(decision.line);
+        switch (decision.kind) {
+          case 'backchannel':
+            setPresence('nodding');
+            setSubtitle(decision.line);
+            break;
+          case 'ack':
+          case 'answer':
+            setPresence('speaking');
+            setSubtitle(decision.line);
+            break;
+          case 'done-speaking':
+            setPresence('listening');
+            break;
+          case 'stop-speaking':
+            setPresence('listening');
+            setSubtitle('');
+            break;
+        }
       }),
     [],
   );
@@ -54,10 +73,24 @@ export function Room({ initial }: { initial: RoundSnapshot }) {
         <p className="room-subtitle" data-testid="subtitle">
           {subtitle}
         </p>
-        <span className="room-you label" role="status" aria-label="You" data-talking={talking}>
-          {talking ? 'Talking' : 'Hold Space to talk'}
-        </span>
-        {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
+        <div className="room-talk-status">
+          <span className="room-you label" role="status" aria-label="You" data-talking={talking}>
+            {talking ? 'Talking' : 'Hold Space to talk'}
+          </span>
+          {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
+        </div>
+        <div className="room-candidate">
+          <span className="label">You</span>
+          <p className="room-candidate-words" data-testid="candidate-words">
+            {candidateWords}
+          </p>
+        </div>
+        <SayField
+          onSay={(text) => {
+            setCandidateWords(text);
+            window.harness.signal({ type: 'said', text });
+          }}
+        />
       </footer>
     </div>
   );

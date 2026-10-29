@@ -2,7 +2,7 @@ import type { RoundKind } from '@interviewharness/core';
 import type { Decision, RoundSnapshot, Signal } from '@interviewharness/engine';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
-export const candidateSignalTypes = ['talk-start', 'talk-end'] as const satisfies readonly Signal['type'][];
+export const candidateSignalTypes = ['talk-start', 'talk-end', 'said'] as const satisfies readonly Signal['type'][];
 export type CandidateSignal = Extract<Signal, { type: (typeof candidateSignalTypes)[number] }>;
 
 /** Decisions worth showing: everything except staying silent. */
@@ -23,3 +23,11 @@ export const channels = {
   signal: 'floor:signal',
   decision: 'floor:decision',
 } as const;
+
+/** Checks a signal arriving over IPC: the renderer is not trusted to send well-formed data. */
+export function isCandidateSignal(value: unknown): value is CandidateSignal {
+  if (typeof value !== 'object' || value === null) return false;
+  const { type, text } = value as { type?: unknown; text?: unknown };
+  if (!(candidateSignalTypes as readonly unknown[]).includes(type)) return false;
+  return type !== 'said' || typeof text === 'string';
+}

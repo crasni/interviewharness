@@ -54,6 +54,7 @@
 
   /* Layout */
   --pane-min: 240px;
+  --field-min: 320px;
 
   /* Motion */
   --breathe: 4s;
