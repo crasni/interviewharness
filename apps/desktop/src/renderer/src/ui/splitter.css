@@ -1,4 +1,7 @@
-/* A resizable edge: as wide as the gap it sits in, showing a hairline only when hovered, dragged or focused. */
+/*
+ * A resizable edge: as wide as the gap it sits in, showing a hairline only when hovered, dragged or focused.
+ * Its grab area reaches a little past the gap, so a narrow gap is still easy to catch.
+ */
 .splitter {
   position: relative;
   flex: none;
@@ -7,13 +10,27 @@
 }
 
 .splitter[data-between='columns'] {
-  width: var(--space-4);
+  width: var(--space-2);
   cursor: col-resize;
 }
 
 .splitter[data-between='rows'] {
-  height: var(--space-4);
+  height: var(--space-2);
   cursor: row-resize;
+}
+
+.splitter::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+}
+
+.splitter[data-between='columns']::before {
+  inset: 0 calc(-1 * var(--space-1));
+}
+
+.splitter[data-between='rows']::before {
+  inset: calc(-1 * var(--space-1)) 0;
 }
 
 .splitter::after {

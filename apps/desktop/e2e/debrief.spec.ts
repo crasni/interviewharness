@@ -1,4 +1,4 @@
-import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
+import { type ElectronApplication, expect, type Locator, type Page, test } from '@playwright/test';
 import { closeApp, launchIntoRoom, readRoundLog } from './launch.ts';
 
 let app: ElectronApplication;
@@ -54,4 +54,22 @@ test('the debrief shows no metrics, and leads back to the start screen', async (
 test("the round's log ends with the round ending, so a replay can tell it from a crash", async () => {
   await expect(debrief()).toBeVisible();
   expect(readRoundLog(dataDir).at(-1)).toMatchObject({ signal: { type: 'round-end' } });
+});
+
+test('in a short window the debrief still fits: only the feedback scrolls, the verdict and the way out stay', async () => {
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1000, 480));
+  const feedback = debrief().getByLabel('Feedback');
+  await expect.poll(() => feedback.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect(await debrief().evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+
+  // Measured by hand: toBeInViewport waits on frames, which a hidden window doesn't draw.
+  const onScreen = (locator: Locator) =>
+    locator.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= el.ownerDocument.documentElement.clientHeight;
+    });
+  await feedback.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect(await onScreen(debrief().getByRole('heading', { name: 'Debrief' }))).toBe(true);
+  expect(await onScreen(debrief().getByRole('list', { name: 'Verdict' }))).toBe(true);
+  expect(await onScreen(window.getByRole('button', { name: 'Back to start' }))).toBe(true);
 });

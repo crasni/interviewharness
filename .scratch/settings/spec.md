@@ -1,6 +1,6 @@
 # Settings: let candidates tailor the room and their rounds
 
-_Owner's request (2026-10-29). Tickets 01–03 built 2026-10-30. Owner's call: Settings is a sheet over the screen, not its own screen._
+_Owner's request (2026-10-29). Tickets 01–03 built 2026-10-30. Owner's calls: Settings is a centered card over a dimmed page (not its own screen), with side tabs Appearance / Interview / Editor._
 
 ## Problem Statement
 Every candidate interviews differently: some want a big editor, some want the transcript out of the way, some prefer speaking to clicking. Today the room is one fixed layout with fixed sizes and one way to talk.
@@ -21,7 +21,7 @@ A Settings screen, reachable from the start screen and the room, whose choices p
 10. As a candidate, I want round preferences (round length, difficulty, interviewer strictness) later, so that I can tailor what I get.
 
 ## Built (2026-10-30)
-Stories 1–9. Settings is a sheet on the right (button on the start screen and in the room, or ⌘/Ctrl+,); every change applies at once. Saved in the app's browser storage for now; `settings.json` (BLUEPRINT §5.3) takes over when v0.1 adds provider settings, which main needs anyway. Story 7 shows speech detection disabled until the mic exists. Story 10 (round preferences) is still to come.
+Stories 1–9. Settings is a card in the middle with side tabs (button on the start screen and in the room, or ⌘/Ctrl+,); every change applies at once. Saved in the app's browser storage for now; `settings.json` (BLUEPRINT §5.3) takes over when v0.1 adds provider settings, which main needs anyway. Story 7 shows speech detection disabled until the mic exists. Story 10 (round preferences) is still to come.
 
 ## Out of Scope (for the first settings ticket)
 Interviewer personas (ADR 0014), accounts or sync, anything that changes grading.

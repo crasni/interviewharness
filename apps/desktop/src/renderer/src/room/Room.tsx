@@ -224,7 +224,7 @@ const backchannelShownFor = 1_500;
 // Resize limits (px), so no area can be dragged out of use.
 const problemMin = 220;
 const editorMin = 360;
-const edgeWidth = 16; // the edge itself (--space-4), standing in the gap
+const edgeWidth = 8; // the edge itself (--space-2), standing in the gap
 const conversationMin = 80;
 const conversationMaxShare = 0.6;
 

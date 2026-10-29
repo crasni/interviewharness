@@ -12,7 +12,7 @@ _Last updated: 2026-10-30_
 - [x] Name decided: **InterviewHarness** (`research/05-naming.md`)
 - [x] **v0.0 interview room** (tickets 01–07 in `.scratch/v0-0/issues/`, all done): start, room and debrief screens, the early Floor Manager, click to talk, phases, problem panel, editor, transcript. The owner answered the open questions on 2026-10-30 (`.scratch/v0-0/questions.md`): every default kept; the practice problem is **Two sum** for now, in our own words.
 - [x] **UI revision** (ADR 0015, `.scratch/ui-polish/backlog.md`): Editorial identity, softer corners, Mona Sans, the floating interviewer tile (it glides to the nearest corner when let go), transcript at the bottom.
-- [x] **Settings** (`.scratch/settings/`, tickets 01–03): a sheet over any screen (⌘/Ctrl+,) with text size, theme, transcript default, how you talk, and the editor's language (Python, JavaScript, TypeScript, Java, C++, Go), autocomplete and syntax highlighting; resizable problem and transcript edges, remembered.
+- [x] **Settings** (`.scratch/settings/`, tickets 01–03): a card in the middle of any screen (⌘/Ctrl+,) with side tabs for appearance (text size, theme), interview (transcript default, how you talk) and the editor's language (Python, JavaScript, TypeScript, Java, C++, Go), autocomplete and syntax highlighting; resizable problem and transcript edges, remembered.
 - [x] **Bought `interviewharness.dev`** on Cloudflare Registrar (2026-10-29; $8.20 first year, auto-renews at $12.20/yr, expires 2027-10-29 unless renewed)
 
 ## Not done yet

@@ -224,7 +224,8 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 - **Transcript** shown at the bottom by default (the interviewer in serif, the candidate in bubbles); hide it (button or ⌘T) to see only the interviewer's current line, which fades once said.
 - **Talk modes:** click **Talk** / **Stop talking** (default), open mic with speech detection (v0.2), or type. Barge-in is always on. Space is never a talk key: it belongs to the editor and the text field.
 - **Resizable:** drag the edge between problem and editor, or above the transcript (or move it with the arrow keys); double-click resets. Sizes are remembered.
-- **Settings** open as a sheet over any screen (button or ⌘,), so a round keeps running and changes show at once: text size, theme, transcript on by default, how you talk, panel sizes, and the editor's language, autocomplete and syntax highlighting. They change only how the room looks, never how the candidate is judged.
+- **Settings** open as a card in the middle of any screen, over a dimmed page (button or ⌘,), so a round keeps running and changes show at once. Categories down its left: **Appearance** (text size, theme, panel sizes), **Interview** (how you talk, transcript on by default), **Editor** (language, autocomplete, syntax highlighting).
+- **Debrief** fits the window: the title and verdict stay at the top and the way out at the bottom; only the written feedback scrolls between them. They change only how the room looks, never how the candidate is judged.
 - **No hint counter.** Hints are asked for by talking; they shape the debrief but are never shown as a count or budget.
 
 ---

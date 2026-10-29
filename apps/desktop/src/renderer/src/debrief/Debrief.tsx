@@ -12,33 +12,38 @@ export function Debrief({ round, onBack }: { round: RoundSnapshot; onBack: () =>
   return (
     <main className="debrief" aria-label="Debrief">
       <header className="debrief-head">
-        <h1 className="debrief-title">Debrief</h1>
-        <p>
-          {roundLabel(round.kind)} · {formatElapsed(round.elapsedMs)}
-        </p>
-        <p className="debrief-sample label">Sample feedback · real feedback arrives with the AI interviewer</p>
+        <div className="debrief-heading">
+          <h1 className="debrief-title">Debrief</h1>
+          <p>
+            {roundLabel(round.kind)} · {formatElapsed(round.elapsedMs)}
+          </p>
+          <p className="debrief-sample label">Sample feedback · real feedback arrives with the AI interviewer</p>
+        </div>
+
+        <section className="debrief-section">
+          <h2 className="label">Verdict</h2>
+          <ol className="verdict-scale" aria-label="Verdict">
+            {VERDICTS.map((verdict) => (
+              <li key={verdict} aria-current={verdict === feedback.verdict}>
+                {verdict}
+              </li>
+            ))}
+          </ol>
+        </section>
       </header>
 
-      <section className="debrief-section">
-        <h2 className="label">Verdict</h2>
-        <ol className="verdict-scale" aria-label="Verdict">
-          {VERDICTS.map((verdict) => (
-            <li key={verdict} aria-current={verdict === feedback.verdict}>
-              {verdict}
-            </li>
-          ))}
-        </ol>
-      </section>
+      {/* Only the written feedback scrolls; the verdict above and the way out below stay in place. */}
+      <div className="debrief-feedback" tabIndex={0} aria-label="Feedback">
+        <section className="debrief-section" aria-label="Why">
+          <h2 className="label">Why</h2>
+          <p>{feedback.why}</p>
+        </section>
 
-      <section className="debrief-section" aria-label="Why">
-        <h2 className="label">Why</h2>
-        <p>{feedback.why}</p>
-      </section>
+        <Points title="What went well" points={feedback.wentWell} />
+        <Points title="What to fix" points={feedback.toFix} />
+      </div>
 
-      <Points title="What went well" points={feedback.wentWell} />
-      <Points title="What to fix" points={feedback.toFix} />
-
-      <footer>
+      <footer className="debrief-foot">
         <button type="button" className="primary" onClick={onBack}>
           Back to start
         </button>

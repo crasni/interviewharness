@@ -4,7 +4,7 @@
   /* bar, work, the edge above the exchange (it doubles as the gap), exchange */
   grid-template-rows: auto 1fr auto auto;
   height: 100%;
-  padding: 0 var(--space-5) var(--space-5);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 /* ---------- top bar ---------- */
@@ -13,11 +13,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) 0 var(--space-4);
+  padding: var(--space-2) 0;
 }
 
 .room-gap {
-  height: var(--space-4);
+  height: var(--space-2);
 }
 
 .room-kind {
@@ -50,7 +50,7 @@
 
 /* The edge between problem and editor is the gap between them; with the problem hidden there is no edge. */
 .problem[data-shown='false'] {
-  margin-right: var(--space-4);
+  margin-right: var(--space-2);
 }
 
 .room-editor {
@@ -133,7 +133,7 @@
   width: min(var(--reading-width), 100%);
   justify-self: center;
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 /* The transcript, shown by default: the interviewer in its serif voice on the left, the candidate in bubbles. */
@@ -191,6 +191,11 @@
   font-size: var(--text-voice);
   line-height: var(--leading-voice);
   transition: opacity var(--fade) var(--ease);
+}
+
+/* Nothing said yet, or the line was cut off: no empty band between the cards and the composer. */
+.room-caption:empty {
+  display: none;
 }
 
 .room-caption[data-faded='true'] {

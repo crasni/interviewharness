@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { type CodeLanguage, type Settings, type TextSize, type Theme, useSettings } from './settings.tsx';
 import './settings.css';
 
@@ -11,13 +11,23 @@ export const languageLabels: Record<CodeLanguage, string> = {
   go: 'Go',
 };
 
+type Category = 'appearance' | 'interview' | 'editor';
+
+const categories: [Category, string][] = [
+  ['appearance', 'Appearance'],
+  ['interview', 'Interview'],
+  ['editor', 'Editor'],
+];
+
 /**
- * Settings, as a sheet over whichever screen is showing. A round keeps running underneath,
- * and every change applies at once, so the candidate sees what it does.
+ * Settings, as a card in the middle of whichever screen is showing, with categories down its left side.
+ * A round keeps running underneath, and every change applies at once, so the candidate sees what it does.
  */
 export function SettingsPanel() {
   const { settings, change, panelOpen, setPanelOpen } = useSettings();
+  const [category, setCategory] = useState<Category>('appearance');
   const dialog = useRef<HTMLDialogElement>(null);
+  const id = useId();
 
   useEffect(() => {
     const element = dialog.current;
@@ -26,16 +36,83 @@ export function SettingsPanel() {
     if (!panelOpen && element.open) element.close();
   }, [panelOpen]);
 
+  const pages: Record<Category, ReactNode> = {
+    appearance: (
+      <>
+        <Choice<TextSize>
+          legend="Text size"
+          value={settings.textSize}
+          options={[
+            ['small', 'Small'],
+            ['medium', 'Medium'],
+            ['large', 'Large'],
+          ]}
+          onChange={(textSize) => change({ textSize })}
+        />
+        <Choice<Theme>
+          legend="Theme"
+          value={settings.theme}
+          options={[
+            ['system', 'System'],
+            ['light', 'Light'],
+            ['dark', 'Dark'],
+          ]}
+          onChange={(theme) => change({ theme })}
+        />
+        <div className="settings-row">
+          <span>Panel sizes</span>
+          <button
+            type="button"
+            disabled={settings.problemWidth === null && settings.conversationHeight === null}
+            onClick={() => change({ problemWidth: null, conversationHeight: null })}
+          >
+            Reset panel sizes
+          </button>
+        </div>
+      </>
+    ),
+    interview: (
+      <>
+        <Choice<Settings['talkMode'] | 'speech'>
+          legend="How you talk"
+          value={settings.talkMode}
+          options={[
+            ['click', 'Click to talk'],
+            ['speech', 'Speech detection'],
+          ]}
+          unavailable={{ speech: 'Arrives with the mic' }}
+          onChange={() => change({ talkMode: 'click' })}
+        />
+        <Toggle
+          label="Show the transcript when a round starts"
+          checked={settings.transcriptShown}
+          onChange={(transcriptShown) => change({ transcriptShown })}
+        />
+      </>
+    ),
+    editor: (
+      <>
+        <LanguagePicker value={settings.language} onChange={(language) => change({ language })} />
+        <Toggle label="Autocomplete" checked={settings.autocomplete} onChange={(autocomplete) => change({ autocomplete })} />
+        <Toggle
+          label="Syntax highlighting"
+          checked={settings.highlighting}
+          onChange={(highlighting) => change({ highlighting })}
+        />
+      </>
+    ),
+  };
+
   return (
     <dialog
       ref={dialog}
       className="settings"
       aria-label="Settings"
       onClose={() => setPanelOpen(false)}
-      // A click on the dim area around the sheet lands on the dialog itself: close, as Escape does.
+      // A click on the dimmed page around the card lands on the dialog itself: close, as Escape does.
       onClick={(event) => event.target === event.currentTarget && setPanelOpen(false)}
     >
-      <div className="settings-sheet">
+      <div className="settings-card">
         <header className="settings-head">
           <h2 className="settings-title">Settings</h2>
           <button type="button" onClick={() => setPanelOpen(false)}>
@@ -43,69 +120,26 @@ export function SettingsPanel() {
           </button>
         </header>
 
-        <section className="settings-group" aria-label="Room">
-          <h3 className="label">Room</h3>
-          <Choice<TextSize>
-            legend="Text size"
-            value={settings.textSize}
-            options={[
-              ['small', 'Small'],
-              ['medium', 'Medium'],
-              ['large', 'Large'],
-            ]}
-            onChange={(textSize) => change({ textSize })}
-          />
-          <Choice<Theme>
-            legend="Theme"
-            value={settings.theme}
-            options={[
-              ['system', 'System'],
-              ['light', 'Light'],
-              ['dark', 'Dark'],
-            ]}
-            onChange={(theme) => change({ theme })}
-          />
-          <Choice<Settings['talkMode'] | 'speech'>
-            legend="How you talk"
-            value={settings.talkMode}
-            options={[
-              ['click', 'Click to talk'],
-              ['speech', 'Speech detection'],
-            ]}
-            unavailable={{ speech: 'Arrives with the mic' }}
-            onChange={() => change({ talkMode: 'click' })}
-          />
-          <Toggle
-            label="Show the transcript when a round starts"
-            checked={settings.transcriptShown}
-            onChange={(transcriptShown) => change({ transcriptShown })}
-          />
-          <div className="settings-row">
-            <span>Panel sizes</span>
-            <button
-              type="button"
-              disabled={settings.problemWidth === null && settings.conversationHeight === null}
-              onClick={() => change({ problemWidth: null, conversationHeight: null })}
-            >
-              Reset panel sizes
-            </button>
-          </div>
-        </section>
-
-        <section className="settings-group" aria-label="Editor">
-          <h3 className="label">Editor</h3>
-          <LanguagePicker value={settings.language} onChange={(language) => change({ language })} />
-          <Toggle
-            label="Autocomplete"
-            checked={settings.autocomplete}
-            onChange={(autocomplete) => change({ autocomplete })}
-          />
-          <Toggle
-            label="Syntax highlighting"
-            checked={settings.highlighting}
-            onChange={(highlighting) => change({ highlighting })}
-          />
-        </section>
+        <div className="settings-body">
+          <nav className="settings-categories" role="tablist" aria-orientation="vertical" aria-label="Categories">
+            {categories.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`${id}-${key}`}
+                aria-selected={category === key}
+                aria-controls={`${id}-page`}
+                onClick={() => setCategory(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <section className="settings-page" role="tabpanel" id={`${id}-page`} aria-labelledby={`${id}-${category}`}>
+            {pages[category]}
+          </section>
+        </div>
 
         <p className="settings-note label">Saved on this computer. Nothing here changes how you are judged.</p>
       </div>

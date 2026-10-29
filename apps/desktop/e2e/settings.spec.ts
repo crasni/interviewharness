@@ -21,10 +21,25 @@ async function openSettings() {
   await expect(settings()).toBeVisible();
 }
 
+/** Shows one category of Settings: Appearance, Interview or Editor. */
+async function showCategory(name: string) {
+  await settings().getByRole('tab', { name }).click();
+}
+
 async function startRound() {
   await window.getByRole('button', { name: 'Start coding round' }).click();
   await expect(editor()).toBeVisible();
 }
+
+test('settings are sorted into Appearance, Interview and Editor', async () => {
+  await openSettings();
+  await expect(settings().getByRole('tab')).toHaveText(['Appearance', 'Interview', 'Editor']);
+  await expect(settings().getByRole('tab', { name: 'Appearance' })).toHaveAttribute('aria-selected', 'true');
+  await expect(settings().getByRole('tabpanel')).toContainText('Text size');
+  await showCategory('Editor');
+  await expect(settings().getByRole('tabpanel')).toContainText('Code language');
+  await expect(settings().getByRole('tabpanel')).not.toContainText('Text size');
+});
 
 test('settings open from the start screen and the room, by button or shortcut, and close with Escape', async () => {
   await openSettings();
@@ -55,20 +70,25 @@ test('theme overrides the system setting', async () => {
   const onSwitch = () => settings().getByRole('switch', { name: 'Autocomplete' });
   await settings().getByText('Dark', { exact: true }).click();
   await expect(body()).toHaveCSS('background-color', 'rgb(25, 25, 24)');
+  await showCategory('Editor');
   await expect(onSwitch()).toHaveCSS('background-color', 'rgb(236, 236, 232)');
+  await showCategory('Appearance');
   await settings().getByText('Light', { exact: true }).click();
   await expect(body()).toHaveCSS('background-color', 'rgb(244, 244, 242)');
+  await showCategory('Editor');
   await expect(onSwitch()).toHaveCSS('background-color', 'rgb(26, 26, 25)');
 });
 
 test('click to talk is the only way to talk until the mic arrives', async () => {
   await openSettings();
+  await showCategory('Interview');
   await expect(settings().getByRole('radio', { name: 'Click to talk' })).toBeChecked();
   await expect(settings().getByRole('radio', { name: 'Speech detection' })).toBeDisabled();
 });
 
 test('with the transcript off by default, a round opens with only the current line', async () => {
   await openSettings();
+  await showCategory('Interview');
   await settings().getByRole('switch', { name: 'Show the transcript when a round starts' }).uncheck();
   await window.keyboard.press('Escape');
   await startRound();
@@ -85,6 +105,7 @@ test('the code language changes indentation live, and the code stays', async () 
   await expect(editor().locator('.cm-line').nth(1)).toHaveText('    x');
 
   await openSettings();
+  await showCategory('Editor');
   await settings().getByLabel('Code language').selectOption('JavaScript');
   await window.keyboard.press('Escape');
   await expect(editor()).toContainText('def f():');
@@ -105,6 +126,7 @@ test('syntax highlighting can be turned off', async () => {
   await expect(editor().locator('.cm-line span')).not.toHaveCount(0);
 
   await openSettings();
+  await showCategory('Editor');
   await settings().getByRole('switch', { name: 'Syntax highlighting' }).uncheck();
   await expect(editor().locator('.cm-line span')).toHaveCount(0);
 });
@@ -120,6 +142,7 @@ test('autocomplete offers names already in the code, once each, and can be turne
   await window.keyboard.press('Escape');
 
   await openSettings();
+  await showCategory('Editor');
   await settings().getByRole('switch', { name: 'Autocomplete' }).uncheck();
   await window.keyboard.press('Escape');
   await editor().click();

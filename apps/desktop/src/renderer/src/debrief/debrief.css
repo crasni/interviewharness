@@ -1,16 +1,47 @@
+/* One window tall: the head and the way out stay put; only the feedback between them scrolls. */
 .debrief {
   display: grid;
-  align-content: start;
-  gap: var(--space-8);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(var(--reading-width), 100%);
-  min-height: 100%;
+  height: 100%;
   margin: 0 auto;
-  padding: var(--space-16) var(--space-6);
+  padding: var(--space-8) var(--space-6) var(--space-6);
 }
 
 .debrief-head {
   display: grid;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+}
+
+.debrief-heading {
+  display: grid;
   gap: var(--space-2);
+}
+
+/* Hairlines above and below mark where the text scrolls under; the scrollbar is darker than elsewhere. */
+.debrief-feedback {
+  display: grid;
+  align-content: start;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-3) var(--space-6) 0;
+  overflow-y: auto;
+  border-top: var(--rule);
+  border-bottom: var(--rule);
+  scrollbar-gutter: stable;
+}
+
+.debrief-feedback:focus-visible {
+  outline-offset: calc(-1 * var(--hairline));
+}
+
+.debrief-feedback::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  background-clip: padding-box;
+}
+
+.debrief-foot {
+  padding-top: var(--space-4);
 }
 
 .debrief-title {
