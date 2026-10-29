@@ -12,12 +12,7 @@
   box-shadow: var(--shadow-modal);
 }
 
-/*
- * The dim starts below the top bar: the native window buttons sit on a strip the page can't paint,
- * so a dimmed bar would leave them in a lighter box. The bar is still inert while the dialog is open.
- */
 .settings::backdrop {
-  inset: var(--bar-height) 0 0;
   background: var(--scrim);
 }
 

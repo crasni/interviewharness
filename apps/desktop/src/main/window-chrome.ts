@@ -23,19 +23,24 @@ export function installAppMenu() {
 const themeColours = () =>
   nativeTheme.shouldUseDarkColors ? { canvas: '#191918', ink: '#ecece8' } : { canvas: '#f4f4f2', ink: '#1a1a19' };
 
+const transparent = '#00000000';
+
 /** The top bar's height in px; the room's bar matches it (--bar-height in tokens.css). */
 const barHeight = 48;
 
 /**
  * No system title bar: the app's own top bar is the window's top edge, and the native window buttons
  * sit over its right end (its left on macOS). The page keeps clear of them via env(titlebar-area-*).
+ *
+ * The buttons' strip is transparent, so the page shows through it: whatever the page paints there
+ * (its bar, the dim behind a dialog, a theme change) the strip matches, with no colour of its own to sync.
  */
 export function windowChromeOptions(): BrowserWindowConstructorOptions {
   const { canvas, ink } = themeColours();
   return {
     backgroundColor: canvas,
     titleBarStyle: 'hidden',
-    titleBarOverlay: process.platform === 'darwin' ? true : { color: canvas, symbolColor: ink, height: barHeight },
+    titleBarOverlay: process.platform === 'darwin' ? true : { color: transparent, symbolColor: ink, height: barHeight },
     trafficLightPosition: { x: 16, y: (barHeight - 16) / 2 },
   };
 }
@@ -44,7 +49,7 @@ export function windowChromeOptions(): BrowserWindowConstructorOptions {
 export function followTheme(window: BrowserWindow) {
   const { canvas, ink } = themeColours();
   window.setBackgroundColor(canvas);
-  if (process.platform !== 'darwin') window.setTitleBarOverlay({ color: canvas, symbolColor: ink, height: barHeight });
+  if (process.platform !== 'darwin') window.setTitleBarOverlay({ color: transparent, symbolColor: ink, height: barHeight });
 }
 
 const zoomStep = 0.5;
