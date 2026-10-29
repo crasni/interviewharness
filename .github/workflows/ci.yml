@@ -1,0 +1,62 @@
+# Every push and pull request is checked on all three operating systems, so a cross-platform break fails the build.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm's version comes from `packageManager` in package.json; Node's from .node-version.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # The install also downloads Electron itself (the desktop app's postinstall).
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Chromium's sandbox needs; allow them for this runner.
+      - name: Allow Electron's sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # The window is hidden in tests, but Linux still needs a display server to start Electron at all.
+      - name: End-to-end tests (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum pnpm test:e2e
+      - name: End-to-end tests
+        if: runner.os != 'Linux'
+        run: pnpm test:e2e
+
+      - name: Upload traces of failed end-to-end tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-traces-${{ matrix.os }}
+          path: apps/desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 14

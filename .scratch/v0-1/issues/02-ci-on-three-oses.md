@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (written and checked locally; the first push will show whether it passes on all three runners)
 
-- [ ] A GitHub Actions workflow runs on push and pull request with a matrix of macOS, Windows and Linux runners
-- [ ] Each runner installs with the pinned pnpm and Node versions and runs typecheck, lint, unit tests and end-to-end tests
+- [x] A GitHub Actions workflow runs on push and pull request with a matrix of macOS, Windows and Linux runners
+- [x] Each runner installs with the pinned pnpm and Node versions and runs typecheck, lint, unit tests and end-to-end tests
 - [ ] End-to-end tests pass on all three runners (Linux under a virtual display)
-- [ ] Playwright traces or screenshots are uploaded as artifacts when an end-to-end test fails
-- [ ] The workflow uses no secrets and no network beyond installing dependencies
+- [x] Playwright traces or screenshots are uploaded as artifacts when an end-to-end test fails
+- [x] The workflow uses no secrets and no network beyond installing dependencies
 
 Spec: `.scratch/v0-1/spec.md`.

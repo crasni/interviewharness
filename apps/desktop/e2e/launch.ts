@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { _electron as electron, type ElectronApplication, expect, type Page } from '@playwright/test';
+import { _electron as electron, type ElectronApplication, expect, type Page, test } from '@playwright/test';
 
 export const talkButton = (window: Page) => window.getByRole('button', { name: 'Talk', exact: true });
 export const stopTalkingButton = (window: Page) => window.getByRole('button', { name: 'Stop talking' });
@@ -16,6 +16,8 @@ export async function launchApp() {
     // No emulated colour scheme: Playwright's default (light) would hide the theme the app sets itself.
     colorScheme: null,
   });
+  // On CI, record a trace so a failure on an OS nobody has at hand can still be looked into.
+  if (process.env.CI) await app.context().tracing.start({ screenshots: true, snapshots: true });
   const window = await app.firstWindow();
   return { app, window, dataDir };
 }
@@ -55,7 +57,18 @@ export function readRoundLog(dataDir: string) {
 
 /** Closes the app; if Electron hangs on close (rare, seen once in ~50 runs), kills the process instead. */
 export async function closeApp(app: ElectronApplication) {
+  if (process.env.CI) await saveTraceIfFailed(app);
   const closed = app.close().then(() => true);
   const timedOut = new Promise<false>((resolve) => setTimeout(() => resolve(false), 5_000));
   if (!(await Promise.race([closed, timedOut]))) app.process().kill('SIGKILL');
+}
+
+/** Keeps the trace of a failed test in its output folder (uploaded by CI); drops it otherwise. */
+async function saveTraceIfFailed(app: ElectronApplication) {
+  const info = test.info();
+  const failed = info.status !== info.expectedStatus;
+  await app
+    .context()
+    .tracing.stop(failed ? { path: info.outputPath('trace.zip') } : undefined)
+    .catch(() => {}); // a crashed app has no trace to give; the failure itself is what matters
 }
