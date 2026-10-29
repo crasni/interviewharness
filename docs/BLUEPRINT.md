@@ -327,7 +327,7 @@ Packages that stand alone and could become separate open-source wins: **`board-g
 
 | Milestone | Scope | "Wow" moment |
 |---|---|---|
-| **v0.0 Interview room** | Real Electron scaffold; start, room and debrief screens; early Floor Manager with canned lines, no AI, no mic (spec: issue #1) | The look and feel |
+| **v0.0 Interview room** | Real Electron scaffold; start, room and debrief screens; early Floor Manager with canned lines, no AI, no mic (spec: `.scratch/v0-0/spec.md`) | The look and feel |
 | **v0.1 Coding, text-first** (2–3 wk) | Providers (pi-ai + OpenAI-compatible + Ollama), safeStorage, CodeMirror, Pyodide/QuickJS runner, phase machine, 10 original problems, scorecard with evidence | A real interview on a local model, offline |
 | **v0.2 Voice** (3–4 wk) | AudioWorklet, Silero, Smart Turn, sherpa-onnx local STT + Kokoro, Deepgram Flux, Floor Manager v1, backchannels, barge-in, push-to-talk | **"It stayed quiet while I thought, and said 'mm-hm'"** |
 | **v0.3 Debrief and evals** | Replay timeline, decision ticks, floor eval harness, grader median sampling | "Why did it stay quiet here?" made visible |

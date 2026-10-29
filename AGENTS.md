@@ -43,10 +43,10 @@ Inspired by [LearnHarness](https://github.com/amosblomqvist/learnharness) (AGPL)
 ## Agent skills
 
 ### Issue tracker
-GitHub Issues, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Local markdown under `.scratch/<feature>/` for the owner's work; GitHub Issues only for community reports. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
-The five defaults: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+The five default roles, written as a `Status:` line in each `.scratch/` ticket. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 Single-context: `GLOSSARY.md` at the root plus `docs/adr/`; D1–D13 stay in `docs/DECISIONS.md`. See `docs/agents/domain.md`.

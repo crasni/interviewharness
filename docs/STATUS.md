@@ -18,11 +18,11 @@ _Last updated: 2026-10-29_
 - Domain is bought, but DNS, website and email aren't set up (next: Cloudflare Pages landing page, Email Routing for hello@).
 
 ## Next steps (in order)
-1. **v0.0 interview room**, spec in issue #1. Built inside the real scaffold (merges the old prototype and scaffold steps):
+1. **v0.0 interview room**, spec in `.scratch/v0-0/spec.md`. Built inside the real scaffold (merges the old prototype and scaffold steps):
    - Electron + Vite + React + TS, pnpm workspaces + Turborepo; only the desktop app, `core` and `engine` for now
    - Start, room and debrief screens; early Floor Manager with lines from an example-lines file; no AI, no mic
    - Tests at two seams: the Floor Manager (fake clock) and the room UI (Playwright)
-   - Next: `/to-tickets` to split issue #1
+   - Tickets: `.scratch/v0-0/issues/` (start with 01, the walking skeleton)
 2. **v0.1:**
    - Provider layer (pi-ai + OpenAI-compatible + Ollama), safeStorage keys
    - Pyodide/QuickJS runner
