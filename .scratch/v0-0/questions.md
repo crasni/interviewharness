@@ -85,3 +85,33 @@ Strict black and white leaves no grey. **Default taken:** the candidate's words 
 - Speaking time is estimated at ~15 characters a second (min 1 s), since there's no audio yet.
 - The answer lines are deliberately generic ("Assume the simplest reasonable case"): v0.0 has no AI to answer the real question.
 **Your call:** nothing needed unless one of these feels wrong in `pnpm dev`.
+
+## From ticket 05 (phases)
+
+### Q16: How long each phase "should" take
+**Default taken** (45-minute coding round, `codingPhaseShares` in `packages/engine/src/round.ts`): Clarify 5, Approach 7, Code 18, Test 7, Complexity 5, Wrap-up 3 minutes. Running past a share makes the interviewer offer to move on; it never moves on alone.
+**Your call:** tune the split.
+
+### Q17: How the candidate answers "Want to move on?"
+**Default taken:**
+- Two literal buttons appear while a suggestion is up: **Move on** / **Not yet**.
+- Typing a line that starts with yes / yeah / sure / okay / sounds good / go ahead / let's go / let's move on also accepts.
+- Carrying on talking or typing anything else counts as "not yet".
+- An unanswered suggestion is withdrawn after **60 s** (also "not yet").
+- After "not yet", the next suggestion waits **2 min**, then 4, then 8 (resets in a new phase). "Not yet" gets a short acknowledgement ("Got it.").
+**Your call:** OK? Keep the buttons once voice arrives?
+
+### Q18: When the candidate "seems done"
+**Default taken:**
+- They say so: "that's it", "that's all", "I'm done", "let's move on", "ready to move on". This is offered **even during the back-off** (an explicit word beats a timer).
+- Or **15 s of quiet after the interviewer acknowledged a statement** they finished. Not after answering their question (they're likely still thinking), not after a pause mid-turn, not right after moving to a new phase, and never in wrap-up.
+**Your call:** tune the phrases and the 15 s.
+
+### Q19: Smaller phase behaviours
+- If the candidate talks over the intro, it isn't replayed.
+- Wrap-up opens with "That's about time. Do you have any questions for me?" and the interviewer suggests nothing after that.
+- The intro no longer mentions "45 minutes", so the round length lives in one place (the engine).
+
+### Q20: "Hold Space to talk" has no border now
+Next to the Move on / Not yet buttons, the bordered status looked clickable. **Default taken:** it's plain text at rest and inverted while talking.
+**Your call:** OK?

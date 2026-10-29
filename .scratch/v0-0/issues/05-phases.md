@@ -6,14 +6,14 @@ Spec: `.scratch/v0-0/spec.md`
 
 **Blocked by:** 04 (typing what you said: acknowledgement vs answer)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Coding round phases: Clarify, Approach, Code, Test, Complexity, Wrap-up
-- [ ] An intro line plays when the round starts
-- [ ] A phase suggestion is made on time overrun (default time shares in the engine) and when the candidate seems done
-- [ ] Accepting advances the phase and updates the top bar
-- [ ] Declining keeps the phase; the next suggestion waits longer
-- [ ] The phase never advances without the candidate agreeing
-- [ ] Wrap-up includes "any questions for me?"
-- [ ] Engine tests cover overrun, seems-done, accept, decline and back-off
-- [ ] Playwright test: accept a suggestion and see the phase change
+- [x] Coding round phases: Clarify, Approach, Code, Test, Complexity, Wrap-up
+- [x] An intro line plays when the round starts
+- [x] A phase suggestion is made on time overrun (default time shares in the engine) and when the candidate seems done
+- [x] Accepting advances the phase and updates the top bar
+- [x] Declining keeps the phase; the next suggestion waits longer
+- [x] The phase never advances without the candidate agreeing
+- [x] Wrap-up includes "any questions for me?"
+- [x] Engine tests cover overrun, seems-done, accept, decline and back-off
+- [x] Playwright test: accept a suggestion and see the phase change
