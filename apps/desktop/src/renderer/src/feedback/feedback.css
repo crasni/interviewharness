@@ -1,5 +1,5 @@
 /* One window tall: the head and the way out stay put; only the feedback between them scrolls. */
-.debrief {
+.feedback {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(var(--reading-width), 100%);
@@ -8,19 +8,19 @@
   padding: var(--space-8) var(--space-6) var(--space-6);
 }
 
-.debrief-head {
+.feedback-head {
   display: grid;
   gap: var(--space-6);
   padding-bottom: var(--space-6);
 }
 
-.debrief-heading {
+.feedback-heading {
   display: grid;
   gap: var(--space-2);
 }
 
 /* Hairlines above and below mark where the text scrolls under; the scrollbar is darker than elsewhere. */
-.debrief-feedback {
+.feedback-body {
   display: grid;
   align-content: start;
   gap: var(--space-8);
@@ -31,20 +31,20 @@
   scrollbar-gutter: stable;
 }
 
-.debrief-feedback:focus-visible {
+.feedback-body:focus-visible {
   outline-offset: calc(-1 * var(--hairline));
 }
 
-.debrief-feedback::-webkit-scrollbar-thumb {
+.feedback-body::-webkit-scrollbar-thumb {
   background: var(--muted);
   background-clip: padding-box;
 }
 
-.debrief-foot {
+.feedback-foot {
   padding-top: var(--space-4);
 }
 
-.debrief-title {
+.feedback-title {
   font-family: var(--font-voice);
   font-size: var(--text-2xl);
   line-height: var(--leading-2xl);
@@ -52,7 +52,7 @@
   letter-spacing: var(--tracking-display);
 }
 
-.debrief-head p {
+.feedback-head p {
   color: var(--muted);
 }
 
@@ -85,24 +85,24 @@
   font-weight: var(--weight-bold);
 }
 
-.debrief-section {
+.feedback-section {
   display: grid;
   gap: var(--space-3);
 }
 
-.debrief-section > p {
+.feedback-section > p {
   font-family: var(--font-voice);
   font-size: var(--text-voice);
   line-height: var(--leading-voice);
 }
 
-.debrief-points {
+.feedback-points {
   list-style: none;
   display: grid;
   gap: var(--space-3);
 }
 
-.debrief-points li {
+.feedback-points li {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: var(--space-4);
@@ -112,11 +112,11 @@
   border-radius: var(--radius-md);
 }
 
-.debrief-points p {
+.feedback-points p {
   line-height: var(--leading-lg);
 }
 
-.debrief-moment {
+.feedback-moment {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--leading-lg);

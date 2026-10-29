@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The screen after a round is titled and labelled Feedback; no UI text says Debrief
-- [ ] Code identifiers, module names and end-to-end test names use Feedback; a search of the app and engine for "debrief" finds nothing
-- [ ] `.gitattributes` exists with `* text=auto eol=lf`, and the repo renormalises cleanly
-- [ ] Typecheck, lint, unit and end-to-end tests pass
+- [x] The screen after a round is titled and labelled Feedback; no UI text says Debrief
+- [x] Code identifiers, module names and end-to-end test names use Feedback; a search of the app and engine for "debrief" finds nothing
+- [x] `.gitattributes` exists with `* text=auto eol=lf`, and the repo renormalises cleanly
+- [x] Typecheck, lint, unit and end-to-end tests pass
 
 Spec: `.scratch/v0-1/spec.md`.

@@ -14,7 +14,7 @@ export interface Feedback {
 }
 
 /**
- * Sample feedback, so the debrief's layout can be judged before real grading exists.
+ * Sample feedback, so the Feedback screen's layout can be judged before real grading exists.
  * From v0.1 the AI interviewer writes this from the round's transcript and code.
  */
 export const sampleFeedback: Feedback = {

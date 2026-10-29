@@ -14,15 +14,15 @@ test.afterEach(async () => {
   await closeApp(app);
 });
 
-const debrief = () => window.getByRole('main', { name: 'Debrief' });
+const feedbackScreen = () => window.getByRole('main', { name: 'Feedback' });
 
-test('ending the round leads to the debrief, clearly marked as sample feedback', async () => {
-  await expect(debrief().getByRole('heading', { name: 'Debrief' })).toBeVisible();
-  await expect(debrief()).toContainText('Sample feedback');
+test('ending the round leads to the Feedback screen, clearly marked as sample feedback', async () => {
+  await expect(feedbackScreen().getByRole('heading', { name: 'Feedback' })).toBeVisible();
+  await expect(feedbackScreen()).toContainText('Sample feedback');
 });
 
-test('the debrief gives a verdict on the six-level scale, with reasons', async () => {
-  const scale = debrief().getByRole('list', { name: 'Verdict' });
+test('the Feedback screen gives a verdict on the six-level scale, with reasons', async () => {
+  const scale = feedbackScreen().getByRole('list', { name: 'Verdict' });
   await expect(scale.getByRole('listitem')).toHaveText([
     'Strong hire',
     'Hire',
@@ -32,19 +32,19 @@ test('the debrief gives a verdict on the six-level scale, with reasons', async (
     'Strong no hire',
   ]);
   await expect(scale.locator('[aria-current="true"]')).toHaveText('Lean hire');
-  await expect(debrief().getByRole('region', { name: 'Why' })).not.toBeEmpty();
+  await expect(feedbackScreen().getByRole('region', { name: 'Why' })).not.toBeEmpty();
 });
 
 test('each point of feedback is tied to a moment in the round', async () => {
   for (const section of ['What went well', 'What to fix']) {
-    const points = debrief().getByRole('region', { name: section }).getByRole('listitem');
+    const points = feedbackScreen().getByRole('region', { name: section }).getByRole('listitem');
     await expect(points.first()).toBeVisible();
     for (const point of await points.all()) await expect(point).toContainText(/\d\d:\d\d/);
   }
 });
 
-test('the debrief shows no metrics, and leads back to the start screen', async () => {
-  await expect(debrief().getByText(/score|%|chart/i)).toHaveCount(0);
+test('the Feedback screen shows no metrics, and leads back to the start screen', async () => {
+  await expect(feedbackScreen().getByText(/score|%|chart/i)).toHaveCount(0);
 
   await window.getByRole('button', { name: 'Back to start' }).click();
 
@@ -52,15 +52,15 @@ test('the debrief shows no metrics, and leads back to the start screen', async (
 });
 
 test("the round's log ends with the round ending, so a replay can tell it from a crash", async () => {
-  await expect(debrief()).toBeVisible();
+  await expect(feedbackScreen()).toBeVisible();
   expect(readRoundLog(dataDir).at(-1)).toMatchObject({ signal: { type: 'round-end' } });
 });
 
-test('in a short window the debrief still fits: only the feedback scrolls, the verdict and the way out stay', async () => {
+test('in a short window the Feedback screen still fits: only the feedback scrolls, the verdict and the way out stay', async () => {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1000, 480));
-  const feedback = debrief().getByLabel('Feedback');
-  await expect.poll(() => feedback.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-  expect(await debrief().evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+  const written = feedbackScreen().getByLabel('Written feedback');
+  await expect.poll(() => written.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect(await feedbackScreen().evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
 
   // Measured by hand: toBeInViewport waits on frames, which a hidden window doesn't draw.
   const onScreen = (locator: Locator) =>
@@ -68,8 +68,8 @@ test('in a short window the debrief still fits: only the feedback scrolls, the v
       const box = el.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= el.ownerDocument.documentElement.clientHeight;
     });
-  await feedback.evaluate((el) => el.scrollTo(0, el.scrollHeight));
-  expect(await onScreen(debrief().getByRole('heading', { name: 'Debrief' }))).toBe(true);
-  expect(await onScreen(debrief().getByRole('list', { name: 'Verdict' }))).toBe(true);
+  await written.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect(await onScreen(feedbackScreen().getByRole('heading', { name: 'Feedback' }))).toBe(true);
+  expect(await onScreen(feedbackScreen().getByRole('list', { name: 'Verdict' }))).toBe(true);
   expect(await onScreen(window.getByRole('button', { name: 'Back to start' }))).toBe(true);
 });
