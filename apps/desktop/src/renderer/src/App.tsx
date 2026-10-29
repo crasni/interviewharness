@@ -1,5 +1,6 @@
 import type { RoundSnapshot } from '@interviewharness/engine';
 import { useState } from 'react';
+import type { Settings } from '../../shared/settings.ts';
 import { FeedbackScreen } from './feedback/FeedbackScreen.tsx';
 import { Room } from './room/Room.tsx';
 import { SettingsPanel } from './settings/SettingsPanel.tsx';
@@ -8,9 +9,9 @@ import { StartScreen } from './start/StartScreen.tsx';
 
 type Screen = { name: 'start' } | { name: 'room'; round: RoundSnapshot } | { name: 'feedback'; round: RoundSnapshot };
 
-export function App() {
+export function App({ settings }: { settings: Settings }) {
   return (
-    <SettingsProvider>
+    <SettingsProvider initial={settings}>
       <div className="window-drag" aria-hidden="true" />
       <Screens />
       <SettingsPanel />

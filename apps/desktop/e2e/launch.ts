@@ -6,9 +6,8 @@ import { _electron as electron, type ElectronApplication, expect, type Page, tes
 export const talkButton = (window: Page) => window.getByRole('button', { name: 'Talk', exact: true });
 export const stopTalkingButton = (window: Page) => window.getByRole('button', { name: 'Stop talking' });
 
-/** Launches the built app in a hidden window, with its own throwaway data folder. */
-export async function launchApp() {
-  const dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-'));
+/** Launches the built app in a hidden window, with its own throwaway data folder (or `dataDir`, to relaunch). */
+export async function launchApp(dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-'))) {
   const app = await electron.launch({
     args: ['.'],
     cwd: join(import.meta.dirname, '..'),

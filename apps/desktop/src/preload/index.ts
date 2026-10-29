@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { channels, type HarnessApi, type SpokenDecision } from '../shared/api.ts';
+import type { Settings } from '../shared/settings.ts';
 
 const api: HarnessApi = {
   startRound: (kind) => ipcRenderer.invoke(channels.startRound, kind),
@@ -12,6 +13,15 @@ const api: HarnessApi = {
     return () => ipcRenderer.off(channels.decision, handler);
   },
   setTheme: (theme) => ipcRenderer.invoke(channels.setTheme, theme),
+  settings: {
+    get: () => ipcRenderer.invoke(channels.getSettings),
+    change: (changes) => ipcRenderer.send(channels.changeSettings, changes),
+    onChange(listener) {
+      const handler = (_event: IpcRendererEvent, values: Settings) => listener(values);
+      ipcRenderer.on(channels.settingsChanged, handler);
+      return () => ipcRenderer.off(channels.settingsChanged, handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('harness', api);

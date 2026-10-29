@@ -5,7 +5,9 @@ import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
+import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
+import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
 
 const systemClock = { now: () => performance.now() };
@@ -13,6 +15,10 @@ const systemClock = { now: () => performance.now() };
 const dataDir = () => process.env.INTERVIEWHARNESS_DATA_DIR ?? app.getPath('userData');
 // With a throwaway folder, keep everything there (browser storage too), so tests never touch the real profile.
 if (process.env.INTERVIEWHARNESS_DATA_DIR) app.setPath('userData', process.env.INTERVIEWHARNESS_DATA_DIR);
+// v0.0's data folder was named after the npm package; the app's name (productName) now names it.
+else carryOverOldDataFolder(join(app.getPath('appData'), '@interviewharness', 'desktop'), dataDir());
+
+const settings = openSettingsFile(dataDir());
 
 let window: BrowserWindow | null = null;
 let round: ActiveRound | null = null;
@@ -56,6 +62,16 @@ ipcMain.handle(channels.setTheme, (_event, theme: unknown) => {
   return nativeTheme.shouldUseDarkColors;
 });
 
+ipcMain.handle(channels.getSettings, () => ({ values: settings.values(), fresh: settings.fresh }));
+
+ipcMain.on(channels.changeSettings, (event, changes: unknown) => {
+  const values = settings.change(changes); // validated there: the renderer is not trusted
+  // The window that made the change already shows it; any other is told.
+  for (const other of BrowserWindow.getAllWindows()) {
+    if (other.webContents !== event.sender) other.webContents.send(channels.settingsChanged, values);
+  }
+});
+
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
 
@@ -93,5 +109,6 @@ void app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   endCurrentRound();
-  app.quit();
+  // The last change may still be on its way to disk.
+  void settings.flush().finally(() => app.quit());
 });

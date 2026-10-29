@@ -1,5 +1,6 @@
 import type { RoundKind } from '@interviewharness/core';
 import type { Decision, RoundSnapshot, Signal } from '@interviewharness/engine';
+import type { Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
 export const candidateSignalTypes = [
@@ -32,6 +33,15 @@ export interface HarnessApi {
    * Resolves to whether the app is now dark.
    */
   setTheme(theme: Theme): Promise<boolean>;
+  /** The candidate's settings, kept by main in settings.json. */
+  settings: {
+    /** The settings now in force, and whether settings.json was new this launch. */
+    get(): Promise<{ values: Settings; fresh: boolean }>;
+    /** Changes some settings. Main keeps only valid ones. */
+    change(changes: Partial<Settings>): void;
+    /** Subscribes to changes made elsewhere (main, or another window); returns an unsubscribe function. */
+    onChange(listener: (values: Settings) => void): () => void;
+  };
 }
 
 export const channels = {
@@ -41,6 +51,9 @@ export const channels = {
   signal: 'floor:signal',
   decision: 'floor:decision',
   setTheme: 'window:theme',
+  getSettings: 'settings:get',
+  changeSettings: 'settings:change',
+  settingsChanged: 'settings:changed',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {
