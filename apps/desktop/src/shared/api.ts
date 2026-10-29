@@ -1,5 +1,5 @@
 import type { RoundKind } from '@interviewharness/core';
-import type { Decision, RoundSnapshot, Signal } from '@interviewharness/engine';
+import type { InterviewerEvent, RoundSnapshot, Signal } from '@interviewharness/engine';
 import type { Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
@@ -16,8 +16,8 @@ export type CandidateSignal = Extract<Signal, { type: (typeof candidateSignalTyp
 export const themes = ['system', 'light', 'dark'] as const;
 export type Theme = (typeof themes)[number];
 
-/** Decisions worth showing: everything except staying silent. */
-export type SpokenDecision = Exclude<Decision, { kind: 'silent' }>;
+/** What the room is told: the interviewer's decisions worth showing, and notices about its model. */
+export type { InterviewerEvent };
 
 // The only surface the renderer has into the main process.
 export interface HarnessApi {
@@ -26,8 +26,8 @@ export interface HarnessApi {
   /** Ends the round in progress and returns how it ended. */
   endRound(): Promise<RoundSnapshot | null>;
   signal(signal: CandidateSignal): void;
-  /** Subscribes to the interviewer's decisions; returns an unsubscribe function. */
-  onDecision(listener: (decision: SpokenDecision) => void): () => void;
+  /** Subscribes to the interviewer's decisions and notices; returns an unsubscribe function. */
+  onDecision(listener: (event: InterviewerEvent) => void): () => void;
   /**
    * Sets the app's theme, so prefers-color-scheme, scrollbars and the window itself all follow it.
    * Resolves to whether the app is now dark.

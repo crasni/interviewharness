@@ -35,6 +35,17 @@
   flex: 1;
 }
 
+.room-notice {
+  margin-right: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  transition: opacity var(--fade) var(--ease);
+}
+
+.room-notice[data-faded='true'] {
+  opacity: 0;
+}
+
 .room-timer {
   margin-right: var(--space-2);
   font-family: var(--font-mono);

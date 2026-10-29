@@ -1,6 +1,6 @@
 import './presence-dot.css';
 
-export type PresenceState = 'listening' | 'nodding' | 'speaking';
+export type PresenceState = 'listening' | 'nodding' | 'preparing' | 'speaking';
 
 interface PresenceDotProps {
   state: PresenceState;
@@ -10,7 +10,7 @@ interface PresenceDotProps {
   onNodEnd?: () => void;
 }
 
-/** The interviewer's presence: breathes while listening, nods, shows a waveform while speaking. */
+/** The interviewer's presence: breathes while listening, nods, holds still while about to speak, shows a waveform while speaking. */
 export function PresenceDot({ state, size = 'small', onNodEnd }: PresenceDotProps) {
   return (
     <div className="presence" role="status" aria-label="Interviewer" data-state={state} data-size={size}>

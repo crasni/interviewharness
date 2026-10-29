@@ -1,8 +1,10 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { createLineBook } from '@interviewharness/engine';
+import { createLineBook, type Model } from '@interviewharness/engine';
+import { scriptedModel } from '@interviewharness/engine/test';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
+import problemFile from '../../../../content/problems/two-sum.md?raw';
 import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
@@ -19,6 +21,13 @@ if (process.env.INTERVIEWHARNESS_DATA_DIR) app.setPath('userData', process.env.I
 else carryOverOldDataFolder(join(app.getPath('appData'), '@interviewharness', 'desktop'), dataDir());
 
 const settings = openSettingsFile(dataDir());
+
+// End-to-end tests set this to a script of replies (see the engine's scriptedModel), so they run with no
+// network or keys. Real providers arrive with the model setup; until then, with no model, the
+// interviewer says the example lines as written.
+const model: Model | null = process.env.INTERVIEWHARNESS_FAKE_MODEL
+  ? scriptedModel(JSON.parse(process.env.INTERVIEWHARNESS_FAKE_MODEL)).model
+  : null;
 
 let window: BrowserWindow | null = null;
 let round: ActiveRound | null = null;
@@ -42,7 +51,10 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
     clock: systemClock,
     lines: createLineBook(linesFile),
     log: createEventsLog(dataDir(), new Date()),
-    onDecision: (decision) => window?.webContents.send(channels.decision, decision),
+    model,
+    problem: problemFile,
+    toneGuide: linesFile,
+    onEvent: (event) => window?.webContents.send(channels.decision, event),
   });
   return round.snapshot();
 });

@@ -1,17 +1,29 @@
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { ModelScript } from '@interviewharness/engine/test';
 import { _electron as electron, type ElectronApplication, expect, type Page, test } from '@playwright/test';
 
 export const talkButton = (window: Page) => window.getByRole('button', { name: 'Talk', exact: true });
 export const stopTalkingButton = (window: Page) => window.getByRole('button', { name: 'Stop talking' });
 
-/** Launches the built app in a hidden window, with its own throwaway data folder (or `dataDir`, to relaunch). */
-export async function launchApp(dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-'))) {
+/**
+ * Launches the built app in a hidden window, with its own throwaway data folder (or `dataDir`, to relaunch).
+ * With `model`, the interviewer's words come from that script of replies (the engine's scriptedModel).
+ */
+export async function launchApp({
+  dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-')),
+  model,
+}: { dataDir?: string; model?: ModelScript } = {}) {
   const app = await electron.launch({
     args: ['.'],
     cwd: join(import.meta.dirname, '..'),
-    env: { ...process.env, INTERVIEWHARNESS_DATA_DIR: dataDir, INTERVIEWHARNESS_HIDDEN_WINDOW: '1' },
+    env: {
+      ...process.env,
+      INTERVIEWHARNESS_DATA_DIR: dataDir,
+      INTERVIEWHARNESS_HIDDEN_WINDOW: '1',
+      ...(model ? { INTERVIEWHARNESS_FAKE_MODEL: JSON.stringify(model) } : {}),
+    },
     // No emulated colour scheme: Playwright's default (light) would hide the theme the app sets itself.
     colorScheme: null,
   });

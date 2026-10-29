@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { channels, type HarnessApi, type SpokenDecision } from '../shared/api.ts';
+import { channels, type HarnessApi, type InterviewerEvent } from '../shared/api.ts';
 import type { Settings } from '../shared/settings.ts';
 
 const api: HarnessApi = {
@@ -8,7 +8,7 @@ const api: HarnessApi = {
   endRound: () => ipcRenderer.invoke(channels.endRound),
   signal: (signal) => ipcRenderer.send(channels.signal, signal),
   onDecision(listener) {
-    const handler = (_event: IpcRendererEvent, decision: SpokenDecision) => listener(decision);
+    const handler = (_event: IpcRendererEvent, decision: InterviewerEvent) => listener(decision);
     ipcRenderer.on(channels.decision, handler);
     return () => ipcRenderer.off(channels.decision, handler);
   },

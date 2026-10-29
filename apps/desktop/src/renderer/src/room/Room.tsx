@@ -1,4 +1,4 @@
-import type { LaterPhase, RoundSnapshot } from '@interviewharness/engine';
+import type { LaterPhase, ModelErrorKind, RoundSnapshot } from '@interviewharness/engine';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
@@ -33,6 +33,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
   const backchannelTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
   const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
+  const notice = useNotice();
 
   const { talking, toggle: toggleTalking } = useTalking(
     useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
@@ -60,6 +61,15 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
             setBackchannelLine(decision.line);
             backchannelTimer.current = setTimeout(() => setBackchannelLine(null), backchannelShownFor);
             break;
+          case 'preparing':
+            setPresence('preparing');
+            break;
+          case 'stop-preparing':
+            setPresence('listening'); // nothing was said, so no line is cut off
+            break;
+          case 'model-failed':
+            notice.show(modelFailures[decision.error]);
+            break;
           case 'suggest-phase':
             setSuggestion(decision.next);
             break;
@@ -78,7 +88,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
             break;
         }
       }),
-    [subtitle.show, subtitle.finish, subtitle.clear, transcript.add, transcript.markCutOff],
+    [subtitle.show, subtitle.finish, subtitle.clear, transcript.add, transcript.markCutOff, notice.show],
   );
 
   useEffect(() => () => clearTimeout(backchannelTimer.current), []);
@@ -105,7 +115,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
     return () => clearInterval(id);
   }, []);
 
-  const tileLabel = backchannelLine ?? (presence === 'speaking' ? 'Speaking' : 'Listening');
+  const tileLabel = backchannelLine ?? tileLabels[presence];
   const measure = (selector: string, side: 'offsetWidth' | 'offsetHeight') =>
     room.current?.querySelector<HTMLElement>(selector)?.[side] ?? 0;
 
@@ -124,6 +134,11 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         <span data-testid="phase">{phaseLabels[round.phase]}</span>
         <span className="room-spacer" />
         {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
+        {notice.text && (
+          <span className="room-notice" role="status" aria-label="Notice" data-faded={notice.faded}>
+            {notice.text}
+          </span>
+        )}
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>
@@ -235,6 +250,42 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
 
 const backchannelShownFor = 1_500;
 
+const tileLabels: Record<PresenceState, string> = {
+  listening: 'Listening',
+  nodding: 'Listening',
+  preparing: 'Thinking',
+  speaking: 'Speaking',
+};
+
+/** What the room says when the model couldn't give the interviewer's words, and a stock line was said instead. */
+const modelFailures: Record<ModelErrorKind, string> = {
+  offline: "Couldn't reach the model, so the interviewer used a stock line.",
+  auth: 'The model login failed, so the interviewer used a stock line.',
+  'rate-limit': 'The model is rate-limited, so the interviewer used a stock line.',
+  timeout: 'The model took too long, so the interviewer used a stock line.',
+  'bad-output': 'The model gave no usable words, so the interviewer used a stock line.',
+  aborted: 'The model stopped, so the interviewer used a stock line.',
+  other: 'The model failed, so the interviewer used a stock line.',
+};
+
+/** How long a notice stays before it fades. */
+const noticeShownFor = 6_000;
+
+/** A small notice in the bar that fades on its own. */
+function useNotice() {
+  const [text, setText] = useState<string | null>(null);
+  const [faded, setFaded] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const show = useCallback((message: string) => {
+    clearTimeout(timer.current);
+    setText(message);
+    setFaded(false);
+    timer.current = setTimeout(() => setFaded(true), noticeShownFor);
+  }, []);
+  return { text, faded, show };
+}
+
 // Resize limits (px), so no area can be dragged out of use.
 const problemMin = 220;
 const editorMin = 360;
@@ -249,7 +300,7 @@ function sizeVar(name: string, px: number | null) {
 
 /** Dev-only: set the presence dot's state by hand to judge its look. */
 function PresenceControls({ state, onChange }: { state: PresenceState; onChange: (s: PresenceState) => void }) {
-  const states: PresenceState[] = ['listening', 'nodding', 'speaking'];
+  const states: PresenceState[] = ['listening', 'nodding', 'preparing', 'speaking'];
   return (
     <div className="room-dev" role="group" aria-label="Presence (dev)">
       {states.map((s) => (

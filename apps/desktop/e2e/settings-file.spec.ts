@@ -20,7 +20,7 @@ const body = () => window.locator('body');
 
 async function relaunch() {
   await closeApp(app);
-  ({ app, window } = await launchApp(dataDir));
+  ({ app, window } = await launchApp({ dataDir }));
 }
 
 test('settings are kept in settings.json in the data folder, and survive a restart', async () => {
@@ -40,7 +40,7 @@ test("v0.0's settings in browser storage are carried into settings.json once, th
   await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
   await closeApp(app);
   rmSync(join(dataDir, 'settings.json'));
-  ({ app, window } = await launchApp(dataDir));
+  ({ app, window } = await launchApp({ dataDir }));
 
   await expect(body()).toHaveCSS('font-size', '16.1px');
   expect(await window.evaluate(() => localStorage.getItem('settings'))).toBeNull();

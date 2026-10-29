@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { createFloorManager, startRound } from './index.ts';
+import { createFloorManager, type Decision, fallbackSituation, type FloorLogEntry, type Signal, startRound } from './index.ts';
 import { fakeClock, fakeLog, testLines } from './test/fakes.ts';
 
 function setup({ skipIntro = true } = {}) {
   const clock = fakeClock(10_000);
-  const log = fakeLog();
+  const log = fakeLog<FloorLogEntry>();
   const round = startRound('coding', clock);
-  const floor = createFloorManager({ clock, round, lines: testLines(), log });
+  const lines = testLines();
+  const manager = createFloorManager({ clock, round, lines, log });
+  // The words for each reply arrive at once, as the example line for it: these tests are about the
+  // Floor Manager's timing, not about where the words come from (the interviewer's tests cover that).
+  const floor = {
+    onSignal(signal: Signal): Decision {
+      const decision = manager.onSignal(signal);
+      if (decision.kind !== 'preparing') return decision;
+      return manager.onSignal({ type: 'words', line: lines.next(fallbackSituation(decision.reply)) });
+    },
+  };
 
   /** Advances time in 100 ms ticks, as the app does, and returns every decision made. */
   function wait(ms: number) {
@@ -86,13 +96,13 @@ describe('the Floor Manager', () => {
     wait(1_000);
 
     expect(log.entries).toEqual([
-      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
-      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
       {
         at: 22_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, interviewerSpeaking: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
       },
     ]);
   });

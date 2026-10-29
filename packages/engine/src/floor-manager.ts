@@ -14,15 +14,30 @@ export type Signal =
   | { type: 'editor-activity' }
   | { type: 'tick' }
   /** The round is over. Logged so a replay can tell an ended round from a crash; nothing is said after it. */
-  | { type: 'round-end' };
+  | { type: 'round-end' }
+  /** The words for the reply being prepared have arrived (from the model, or a fallback line). */
+  | { type: 'words'; line: string };
 
 /** A line the interviewer says aloud, holding the floor for about `speakingMs`. */
 export type Spoken<K extends string> = { kind: K; line: string; speakingMs: number };
+
+/**
+ * A reply the Floor Manager has decided to give, before its words exist. The kind and the moment are
+ * the Floor Manager's; the words come after, from the model.
+ */
+export type Reply =
+  | { kind: 'ack' }
+  | { kind: 'answer' }
+  | { kind: 'intro' }
+  | { kind: 'suggest-phase'; next: LaterPhase }
+  | { kind: 'move-on'; phase: LaterPhase };
 
 /** What the interviewer does at this moment. */
 export type Decision =
   | { kind: 'silent' }
   | { kind: 'backchannel'; line: string }
+  /** The interviewer takes the floor and holds it quietly while the words for `reply` are written. */
+  | { kind: 'preparing'; reply: Reply }
   /** An acknowledgement: takes the floor briefly after the candidate's turn, then hands it back. */
   | Spoken<'ack'>
   | Spoken<'answer'>
@@ -34,6 +49,8 @@ export type Decision =
   | (Spoken<'move-on'> & { phase: LaterPhase })
   /** Barge-in: the candidate talked or said something over the interviewer, so it stops mid-line. */
   | { kind: 'stop-speaking' }
+  /** Barge-in before the words arrived: the reply being prepared is dropped, and nothing was said. */
+  | { kind: 'stop-preparing' }
   /** The interviewer finished its line and hands the floor back. */
   | { kind: 'done-speaking' }
   /** A suggestion to move on is off the table: the candidate carried on, or never answered. */
@@ -42,8 +59,10 @@ export type Decision =
 /** What the Floor Manager knew when it decided. */
 export interface FloorState extends PhaseState {
   talking: boolean;
-  /** Whether the interviewer currently holds the floor. */
+  /** Whether the interviewer is saying a line. */
   interviewerSpeaking: boolean;
+  /** Whether the interviewer holds the floor waiting for the words of its reply. */
+  interviewerPreparing: boolean;
   /** How long the candidate's current (or most recent) stretch of talking lasted. */
   talkMs: number;
   /** How long the candidate has been silent, or null before they first talk. */
@@ -118,6 +137,8 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   let responseDueAt: number | null = null;
   let lastSaid: FloorState['lastSaid'] = null;
   let speakingUntil: number | null = null;
+  // The reply whose words are on their way, and whether it acknowledges a finished statement.
+  let preparing: { reply: Reply; turnAck: boolean } | null = null;
   // Whether the line being spoken acknowledges a finished statement; the quiet after it may mean "done".
   let speakingAck = false;
   let turnClosedAt: number | null = null;
@@ -131,6 +152,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     return {
       talking: talkingSince !== null,
       interviewerSpeaking: isSpeaking(now),
+      interviewerPreparing: preparing !== null,
       talkMs: talkingSince !== null ? now - talkingSince : talkMs,
       silenceMs: silentSince === null ? null : now - silentSince,
       sinceBackchannelMs: lastBackchannelAt === null ? null : now - lastBackchannelAt,
@@ -140,8 +162,12 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     };
   }
 
-  /** Stops the interviewer mid-line if it is speaking. */
+  /** Stops the interviewer mid-line if it is speaking, or drops the reply it is preparing. */
   function bargeIn(now: number): Decision {
+    if (preparing) {
+      preparing = null;
+      return { kind: 'stop-preparing' };
+    }
     if (!isSpeaking(now)) return silent;
     speakingUntil = null;
     return { kind: 'stop-speaking' };
@@ -162,31 +188,40 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       const next = phases.toOffer(now, 'candidate-said-done');
       if (next) return suggest(now, next);
     }
-    if (lastSaid === 'question') return speak(now, spoken('answer', lines.next('answer')));
-    const ack = speak(now, spoken('ack', lines.next('acknowledgement')));
-    speakingAck = true;
-    return ack;
+    if (lastSaid === 'question') return prepare({ kind: 'answer' });
+    return prepare({ kind: 'ack' }, { turnAck: true });
   }
 
   function suggest(now: number, next: LaterPhase) {
     phases.offer(next, now);
     turnClosedAt = null;
-    return speak(now, { ...spoken('suggest-phase', lines.next(`suggest-${next}`)), next });
+    return prepare({ kind: 'suggest-phase', next });
   }
 
-  function moveOn(now: number): Decision {
+  function moveOn(): Decision {
     const phase = phases.accept();
     if (!phase) return silent;
     turnClosedAt = null; // a new phase starts fresh: quiet now is not "done" with it
-    return speak(now, { ...spoken('move-on', lines.next(phase === 'wrap-up' ? 'wrap-up' : 'move-on')), phase });
+    return prepare({ kind: 'move-on', phase });
   }
 
-  /** The interviewer takes the floor for as long as the line takes to say. */
-  function speak<D extends Spoken<string>>(now: number, decision: D): D {
-    speakingUntil = now + decision.speakingMs;
-    speakingAck = false;
-    silentSince = null; // speaking fills the candidate's pause: there is nothing left to backchannel
-    return decision;
+  /** The interviewer takes the floor now, and holds it quietly until the words arrive. */
+  function prepare(reply: Reply, { turnAck = false } = {}): Decision {
+    preparing = { reply, turnAck };
+    speakingUntil = null;
+    silentSince = null; // taking the floor fills the candidate's pause: there is nothing left to backchannel
+    return { kind: 'preparing', reply };
+  }
+
+  /** The words arrived: the interviewer says them, holding the floor for as long as they take to say. */
+  function speak(now: number, line: string): Decision {
+    if (!preparing) return silent; // too late: a barge-in or the round's end already dropped this reply
+    const { reply, turnAck } = preparing;
+    preparing = null;
+    const speakingMs = speakingTime(line);
+    speakingUntil = now + speakingMs;
+    speakingAck = turnAck;
+    return { ...reply, line, speakingMs } as Decision;
   }
 
   function moveOnCue(now: number): MoveOnCue {
@@ -202,6 +237,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         if (talkingSince !== null) talkMs = now - talkingSince; // close the talk the candidate was in
         talkingSince = null;
         speakingUntil = null;
+        preparing = null;
         responseDueAt = null;
         return [silent, true];
 
@@ -227,7 +263,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         if (!text) return [silent, true];
         if (phases.suggested && acceptPhrases.test(text)) {
           bargeIn(now);
-          return [moveOn(now), true];
+          return [moveOn(), true];
         }
         carryOn(now);
         lastSaid = donePhrases.test(text) ? 'done' : text.endsWith('?') ? 'question' : 'statement';
@@ -238,15 +274,18 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
 
       case 'phase-answer':
         if (!phases.suggested) return [silent, true];
-        if (signal.accept) return [moveOn(now), true];
+        if (signal.accept) return [moveOn(), true];
         phases.notYet(now);
         withdrawalToAnnounce = true;
-        return [speak(now, spoken('ack', lines.next('acknowledgement'))), true];
+        return [prepare({ kind: 'ack' }), true];
 
       case 'editor-activity':
         // Coding is not silence: restart the quiet that would read as "done". It answers no suggestion.
         if (turnClosedAt !== null) turnClosedAt = now;
         return [silent, true];
+
+      case 'words':
+        return [speak(now, signal.line), true];
 
       case 'tick':
         return onTick(now);
@@ -256,7 +295,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   function onTick(now: number): [Decision, boolean] {
     if (!introduced && talkingSince === null && now - openedAt >= floorRules.introAfter) {
       introduced = true;
-      return [speak(now, spoken('intro', lines.next('intro'))), true];
+      return [prepare({ kind: 'intro' }), true];
     }
     if (withdrawalToAnnounce) {
       withdrawalToAnnounce = false;
@@ -269,7 +308,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     }
     if (responseDueAt !== null && talkingSince === null && now >= responseDueAt) return [respond(now), true];
 
-    const floorIsFree = talkingSince === null && speakingUntil === null && responseDueAt === null;
+    const floorIsFree = talkingSince === null && speakingUntil === null && preparing === null && responseDueAt === null;
     if (floorIsFree && phases.expired(now)) {
       phases.notYet(now); // nobody answered: same as "not yet"
       return [{ kind: 'suggestion-withdrawn' }, true];
@@ -299,10 +338,6 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
 }
 
 const silent: Decision = { kind: 'silent' };
-
-function spoken<K extends string>(kind: K, line: string): Spoken<K> {
-  return { kind, line, speakingMs: speakingTime(line) };
-}
 
 /** Roughly how long a line takes to say aloud: about 15 characters a second, at least a second. */
 function speakingTime(line: string) {

@@ -4,15 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The engine owns the model interface and depends on no provider; the scripted fake model lives with the engine's test fakes
-- [ ] Every spoken decision gets model-written words; backchannels never wait on the model
-- [ ] A preparing state is visible in the room while words are on their way
-- [ ] Talking over the interviewer while it prepares or speaks aborts the request and stops it at once; a late reply is dropped and logged
-- [ ] A model error or timeout gives the fallback line and a small notice, and the error type is logged
-- [ ] events.jsonl records each model reply with its model, timing and outcome, and never any credential
-- [ ] Engine tests with a fake clock and the scripted fake model cover all of the above
-- [ ] An end-to-end test with the fake model switched in shows a scripted answer to a question in the room
+- [x] The engine owns the model interface and depends on no provider; the scripted fake model lives with the engine's test fakes
+- [x] Every spoken decision gets model-written words; backchannels never wait on the model
+- [x] A preparing state is visible in the room while words are on their way
+- [x] Talking over the interviewer while it prepares or speaks aborts the request and stops it at once; a late reply is dropped and logged
+- [x] A model error or timeout gives the fallback line and a small notice, and the error type is logged
+- [x] events.jsonl records each model reply with its model, timing and outcome, and never any credential
+- [x] Engine tests with a fake clock and the scripted fake model cover all of the above
+- [x] An end-to-end test with the fake model switched in shows a scripted answer to a question in the room
 
 Spec: `.scratch/v0-1/spec.md`.
