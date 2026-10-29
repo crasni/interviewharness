@@ -1,5 +1,5 @@
 import { ModelError } from '@interviewharness/engine';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type Credential, type CredentialStore, createProviders } from './index.ts';
 import { fakeOpenAI } from './test/fake-openai.ts';
 
@@ -31,7 +31,6 @@ beforeEach(async () => {
   openai = await fakeOpenAI();
 });
 afterEach(async () => {
-  vi.unstubAllGlobals();
   await openai.close();
 });
 
@@ -98,6 +97,19 @@ describe('a model on the ChatGPT plan', () => {
     expect(openai.requests).toHaveLength(0);
   });
 
+  it('sends nothing from provider environment variables, which would add headers or log requests', async () => {
+    Object.assign(process.env, { OPENAI_ORG_ID: 'org-env', OPENAI_PROJECT_ID: 'proj-env', OPENAI_CUSTOM_HEADERS: 'x-from-env: 1' });
+    const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0', fetch: openai.fetchVia });
+    openai.reply({ text: 'Yes.' });
+
+    await providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).streamText(request);
+
+    const { headers } = openai.requests[0]!;
+    expect(headers['openai-organization']).toBeUndefined();
+    expect(headers['openai-project']).toBeUndefined();
+    expect(headers['x-from-env']).toBeUndefined();
+  });
+
   it('never uses a key from the environment', async () => {
     process.env.OPENAI_API_KEY = 'sk-from-the-environment';
     try {
@@ -113,22 +125,28 @@ describe('a model on the ChatGPT plan', () => {
 
 describe('Continue with ChatGPT', () => {
   const deviceId = '0b6f6a3e-6f2e-4c55-9a51-3d1f1c2b7a10';
-  // Kept before the global fetch is pointed at the fake server: the "browser" really calls the loopback listener.
-  const browserFetch = globalThis.fetch;
+  const loginProviders = (credentials: CredentialStore) =>
+    createProviders({ credentials, appVersion: '0.1.0', signIn: { authOrigin: openai.origin } });
 
   /** Plays the candidate's browser: approves the sign-in, and OpenAI redirects back to the app. */
   function browserThatApproves(seen: URL[]) {
     return async (url: string) => {
       const page = new URL(url);
       seen.push(page);
-      const back = new URL('http://127.0.0.1:1455/auth/callback');
+      const back = new URL(page.searchParams.get('redirect_uri')!);
       back.search = new URLSearchParams({ code: 'the-code', state: page.searchParams.get('state')!, client_id: 'oaiapp_issued' }).toString();
-      await browserFetch(back);
+      await fetch(back);
     };
   }
 
+  /** Whether anything still listens where the sign-in page would send the browser back. */
+  const listening = (page: URL) =>
+    fetch(page.searchParams.get('redirect_uri')!).then(
+      () => true,
+      () => false,
+    );
+
   it('signs in through the browser, comes back by itself, and saves the login', async () => {
-    vi.stubGlobal('fetch', openai.fetchVia); // pi-ai exchanges the code with OpenAI using the global fetch
     openai.replyToToken(200, {
       access_token: 'new-access',
       refresh_token: 'new-refresh',
@@ -137,37 +155,64 @@ describe('Continue with ChatGPT', () => {
       scope: 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct',
     });
     const credentials = memoryStore();
-    const providers = createProviders({ credentials, appVersion: '0.1.0' });
+    const providers = loginProviders(credentials);
     const pages: URL[] = [];
 
     await providers.loginWithChatGPT({ openBrowser: browserThatApproves(pages), deviceId });
 
-    expect(pages[0]!.origin).toBe('https://auth.openai.com');
+    expect(`${pages[0]!.origin}${pages[0]!.pathname}`).toBe(`${openai.origin}/api/accounts/authorize`);
     expect(Object.fromEntries(pages[0]!.searchParams)).toMatchObject({
       client_id: 'dynamic_agent_client',
       agent_name_hint: 'InterviewHarness',
       ext_agent_host_id: `urn:uuid:${deviceId}`,
-      redirect_uri: 'http://127.0.0.1:1455/auth/callback',
+      code_challenge_method: 'S256',
     });
-    expect(openai.requests.at(-1)!.body).toMatchObject({ grant_type: 'authorization_code', code: 'the-code', client_id: 'oaiapp_issued' });
+    expect(pages[0]!.searchParams.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/auth\/callback$/);
+    expect(openai.requests.at(-1)).toMatchObject({
+      path: '/api/accounts/oauth/token',
+      body: { grant_type: 'authorization_code', code: 'the-code', client_id: 'oaiapp_issued' },
+    });
     expect(credentials.entries.get('openai')).toMatchObject({ type: 'oauth', access: 'new-access', refresh: 'new-refresh', clientId: 'oaiapp_issued' });
     expect(await providers.isLoggedIn('chatgpt')).toBe(true);
+    expect(await listening(pages[0]!)).toBe(false);
   });
 
-  it('can be cancelled while waiting for the browser, and saves nothing', async () => {
+  it('can be cancelled while waiting for the browser; it saves nothing and stops listening', async () => {
     const credentials = memoryStore();
-    const providers = createProviders({ credentials, appVersion: '0.1.0' });
     const controller = new AbortController();
+    const pages: URL[] = [];
 
-    const login = providers.loginWithChatGPT({ openBrowser: () => controller.abort(), deviceId, signal: controller.signal });
+    const login = loginProviders(credentials).loginWithChatGPT({
+      openBrowser: (url) => {
+        pages.push(new URL(url));
+        controller.abort();
+      },
+      deviceId,
+      signal: controller.signal,
+    });
 
     await expect(login).rejects.toThrow();
     expect(credentials.entries.size).toBe(0);
+    expect(await listening(pages[0]!)).toBe(false);
+  });
+
+  it("ends at once, and stops listening, when the browser can't be opened", async () => {
+    const pages: URL[] = [];
+
+    const login = loginProviders(memoryStore()).loginWithChatGPT({
+      openBrowser: async (url) => {
+        pages.push(new URL(url));
+        throw new Error('No browser');
+      },
+      deviceId,
+    });
+
+    await expect(login).rejects.toThrow('No browser');
+    expect(await listening(pages[0]!)).toBe(false);
   });
 
   it('logs out by forgetting the login', async () => {
-    const credentials = loggedIn();
-    const providers = createProviders({ credentials, appVersion: '0.1.0' });
+    const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0' });
 
     await providers.logout('chatgpt');
 

@@ -51,8 +51,11 @@ export function openCredentialStore(dir: string, encryption: Encryption, { retry
     } catch {
       // Falls through: kept aside below, never deleted.
     }
+    // Kept aside once, then replaced by an empty file, so the next read doesn't copy it again.
     await copyFile(path, `${path}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`);
-    return { version: 1, entries: {} };
+    const empty: CredentialsFile = { version: 1, entries: {} };
+    await save(empty);
+    return empty;
   }
 
   const save = (file: CredentialsFile) => writeFileAtomically(path, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
@@ -95,8 +98,11 @@ export function openCredentialStore(dir: string, encryption: Encryption, { retry
     modify: (providerId, fn) =>
       inTurn(async () => {
         const file = await load();
-        const next = await fn(await readEntry(file, providerId));
-        if (next === undefined) return readEntry(file, providerId);
+        // One that can't be decrypted (the keyring changed) is passed on as none, so a new login can take its
+        // place. It is only ever replaced by a new login, never deleted for failing.
+        const current = await readEntry(file, providerId).catch(() => undefined);
+        const next = await fn(current);
+        if (next === undefined) return current;
         file.entries[providerId] = await seal(next);
         await save(file);
         return next;

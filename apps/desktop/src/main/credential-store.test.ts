@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -82,6 +82,36 @@ describe('the credential store', () => {
 
     await expect(openCredentialStore(dir, broken, { retryDelayMs: 1 }).read('openai')).rejects.toThrow();
     expect(fileText(dir)).toBe(before);
+  });
+
+  it("lets a new login replace one it can't decrypt, so the candidate is never stuck", async () => {
+    const dir = tempDir();
+    await openCredentialStore(dir, fakeEncryption()).modify('openai', async () => login);
+    const working = fakeEncryption();
+    const keyringChanged = fakeEncryption({
+      decrypt: async () => {
+        throw new Error('Error while decrypting the ciphertext provided to safeStorage.decryptString.');
+      },
+    });
+    const fresh = { ...login, access: 'fresh-access-token' };
+
+    await openCredentialStore(dir, keyringChanged, { retryDelayMs: 1 }).modify('openai', async () => fresh);
+
+    expect(await openCredentialStore(dir, working).read('openai')).toEqual(fresh);
+  });
+
+  it('keeps one copy of a corrupt file, and starts again', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'credentials.json'), '{ not json');
+    const store = openCredentialStore(dir, fakeEncryption());
+
+    expect(await store.read('openai')).toBeUndefined();
+    expect(await store.list()).toEqual([]);
+    await store.modify('openai', async () => login);
+
+    const copies = readdirSync(dir).filter((name) => name.startsWith('credentials.json.corrupt'));
+    expect(copies.map((name) => readFileSync(join(dir, name), 'utf8'))).toEqual(['{ not json']);
+    expect(await openCredentialStore(dir, fakeEncryption()).read('openai')).toEqual(login);
   });
 
   it('encrypts again when the OS asks, e.g. after its key changed', async () => {

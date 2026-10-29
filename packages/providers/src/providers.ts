@@ -9,6 +9,7 @@ import {
 } from '@earendil-works/pi-ai';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { type Model, ModelError, type ModelErrorKind, type ModelRequest } from '@interviewharness/engine';
+import { type ChatGPTLoginConfig, chatgptOAuth } from './chatgpt-login.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
 export type ProviderName = 'chatgpt';
@@ -31,6 +32,17 @@ const noAmbientCredentials: AuthContext = {
   fileExists: async () => false,
 };
 
+/**
+ * Environment variables pi-ai and the provider SDKs read beyond its auth lookup: OPENAI_ORG_ID,
+ * OPENAI_CUSTOM_HEADERS and OPENAI_LOG (which would print request bodies), PI_CACHE_RETENTION and others.
+ * There's no switch for them, so they're removed from this process before any request.
+ */
+const ambientVariables = /^(OPENAI|PI|ANTHROPIC|GEMINI|GOOGLE|OPENROUTER)_/;
+
+function forgetAmbientVariables() {
+  for (const name of Object.keys(process.env)) if (ambientVariables.test(name)) delete process.env[name];
+}
+
 export interface ProvidersOptions {
   /** Where logins are kept, encrypted. */
   credentials: CredentialStore;
@@ -38,6 +50,8 @@ export interface ProvidersOptions {
   appVersion: string;
   /** Tests send requests to a fake server on loopback with this. */
   fetch?: typeof fetch;
+  /** Tests point the ChatGPT sign-in at a fake server on loopback with this. */
+  signIn?: ChatGPTLoginConfig;
 }
 
 export interface ChatGPTLoginOptions {
@@ -49,13 +63,15 @@ export interface ChatGPTLoginOptions {
 }
 
 /** The app's models: logging in to providers, and models that speak the engine's model interface. */
-export function createProviders({ credentials, appVersion, fetch: fetchFn }: ProvidersOptions) {
+export function createProviders({ credentials, appVersion, fetch: fetchFn, signIn }: ProvidersOptions) {
+  forgetAmbientVariables();
   const models = createModels({
     credentials,
     authContext: noAmbientCredentials,
     identity: { userAgent: { custom: `InterviewHarness/${appVersion}` } },
   });
-  models.setProvider(openaiProvider());
+  // OpenAI's models and request code, with our ChatGPT sign-in as the only way in: no API key, from anywhere.
+  models.setProvider({ ...openaiProvider(), auth: { oauth: chatgptOAuth(signIn) } });
 
   return {
     /**
@@ -63,18 +79,32 @@ export function createProviders({ credentials, appVersion, fetch: fetchFn }: Pro
      * to a listener on this machine. The candidate never copies a code. The login is saved in `credentials`.
      */
     async loginWithChatGPT({ openBrowser, deviceId, signal }: ChatGPTLoginOptions) {
+      // A browser that can't be opened ends the login at once, instead of leaving it waiting for nobody.
+      const login = new AbortController();
+      const stop = () => login.abort();
+      if (signal?.aborted) stop();
+      signal?.addEventListener('abort', stop, { once: true });
+      let browserFailed: unknown;
       const interaction: AuthInteraction = {
-        signal,
+        signal: login.signal,
         notify(event) {
-          if (event.type === 'auth_url') void openBrowser(event.url);
+          if (event.type !== 'auth_url') return;
+          Promise.resolve()
+            .then(() => openBrowser(event.url))
+            .catch((error: unknown) => {
+              browserFailed = error;
+              stop();
+            });
         },
-        // pi-ai also offers pasting the redirect URL by hand; the browser's redirect is the only way here.
-        prompt: (prompt) =>
-          new Promise<string>((_resolve, reject) => {
-            prompt.signal?.addEventListener('abort', () => reject(new Error('Not needed')), { once: true });
-          }),
+        prompt: () => Promise.reject(new Error('Our sign-in never asks for typed input')),
       };
-      await models.login(piProviderIds.chatgpt, 'oauth', interaction, { agentName: 'InterviewHarness', getDeviceId: () => deviceId });
+      try {
+        await models.login(piProviderIds.chatgpt, 'oauth', interaction, { agentName: 'InterviewHarness', getDeviceId: () => deviceId });
+      } catch (error) {
+        throw browserFailed ?? error;
+      } finally {
+        signal?.removeEventListener('abort', stop);
+      }
     },
 
     /** Forgets the login for a provider. */
@@ -107,7 +137,11 @@ function piModel(models: Models, choice: ModelChoice, fetchFn: typeof fetch | un
 
     async streamText(request: ModelRequest, onText) {
       const model = find();
-      if (!(await models.getAuth(model).catch(() => undefined))) throw new ModelError('auth', 'Not logged in');
+      // Resolving auth may refresh the login's token, which can fail for being offline as much as for a revoked login.
+      const auth = await models.getAuth(model).catch((error: unknown) => {
+        throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
+      });
+      if (!auth) throw new ModelError('auth', 'Not logged in');
       const stream = models.stream(
         model,
         {
@@ -153,7 +187,7 @@ const emptyUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalToke
 /** What kind of failure a provider's error message describes. */
 export function errorKind(message: string | undefined): ModelErrorKind {
   const text = message ?? '';
-  if (/\b(401|403)\b|unauthori[sz]ed|invalid.*(token|key)|not logged in|oauth/i.test(text)) return 'auth';
+  if (/\b(401|403)\b|unauthori[sz]ed|invalid[_ ](api[_ ]key|token|grant)|not logged in/i.test(text)) return 'auth';
   if (/\b429\b|rate.?limit|too many requests|quota/i.test(text)) return 'rate-limit';
   if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|fetch failed|network|connection error/i.test(text)) return 'offline';
   return 'other';
