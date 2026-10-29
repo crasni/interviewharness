@@ -371,7 +371,7 @@ describe('the Floor Manager', () => {
 
     it('does not take the quiet after answering a question as being done', () => {
       const { floor, wait } = setup();
-      floor.onSignal({ type: 'said', text: 'Can the readings be negative?' });
+      floor.onSignal({ type: 'said', text: 'Can the numbers be negative?' });
 
       expect(wait(60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
     });

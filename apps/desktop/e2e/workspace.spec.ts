@@ -36,12 +36,12 @@ test('the editor takes code, Space types a space, and typing is sent as activity
 });
 
 test('the transcript is shown by default with the whole conversation, and hides with a shortcut', async () => {
-  await window.getByRole('textbox', { name: 'What you said' }).fill('Can the readings be negative?');
+  await window.getByRole('textbox', { name: 'What you said' }).fill('Can the numbers be negative?');
   await window.getByRole('textbox', { name: 'What you said' }).press('Enter');
   const transcript = window.getByRole('log', { name: 'Transcript' });
 
   await expect(transcript).toContainText('Hi, thanks for joining.');
-  await expect(transcript).toContainText('Can the readings be negative?');
+  await expect(transcript).toContainText('Can the numbers be negative?');
   await expect(transcript).toContainText('Good question. You can assume the input fits in memory.');
 
   await window.getByRole('banner', { name: 'Round status' }).click(); // leave the text field so Ctrl+T reaches the room

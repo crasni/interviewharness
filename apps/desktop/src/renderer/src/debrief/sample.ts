@@ -19,14 +19,14 @@ export interface Feedback {
  */
 export const sampleFeedback: Feedback = {
   verdict: 'Lean hire',
-  why: 'Clear communication and a correct sliding-window idea, but the code was finished late and only tested on the happy path. With edge cases covered, this would be a hire.',
+  why: 'Clear communication and the right hash-map idea, but the code was finished late and only tested on the happy path. With edge cases covered, this would be a hire.',
   wentWell: [
-    { atMs: (2 * 60 + 10) * 1000, text: 'Asked whether readings can be negative and whether t can be 0 before designing anything.' },
-    { atMs: (9 * 60 + 45) * 1000, text: 'Explained why a brute-force check of every stretch is O(n²) and moved to a sliding window unprompted.' },
+    { atMs: (2 * 60 + 10) * 1000, text: 'Asked whether numbers can be negative and whether the same value can appear twice before designing anything.' },
+    { atMs: (9 * 60 + 45) * 1000, text: 'Explained why checking every pair is O(n²) and moved to a hash map of seen values unprompted.' },
     { atMs: (21 * 60 + 30) * 1000, text: 'Kept talking while coding, so the interviewer never had to guess what the code was meant to do.' },
   ],
   toFix: [
-    { atMs: (18 * 60 + 5) * 1000, text: 'Spent several minutes recomputing the window maximum from scratch; keeping it in a deque gets it in O(1).' },
-    { atMs: (31 * 60 + 20) * 1000, text: 'Tested only the first example. A one-reading list and t = 0 would have caught an off-by-one.' },
+    { atMs: (18 * 60 + 5) * 1000, text: 'Stored every value before looking any up, so a value paired with itself (6 + 6 for target 12) gave the same position twice.' },
+    { atMs: (31 * 60 + 20) * 1000, text: 'Tested only the first example. A list with a repeated value, like [5, 1, 5], would have caught the reused position.' },
   ],
 };
