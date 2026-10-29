@@ -132,3 +132,13 @@ Next to the Move on / Not yet buttons, the bordered status looked clickable. **D
 - **⌘T on macOS, Ctrl+T elsewhere** toggles the transcript; Escape or "Close" closes it. It sits over the right side of the editor without taking focus, so you can keep typing.
 - The transcript has the interviewer's spoken lines and your typed words. **Backchannels ("mm-hm") are left out**; lines you talked over are marked "cut off".
 **Your call:** OK?
+
+## From ticket 07 (end round and debrief)
+
+### Q24: Ending a round
+**Default taken:** an **End round** button in the top bar ends it at once, with no confirmation (v0.0 has nothing to lose). It disables itself after one click. The round's events.jsonl ends with a `round-end` entry.
+**Your call:** add a confirmation once rounds have real feedback to lose?
+
+### Q25: The sample debrief
+**Default taken:** the debrief shows the round kind and length, the six-level verdict with the chosen level **inverted**, then Why / What went well / What to fix, each point with an mm:ss moment. The text is a fixed sample, labelled "Sample feedback · real feedback arrives with the AI interviewer". No charts or numbers beyond the moments. `VERDICTS` now lives in `packages/core` as a domain type.
+**Your call:** judge the layout; the words come from the AI in v0.1.

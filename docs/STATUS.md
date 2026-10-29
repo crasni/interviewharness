@@ -14,11 +14,11 @@ _Last updated: 2026-10-29_
 - [x] **Bought `interviewharness.dev`** on Cloudflare Registrar (2026-10-29; $8.20 first year, auto-renews at $12.20/yr, expires 2027-10-29 unless renewed)
 
 ## Not done yet
-- No code yet. Public repo: https://github.com/crasni/interviewharness (org `interviewharness` exists; moving the repo there is deferred). npm scope `@interviewharness` not yet created.
+- v0.0 code is in (Electron app, `packages/core`, `packages/engine`). Public repo: https://github.com/crasni/interviewharness (org `interviewharness` exists; moving the repo there is deferred). npm scope `@interviewharness` not yet created.
 - Domain is bought, but DNS, website and email aren't set up (next: Cloudflare Pages landing page, Email Routing for hello@).
 
 ## Next steps (in order)
-1. **v0.0 interview room**, spec in `.scratch/v0-0/spec.md`. Built inside the real scaffold (merges the old prototype and scaffold steps):
+1. **v0.0 interview room**: built (tickets 01–07 in `.scratch/v0-0/issues/`). Waiting on the owner's answers in `.scratch/v0-0/questions.md`, including a review of the problem text (ticket 06). Spec: `.scratch/v0-0/spec.md`. Built inside the real scaffold (merges the old prototype and scaffold steps):
    - Electron + Vite + React + TS, pnpm workspaces + Turborepo; only the desktop app, `core` and `engine` for now
    - Start, room and debrief screens; early Floor Manager with lines from an example-lines file; no AI, no mic
    - Tests at two seams: the Floor Manager (fake clock) and the room UI (Playwright)

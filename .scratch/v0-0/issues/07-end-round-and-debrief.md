@@ -6,11 +6,11 @@ Spec: `.scratch/v0-0/spec.md`
 
 **Blocked by:** 01 (walking skeleton)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] An "End round" action in the room leads to the debrief
-- [ ] Debrief shows a verdict with reasons, "went well" and "to fix" sections, each point with a moment reference
-- [ ] The content is clearly marked as sample
-- [ ] No metrics, charts or stat tiles
-- [ ] A way back to the start screen
-- [ ] Playwright test: start a round, end it, see the debrief, return to start
+- [x] An "End round" action in the room leads to the debrief
+- [x] Debrief shows a verdict with reasons, "went well" and "to fix" sections, each point with a moment reference
+- [x] The content is clearly marked as sample
+- [x] No metrics, charts or stat tiles
+- [x] A way back to the start screen
+- [x] Playwright test: start a round, end it, see the debrief, return to start
