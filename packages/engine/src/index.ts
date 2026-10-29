@@ -23,3 +23,5 @@ export { buildReplyPrompt } from './prompt.ts';
 export type { ReplyPromptInput, TranscriptLine } from './prompt.ts';
 export { createPhaseGuide, phaseRules } from './phases.ts';
 export type { MoveOnCue, PhaseGuide, PhaseState } from './phases.ts';
+export { checkProblemNames, readProblem } from './problem.ts';
+export type { HintLadder, Problem, ProblemDetails, ProblemTests } from './problem.ts';

@@ -1,6 +1,7 @@
 import { createFloorManager, type Decision, type FloorLogEntry, type Reply, type Signal } from './floor-manager.ts';
 import type { LineBook, Situation } from './lines.ts';
 import { type Model, type ModelErrorKind, type ModelIdentity, type ModelUsage, modelErrorKind } from './model.ts';
+import type { Problem } from './problem.ts';
 import { buildReplyPrompt, type TranscriptLine } from './prompt.ts';
 import type { Clock, Round } from './round.ts';
 
@@ -52,8 +53,8 @@ export interface InterviewerOptions {
   log: RoundLog;
   /** Writes the interviewer's words. With none, the example lines are said as written, as in v0.0. */
   model: Model | null;
-  /** The problem as the candidate sees it. */
-  problem: string;
+  /** The round's problem: what the candidate sees, and the notes, hints and solution only the interviewer sees. */
+  problem: Problem;
   /** The example-lines file, given to the model as guidance for tone and length. */
   toneGuide: string;
   onEvent: (event: InterviewerEvent) => void;

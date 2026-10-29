@@ -5,6 +5,7 @@ import {
   type InterviewerEvent,
   type LineBook,
   type Model,
+  type Problem,
   type RoundLog,
   type Signal,
   startRound,
@@ -19,7 +20,7 @@ export function runRound(options: {
   lines: LineBook;
   log: RoundLog;
   model: Model | null;
-  problem: string;
+  problem: Problem;
   toneGuide: string;
   onEvent: (event: InterviewerEvent) => void;
 }) {

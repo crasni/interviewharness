@@ -4,12 +4,12 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Two sum lives in its own folder with the five parts; the old single-file version is gone
-- [ ] The problem panel shows the same statement as before, read from the new folder
-- [ ] The interviewer prompt includes the notes, hint ladder and reference solution
-- [ ] Content readers accept LF and CRLF; a check rejects reserved Windows names, invalid characters and case-only clashes
-- [ ] Tests cover loading, CRLF and the name checks
+- [x] Two sum lives in its own folder with the five parts; the old single-file version is gone
+- [x] The problem panel shows the same statement as before, read from the new folder
+- [x] The interviewer prompt includes the notes, hint ladder and reference solution
+- [x] Content readers accept LF and CRLF; a check rejects reserved Windows names, invalid characters and case-only clashes
+- [x] Tests cover loading, CRLF and the name checks
 
 Spec: `.scratch/v0-1/spec.md`.

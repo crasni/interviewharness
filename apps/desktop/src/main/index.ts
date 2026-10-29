@@ -4,11 +4,11 @@ import { createLineBook, type Model } from '@interviewharness/engine';
 import { scriptedModel } from '@interviewharness/engine/test';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import problemFile from '../../../../content/problems/two-sum.md?raw';
 import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
+import { loadProblems } from './problems.ts';
 import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
 
@@ -36,6 +36,9 @@ function fakeModel(script: string | undefined) {
   }
 }
 
+// Only Two sum so far (v0.1b adds more); every folder is read and checked at startup all the same.
+const problem = loadProblems().get('two-sum')!;
+
 let window: BrowserWindow | null = null;
 let round: ActiveRound | null = null;
 
@@ -59,7 +62,7 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
     lines: createLineBook(linesFile),
     log: createEventsLog(dataDir(), new Date()),
     model,
-    problem: problemFile,
+    problem,
     toneGuide: linesFile,
     onEvent: (event) => window?.webContents.send(channels.decision, event),
   });

@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { createInterviewer, type InterviewerEvent, type ModelCallEntry, replyRules, startRound } from './index.ts';
+import { createInterviewer, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, startRound } from './index.ts';
 import { fakeClock, fakeLog, type ModelScript, scriptedModel, testLines } from './test/fakes.ts';
 
-const problem = '# Two sum\n\nFind two positions whose values add up to `target`.';
+const problem: Problem = {
+  name: 'two-sum',
+  details: { title: 'Two sum', pattern: 'Hash map', difficulty: 'easy', license: 'CC-BY-4.0', credits: ['Someone'], source: 'original' },
+  statement: '# Two sum\n\nFind two positions whose values add up to `target`.',
+  notes: 'Key idea: a map from value to position.',
+  hintLadder: { nudge: 'Think about what you have seen.', question: 'Which value completes the pair?', concrete: 'Map each value to its position.' },
+  followUps: ['What if the list were sorted?'],
+  reference: { language: 'python', code: 'def two_sum(nums, target):\n    seen = {}\n' },
+  tests: { function: 'two_sum', cases: [] },
+};
 
 function setup({ script = {}, withModel = true }: { script?: ModelScript; withModel?: boolean } = {}) {
   const clock = fakeClock(10_000);
@@ -75,6 +84,10 @@ describe('the interviewer', () => {
     const request = model.requests[0]!;
     expect(request.purpose).toBe('interviewer-reply');
     expect(request.system).toContain('Find two positions whose values add up to `target`.');
+    // The interviewer's own notes, hint ladder and the solution, to judge by (never to reveal).
+    expect(request.system).toContain('Key idea: a map from value to position.');
+    expect(request.system).toContain('Map each value to its position.');
+    expect(request.system).toContain('def two_sum(nums, target):\n    seen = {}');
     expect(request.messages.at(-1)!.text).toContain('Can the list be empty?');
   });
 

@@ -1,6 +1,7 @@
 import type { CodingPhase } from '@interviewharness/core';
 import type { Reply } from './floor-manager.ts';
 import type { ModelMessage } from './model.ts';
+import type { Problem } from './problem.ts';
 
 /** One line of the conversation, timed from the start of the round. */
 export interface TranscriptLine {
@@ -13,8 +14,7 @@ export interface ReplyPromptInput {
   reply: Reply;
   phase: CodingPhase;
   phaseElapsedMs: number;
-  /** The problem as the candidate sees it. */
-  problem: string;
+  problem: Problem;
   /** The example-lines file: how the interviewer sounds, and how long its lines are. */
   toneGuide: string;
   transcript: readonly TranscriptLine[];
@@ -66,6 +66,16 @@ function instruction(reply: Reply): string {
   }
 }
 
+function hintLadder({ hintLadder: ladder }: Problem) {
+  return [
+    '# Hint ladder',
+    'Only when the candidate asks for help, give one rung at a time, never beyond the next one, in your own words.',
+    `1. Nudge: ${ladder.nudge}`,
+    `2. Question: ${ladder.question}`,
+    `3. Concrete: ${ladder.concrete}`,
+  ].join('\n');
+}
+
 function clock(ms: number) {
   const seconds = Math.floor(ms / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -78,7 +88,10 @@ function clock(ms: number) {
 export function buildReplyPrompt(input: ReplyPromptInput): { system: string; messages: ModelMessage[] } {
   const system = [
     rules,
-    `# The problem (the candidate sees this too)\n\n${input.problem.trim()}`,
+    `# The problem (the candidate sees this too)\n\n${input.problem.statement.trim()}`,
+    `# Your notes on the problem (never shown to the candidate)\n\n${input.problem.notes}`,
+    hintLadder(input.problem),
+    `# The reference solution\n\nNEVER reveal, quote or paraphrase this code, or describe its approach. It is only for you to judge the candidate's code against.\n\n\`\`\`${input.problem.reference.language}\n${input.problem.reference.code.trim()}\n\`\`\``,
     `# How you sound\n\nExamples of an interviewer's lines. Match their tone and length; don't repeat them word for word.\n\n${input.toneGuide.trim()}`,
   ].join('\n\n');
 

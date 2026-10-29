@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@interviewharness/core": "workspace:*"
+    "@interviewharness/core": "workspace:*",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "vitest": "5.0.5"
