@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom, readRoundLog } from './launch.ts';
+import { launchIntoRoom, readRoundLog, stopTalkingButton, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -15,17 +15,26 @@ test.afterEach(async () => {
 
 const roundLog = () => readRoundLog(dataDir);
 
-test('holding Space shows the candidate is talking', async () => {
+test('clicking Talk shows the candidate is talking, until they click Stop talking', async () => {
+  await talkButton(window).click();
+  await expect(stopTalkingButton(window)).toHaveAttribute('aria-pressed', 'true');
+
+  await stopTalkingButton(window).click();
+  await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('Space no longer talks', async () => {
+  await window.getByRole('banner', { name: 'Round status' }).click();
   await window.keyboard.down('Space');
-  await expect(window.getByRole('status', { name: 'You' })).toHaveText('Talking');
+
+  await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
   await window.keyboard.up('Space');
-  await expect(window.getByRole('status', { name: 'You' })).toHaveText('Hold Space to talk');
 });
 
 test('a short pause mid-turn gets a backchannel, and it is logged', async () => {
-  await window.keyboard.down('Space');
+  await talkButton(window).click();
   await window.waitForTimeout(1_500);
-  await window.keyboard.up('Space');
+  await stopTalkingButton(window).click();
 
   await expect(window.getByTestId('subtitle')).toHaveText('Mm-hm.', { timeout: 3_000 });
   expect(roundLog().find((entry) => entry.decision.kind === 'backchannel')).toMatchObject({

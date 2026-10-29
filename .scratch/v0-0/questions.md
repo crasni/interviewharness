@@ -142,3 +142,11 @@ Next to the Move on / Not yet buttons, the bordered status looked clickable. **D
 ### Q25: The sample debrief
 **Default taken:** the debrief shows the round kind and length, the six-level verdict with the chosen level **inverted**, then Why / What went well / What to fix, each point with an mm:ss moment. The text is a fixed sample, labelled "Sample feedback · real feedback arrives with the AI interviewer". No charts or numbers beyond the moments. `VERDICTS` now lives in `packages/core` as a domain type.
 **Your call:** judge the layout; the words come from the AI in v0.1.
+
+## From your feedback after trying v0.0
+
+### Q26: Click to talk replaces hold Space (decided by you)
+Holding Space clashed with typing code and felt fiddly. Now a **Talk** button toggles to **Stop talking** (inverted while on), and Space only ever types. You can talk and type code at the same time, as in a real interview. Speech detection (talk by just speaking) comes with the mic in v0.2. BLUEPRINT §4 updated.
+
+### Q27: No menu bar; our own shortcuts
+The File / Edit / View / Window bar is gone. A hidden menu keeps copy/paste, close and quit, plus reload and dev tools in development. Zoom: **Ctrl/⌘ + =** (no Shift), **−** and **0**. Chromium's internal logs (like "Frame latency is negative") are hidden in development only; they were harmless.

@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, test } from '@playwright/test';
-import { launchAtIntro, launchIntoRoom } from './launch.ts';
+import { launchAtIntro, launchIntoRoom, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 
@@ -49,8 +49,7 @@ test('carrying on talking withdraws the suggestion', async () => {
   await window.getByRole('textbox', { name: 'What you said' }).press('Enter');
   await expect(window.getByRole('button', { name: 'Not yet' })).toBeVisible();
 
-  await window.getByRole('banner', { name: 'Round status' }).click(); // leave text fields so Space means "talk"
-  await window.keyboard.press('Space');
+  await talkButton(window).click();
 
   await expect(window.getByRole('button', { name: 'Not yet' })).toHaveCount(0);
   await expect(window.getByTestId('phase')).toHaveText('Clarify');

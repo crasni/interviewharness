@@ -160,15 +160,9 @@
   opacity: 0;
 }
 
-/* Plain text at rest (it is a status, not a button); inverted while the candidate holds the floor. */
-.room-you {
+/* Click to talk; stays inverted while the candidate holds the floor. */
+.room-talk {
   align-self: center;
-  padding: var(--space-1) var(--space-2);
-}
-
-.room-you[data-talking='true'] {
-  background: var(--ink);
-  color: var(--paper);
 }
 
 .room-dev {

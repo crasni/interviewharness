@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom } from './launch.ts';
+import { launchIntoRoom, stopTalkingButton, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -38,12 +38,11 @@ test('talking over the interviewer stops it', async () => {
   const interviewer = window.getByRole('status', { name: 'Interviewer' });
   await expect(interviewer).toHaveAttribute('data-state', 'speaking');
 
-  await window.getByRole('banner', { name: 'Round status' }).click(); // leave text fields so Space means "talk"
-  await window.keyboard.down('Space');
+  await talkButton(window).click();
 
   await expect(interviewer).toHaveAttribute('data-state', 'listening');
   await expect(window.getByTestId('subtitle')).toHaveText('');
-  await window.keyboard.up('Space');
+  await stopTalkingButton(window).click();
 
   await window.keyboard.press('ControlOrMeta+t');
   await expect(window.getByRole('complementary', { name: 'Transcript' }).getByRole('listitem').last()).toContainText(
@@ -51,10 +50,10 @@ test('talking over the interviewer stops it', async () => {
   );
 });
 
-test('Space types a space in the text field instead of talking', async () => {
+test('Space types a space in the text field', async () => {
   await said().click();
   await window.keyboard.type('a b');
 
   await expect(said()).toHaveValue('a b');
-  await expect(window.getByRole('status', { name: 'You' })).toHaveText('Hold Space to talk');
+  await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
 });

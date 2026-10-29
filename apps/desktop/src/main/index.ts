@@ -6,6 +6,7 @@ import linesFile from '../../../../content/interviewer/lines.md?raw';
 import { channels, isCandidateSignal } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { createEventsLog } from './events-log.ts';
+import { installAppMenu, setUpWindowChrome } from './window-chrome.ts';
 
 const systemClock = { now: () => performance.now() };
 // Tests point this at a throwaway folder; normally rounds live in the app's user data.
@@ -63,6 +64,7 @@ function createWindow() {
       backgroundThrottling: !hidden,
     },
   });
+  setUpWindowChrome(window);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void window.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -71,7 +73,14 @@ function createWindow() {
   }
 }
 
-void app.whenReady().then(createWindow);
+// Chromium's internal logs (e.g. "Frame latency is negative" from its compositor on Linux) are noise
+// in development; only fatal ones get through. Our own logs and JavaScript errors are unaffected.
+if (!app.isPackaged) app.commandLine.appendSwitch('log-level', '3');
+
+void app.whenReady().then(() => {
+  installAppMenu();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   endCurrentRound();

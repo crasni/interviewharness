@@ -215,12 +215,12 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 ├───────────────────────┴──────────────────────────────────────┤
 │  ◉ ▁▂▅▃▁  "What happens if the input has duplicates?"         │  ← interviewer presence + subtitle
 │  you  …so I'd keep a hashmap from value to index…            │  ← your live transcript (dim)
-│  [SPACE hold to talk]  open-mic ○                             │
+│  [Talk]  open-mic ○                                           │
 └──────────────────────────────────────────────────────────────┘
 ```
 - **The interviewer's presence:** a dot that **breathes** while listening, **nods** (a brief scale pulse) on a backchannel, and shows a waveform while speaking. Never a chat bubble.
 - **Subtitles** fade out; the full transcript is in a drawer (⌘T).
-- **Talk modes:** hold Space (default), open mic, or type (⌘/). Barge-in is always on.
+- **Talk modes:** click **Talk** / **Stop talking** (default), open mic with speech detection (v0.2), or type. Barge-in is always on. Space is never a talk key: it belongs to the editor and the text field.
 - **No hint counter.** Hints are asked for by talking; they shape the debrief but are never shown as a count or budget.
 
 ---

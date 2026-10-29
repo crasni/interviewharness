@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom, readRoundLog } from './launch.ts';
+import { launchIntoRoom, readRoundLog, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -26,12 +26,12 @@ test('the problem is shown, and can be hidden and shown again', async () => {
   await expect(problem().getByRole('heading', { name: 'Longest calm stretch' })).toBeVisible();
 });
 
-test('the editor takes code, Space types instead of talking, and typing is sent as activity', async () => {
+test('the editor takes code, Space types a space, and typing is sent as activity', async () => {
   await editor().click();
   await window.keyboard.type('def longest_calm(readings, t):');
 
   await expect(editor()).toContainText('def longest_calm(readings, t):');
-  await expect(window.getByRole('status', { name: 'You' })).toHaveText('Hold Space to talk');
+  await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(() => readRoundLog(dataDir).some((e) => e.signal.type === 'editor-activity')).toBe(true);
 });
 
@@ -40,7 +40,7 @@ test('the transcript drawer shows the whole conversation, toggled with a shortcu
   await window.getByRole('textbox', { name: 'What you said' }).press('Enter');
   await expect(window.getByTestId('subtitle')).not.toHaveText('');
 
-  await window.getByRole('banner', { name: 'Round status' }).click(); // leave text fields so Space means "talk"
+  await window.getByRole('banner', { name: 'Round status' }).click(); // leave the text field so Ctrl+T reaches the room
   await window.keyboard.press('ControlOrMeta+t');
   const transcript = window.getByRole('complementary', { name: 'Transcript' });
 

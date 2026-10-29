@@ -1,7 +1,10 @@
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { _electron as electron, expect } from '@playwright/test';
+import { _electron as electron, expect, type Page } from '@playwright/test';
+
+export const talkButton = (window: Page) => window.getByRole('button', { name: 'Talk', exact: true });
+export const stopTalkingButton = (window: Page) => window.getByRole('button', { name: 'Stop talking' });
 
 /** Launches the built app in a hidden window, with its own throwaway data folder. */
 export async function launchApp() {
@@ -19,20 +22,21 @@ export async function launchApp() {
 export async function launchAtIntro() {
   const launched = await launchApp();
   await launched.window.getByRole('button', { name: 'Start coding round' }).click();
-  await expect(launched.window.getByRole('status', { name: 'You' })).toBeVisible();
+  await expect(talkButton(launched.window)).toBeVisible();
   return launched;
 }
 
 /**
  * Launches the app, starts a coding round, and talks over the intro so the room is quiet.
- * (The intro takes ~10 s to say; a tap of Space is a barge-in that stops it.)
+ * (The intro takes ~10 s to say; a quick Talk / Stop talking is a barge-in that stops it.)
  */
 export async function launchIntoRoom() {
   const launched = await launchAtIntro();
   const { window } = launched;
   const interviewer = window.getByRole('status', { name: 'Interviewer' });
   await expect(interviewer).toHaveAttribute('data-state', 'speaking');
-  await window.keyboard.press('Space');
+  await talkButton(window).click();
+  await stopTalkingButton(window).click();
   await expect(interviewer).toHaveAttribute('data-state', 'listening');
   return launched;
 }

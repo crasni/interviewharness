@@ -8,7 +8,7 @@ import { ProblemPanel } from './ProblemPanel.tsx';
 import './room.css';
 import { SayField } from './SayField.tsx';
 import { Transcript } from './Transcript.tsx';
-import { useHoldToTalk } from './useHoldToTalk.ts';
+import { useTalking } from './useTalking.ts';
 import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
 
@@ -24,7 +24,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
   // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
   const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
 
-  const talking = useHoldToTalk(
+  const { talking, toggle: toggleTalking } = useTalking(
     useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
     useCallback(() => window.harness.signal({ type: 'talk-end' }), []),
   );
@@ -139,9 +139,9 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
               </button>
             </div>
           )}
-          <span className="room-you label" role="status" aria-label="You" data-talking={talking}>
-            {talking ? 'Talking' : 'Hold Space to talk'}
-          </span>
+          <button type="button" className="room-talk" aria-pressed={talking} onClick={toggleTalking}>
+            {talking ? 'Stop talking' : 'Talk'}
+          </button>
           {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
         </div>
         <div className="room-candidate">

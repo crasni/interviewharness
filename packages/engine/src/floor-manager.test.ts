@@ -193,7 +193,7 @@ describe('the Floor Manager', () => {
   it('waits for the candidate to stop talking before responding to what they said', () => {
     const { floor, wait } = setup();
     floor.onSignal({ type: 'talk-start' });
-    floor.onSignal({ type: 'said', text: 'I think a hash map works here.' }); // typed while still holding Space
+    floor.onSignal({ type: 'said', text: 'I think a hash map works here.' }); // typed while still talking
 
     expect(wait(3_000).every((d) => d.kind === 'silent')).toBe(true);
 
