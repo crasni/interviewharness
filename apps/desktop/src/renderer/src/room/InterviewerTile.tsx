@@ -1,4 +1,4 @@
-import { type PointerEvent, useRef, useState } from 'react';
+import { type PointerEvent, useLayoutEffect, useRef, useState } from 'react';
 import { PresenceDot, type PresenceState } from '../ui/PresenceDot.tsx';
 
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -26,7 +26,7 @@ function saveCorner(corner: Corner) {
 
 /**
  * The interviewer, like a video-call tile: an animated circle and what it is doing.
- * Drag it anywhere; when let go it settles in the nearest corner of the work area.
+ * Drag it anywhere; when let go it glides to the nearest corner of the work area.
  */
 export function InterviewerTile({
   presence,
@@ -41,11 +41,39 @@ export function InterviewerTile({
   const [offset, setOffset] = useState<{ x: number; y: number } | null>(null);
   const drag = useRef<{ startX: number; startY: number } | null>(null);
   const tile = useRef<HTMLDivElement>(null);
+  // Where the tile was on screen when let go; the glide to its corner starts there.
+  const releasedAt = useRef<DOMRect | null>(null);
+
+  // FLIP: the corner is set by `top`/`bottom`/`left`/`right`, which can't be transitioned
+  // between, so after the jump we animate a transform from the old spot back to zero.
+  useLayoutEffect(() => {
+    const element = tile.current;
+    const from = releasedAt.current;
+    releasedAt.current = null;
+    if (!element || !from) return;
+    const to = element.getBoundingClientRect();
+    const dx = from.left - to.left;
+    const dy = from.top - to.top;
+    if (dx === 0 && dy === 0) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const style = getComputedStyle(element);
+    element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
+      duration: parseFloat(style.getPropertyValue('--settle')) || 0,
+      easing: style.getPropertyValue('--ease').trim() || 'ease-out',
+    });
+  }, [corner, offset]);
 
   function onPointerDown(event: PointerEvent) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { startX: event.clientX, startY: event.clientY };
-    setOffset({ x: 0, y: 0 });
+    const element = event.currentTarget as HTMLDivElement;
+    element.setPointerCapture(event.pointerId);
+    // Grabbed mid-glide: freeze it where it is and carry on dragging from there.
+    const seen = element.getBoundingClientRect();
+    element.getAnimations().forEach((animation) => animation.cancel());
+    const rest = element.getBoundingClientRect();
+    const x = seen.left - rest.left;
+    const y = seen.top - rest.top;
+    drag.current = { startX: event.clientX - x, startY: event.clientY - y };
+    setOffset({ x, y });
   }
 
   function onPointerMove(event: PointerEvent) {
@@ -54,9 +82,11 @@ export function InterviewerTile({
   }
 
   function onPointerUp() {
+    if (!drag.current) return;
     const area = tile.current?.offsetParent?.getBoundingClientRect();
     const box = tile.current?.getBoundingClientRect();
     drag.current = null;
+    releasedAt.current = box ?? null;
     setOffset(null);
     if (!area || !box) return;
     const top = box.top + box.height / 2 < area.top + area.height / 2;

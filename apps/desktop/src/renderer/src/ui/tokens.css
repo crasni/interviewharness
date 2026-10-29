@@ -83,6 +83,7 @@
   --nod: 280ms;
   --wave: 900ms;
   --fade: 600ms;
+  --settle: 420ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
