@@ -197,8 +197,8 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 ## 4. UX and visual design
 
 **Monochrome, "Editorial" identity (ADR 0015).**
-- Newsreader (serif) for the interviewer's voice and titles, Geist for the interface, Geist Mono for code.
-- A cool stone neutral, light and dark following the system. Soft surfaces and light hairlines instead of black rules; radius by role.
+- Newsreader (serif) for the interviewer's voice and titles, Mona Sans for the interface, JetBrains Mono for code.
+- A cool stone neutral, light and dark following the system. Soft surfaces and light hairlines instead of black rules; soft corners (10 px cards, 8 px controls).
 - Hierarchy comes from type, weight and space; secondary text is muted grey; labels are sentence case. The one primary action is solid ink.
 - One reserved colour, for "recording".
 - 4 px grid, no gradients or glass, no ✨, no AI avatar with a face.
@@ -220,8 +220,8 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 │  [Talk]  open-mic ○                                           │
 └──────────────────────────────────────────────────────────────┘
 ```
-- **The interviewer's presence:** a dot that **breathes** while listening, **nods** (a brief scale pulse) on a backchannel, and shows a waveform while speaking. Never a chat bubble.
-- **Subtitles** fade out; the full transcript is in a drawer (⌘T).
+- **The interviewer's presence:** a floating tile, like a video-call self-view, with a circle that **breathes** while listening, **nods** on a backchannel and pulses while speaking, plus its state in words. Drag it anywhere; it settles in the nearest corner and remembers it. Never a chat bubble or a face.
+- **Transcript** shown at the bottom by default (the interviewer in serif, the candidate in bubbles); hide it (button or ⌘T) to see only the interviewer's current line, which fades once said.
 - **Talk modes:** click **Talk** / **Stop talking** (default), open mic with speech detection (v0.2), or type. Barge-in is always on. Space is never a talk key: it belongs to the editor and the text field.
 - **No hint counter.** Hints are asked for by talking; they shape the debrief but are never shown as a count or budget.
 

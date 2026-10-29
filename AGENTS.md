@@ -12,7 +12,7 @@ Inspired by [LearnHarness](https://github.com/amosblomqvist/learnharness) (AGPL)
 ## Owner
 - A CS student building this out of a passion for making things and to have real open-source impact. Not a business; no enterprise plans.
 - Wants to **handcraft the interesting parts** (Floor Manager, audio pipeline, scene→graph, sandbox, design system) and let AI write the boilerplate. Explain design decisions; don't just dump code.
-- **Design taste:** monochrome, modern, very clean, intuitive. Current identity is "Editorial" (ADR 0015): Newsreader + Geist + Geist Mono on a stone neutral, light and dark. **No AI slop:** no gradients, glass, ✨ or stock-shadcn look. Hierarchy comes from type, weight and space; the one primary action is solid ink. All styling goes through the role tokens in `apps/desktop/src/renderer/src/ui/tokens.css`.
+- **Design taste:** monochrome, modern, very clean, intuitive. Current identity is "Editorial" (ADR 0015): Newsreader + Mona Sans + JetBrains Mono on a stone neutral, soft corners, light and dark. **No AI slop:** no gradients, glass, ✨ or stock-shadcn look. Hierarchy comes from type, weight and space; the one primary action is solid ink. All styling goes through the role tokens in `apps/desktop/src/renderer/src/ui/tokens.css`.
 - Names and UI copy must be **intuitive and literal**, not clever metaphors.
 
 ## Decided stack (see docs/DECISIONS.md)

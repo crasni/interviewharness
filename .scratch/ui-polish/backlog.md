@@ -1,6 +1,8 @@
 # UI polish backlog
 
-Owner's notes after trying the Editorial identity (2026-10-29). **Not started: wait for the owner's go.** When starting, grill the open questions first, then turn them into tickets in this folder with `/to-tickets`.
+**Done 2026-10-30:** 1 (soft corners), 2 (floating interviewer tile, transcript at the bottom; talk mode and text size moved to settings), 4 (Mona Sans + JetBrains Mono). 3 became tickets in `.scratch/settings/`.
+
+Owner's notes after trying the Editorial identity (2026-10-29), kept for the record.
 
 ## 1. Corners are too rounded
 Cards and the composer use 16 px, buttons and the bubble are full pills. Tone it down. Values live in `apps/desktop/src/renderer/src/ui/tokens.css` (`--radius-*`); compare a few side by side.
