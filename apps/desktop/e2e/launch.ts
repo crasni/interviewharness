@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron, expect } from '@playwright/test';
@@ -35,4 +35,13 @@ export async function launchIntoRoom() {
   await window.keyboard.press('Space');
   await expect(interviewer).toHaveAttribute('data-state', 'listening');
   return launched;
+}
+
+/** The round's events.jsonl entries, parsed. */
+export function readRoundLog(dataDir: string) {
+  const [round] = readdirSync(join(dataDir, 'rounds'));
+  return readFileSync(join(dataDir, 'rounds', round!, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
 }

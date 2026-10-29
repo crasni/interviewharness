@@ -1,7 +1,5 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom } from './launch.ts';
+import { launchIntoRoom, readRoundLog } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -15,13 +13,7 @@ test.afterEach(async () => {
   await app.close();
 });
 
-function roundLog() {
-  const [round] = readdirSync(join(dataDir, 'rounds'));
-  return readFileSync(join(dataDir, 'rounds', round!, 'events.jsonl'), 'utf8')
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line));
-}
+const roundLog = () => readRoundLog(dataDir);
 
 test('holding Space shows the candidate is talking', async () => {
   await window.keyboard.down('Space');

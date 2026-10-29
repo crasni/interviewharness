@@ -2,7 +2,13 @@ import type { RoundKind } from '@interviewharness/core';
 import type { Decision, RoundSnapshot, Signal } from '@interviewharness/engine';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
-export const candidateSignalTypes = ['talk-start', 'talk-end', 'said', 'phase-answer'] as const satisfies readonly Signal['type'][];
+export const candidateSignalTypes = [
+  'talk-start',
+  'talk-end',
+  'said',
+  'phase-answer',
+  'editor-activity',
+] as const satisfies readonly Signal['type'][];
 export type CandidateSignal = Extract<Signal, { type: (typeof candidateSignalTypes)[number] }>;
 
 /** Decisions worth showing: everything except staying silent. */

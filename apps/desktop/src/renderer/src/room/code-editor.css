@@ -1,0 +1,60 @@
+.code-editor {
+  height: 100%;
+  overflow: hidden;
+}
+
+.code-editor .cm-editor {
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.code-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.code-editor .cm-scroller {
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.code-editor .cm-content {
+  padding: var(--space-3) 0;
+  caret-color: var(--ink);
+}
+
+.code-editor .cm-gutters {
+  background: var(--paper);
+  color: var(--ink);
+  border-right: var(--rule);
+}
+
+.code-editor .cm-lineNumbers .cm-gutterElement {
+  padding: 0 var(--space-2) 0 var(--space-3);
+}
+
+.code-editor .cm-cursor {
+  border-left: var(--hairline) solid var(--ink);
+}
+
+/* State by inversion: the selection is black with white text. */
+.code-editor .cm-selectionBackground,
+.code-editor .cm-focused .cm-selectionBackground {
+  background: var(--ink) !important;
+}
+
+.code-editor .cm-content ::selection {
+  color: var(--paper);
+}
+
+.code-editor .cm-activeLine,
+.code-editor .cm-activeLineGutter {
+  background: transparent;
+}
+
+.code-editor .cm-activeLineGutter {
+  font-weight: var(--weight-bold);
+}

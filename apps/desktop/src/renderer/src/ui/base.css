@@ -46,6 +46,24 @@ button:disabled {
   cursor: default;
 }
 
+/* Scrollbars: a thin black thumb on white, never the system grey. */
+::-webkit-scrollbar {
+  width: var(--space-2);
+  height: var(--space-2);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--paper);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ink);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
 .label {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);

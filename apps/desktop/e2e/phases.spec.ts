@@ -49,7 +49,7 @@ test('carrying on talking withdraws the suggestion', async () => {
   await window.getByRole('textbox', { name: 'What you said' }).press('Enter');
   await expect(window.getByRole('button', { name: 'Not yet' })).toBeVisible();
 
-  await window.locator('body').click();
+  await window.getByRole('banner', { name: 'Round status' }).click(); // leave text fields so Space means "talk"
   await window.keyboard.press('Space');
 
   await expect(window.getByRole('button', { name: 'Not yet' })).toHaveCount(0);

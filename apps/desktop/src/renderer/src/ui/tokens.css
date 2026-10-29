@@ -54,11 +54,16 @@
 
   /* Layout */
   --pane-min: 240px;
+  /* The problem pane's share of the window width when shown. */
+  --pane-share: 34vw;
+  --drawer-min: 320px;
+  --drawer-share: 30vw;
   --field-min: 320px;
 
   /* Motion */
   --breathe: 4s;
   --nod: 280ms;
   --wave: 900ms;
+  --fade: 600ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }

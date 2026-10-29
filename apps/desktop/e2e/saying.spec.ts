@@ -38,12 +38,17 @@ test('talking over the interviewer stops it', async () => {
   const interviewer = window.getByRole('status', { name: 'Interviewer' });
   await expect(interviewer).toHaveAttribute('data-state', 'speaking');
 
-  await window.locator('body').click(); // leave the text field so Space means "talk"
+  await window.getByRole('banner', { name: 'Round status' }).click(); // leave text fields so Space means "talk"
   await window.keyboard.down('Space');
 
   await expect(interviewer).toHaveAttribute('data-state', 'listening');
   await expect(window.getByTestId('subtitle')).toHaveText('');
   await window.keyboard.up('Space');
+
+  await window.keyboard.press('ControlOrMeta+t');
+  await expect(window.getByRole('complementary', { name: 'Transcript' }).getByRole('listitem').last()).toContainText(
+    'Interviewer · cut off',
+  );
 });
 
 test('Space types a space in the text field instead of talking', async () => {
