@@ -12,7 +12,9 @@ export type Signal =
   | { type: 'phase-answer'; accept: boolean }
   /** The candidate is typing in the code editor. Sent at most about once a second. */
   | { type: 'editor-activity' }
-  | { type: 'tick' };
+  | { type: 'tick' }
+  /** The round is over. Logged so a replay can tell an ended round from a crash; nothing is said after it. */
+  | { type: 'round-end' };
 
 /** A line the interviewer says aloud, holding the floor for about `speakingMs`. */
 export type Spoken<K extends string> = { kind: K; line: string; speakingMs: number };
@@ -121,6 +123,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   let turnClosedAt: number | null = null;
   // A suggestion was withdrawn while handling a candidate signal; the next tick tells the room.
   let withdrawalToAnnounce = false;
+  let ended = false;
 
   const isSpeaking = (now: number) => speakingUntil !== null && now < speakingUntil;
 
@@ -192,7 +195,16 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
 
   /** Returns the decision, and whether it is worth logging. */
   function decide(signal: Signal, now: number): [Decision, boolean] {
+    if (ended) return [silent, false];
     switch (signal.type) {
+      case 'round-end':
+        ended = true;
+        if (talkingSince !== null) talkMs = now - talkingSince; // close the talk the candidate was in
+        talkingSince = null;
+        speakingUntil = null;
+        responseDueAt = null;
+        return [silent, true];
+
       case 'talk-start':
         carryOn(now);
         talkingSince = now;

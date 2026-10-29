@@ -427,4 +427,19 @@ describe('the Floor Manager', () => {
       expect(wait(1_000).some((d) => d.kind === 'suggestion-withdrawn')).toBe(false);
     });
   });
+
+  describe('the end of the round', () => {
+    it('is logged, closing any talk that was still going, and the interviewer says nothing after it', () => {
+      const { floor, log, wait } = setup();
+      floor.onSignal({ type: 'talk-start' });
+      wait(2_000);
+
+      expect(floor.onSignal({ type: 'round-end' })).toEqual({ kind: 'silent' });
+      expect(log.entries.at(-1)).toMatchObject({
+        signal: { type: 'round-end' },
+        state: { talking: false, talkMs: 2_000 },
+      });
+      expect(wait(60 * 60_000).every((d) => d.kind === 'silent')).toBe(true);
+    });
+  });
 });
