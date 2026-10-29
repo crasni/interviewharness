@@ -137,7 +137,7 @@ Repo at commit 3dd5211, v0.3.9; 3.5k★ in 13 days; 206 open issues.
 
 ### 3.2 Modes (in shipping order)
 1. **Coding round:** live voice, 45 min, CodeMirror + runner, phases:
-   - Clarify → Approach → Code → Test → Complexity / follow-up → Debrief
+   - Clarify → Approach → Code → Test → Complexity → Wrap-up, then the debrief
 2. **System design round:** Excalidraw + the scene-to-graph converter, phases:
    - Requirements → Estimates → API → High-level design → Deep dive → Wrap-up
 3. **AI-assisted round (Meta-style):** a multi-file repo, a separate *assistant* AI in a side panel, an interviewer who watches how you use it. Grades verification and whether you understand the AI's code. **Unique and timely.**
@@ -163,7 +163,7 @@ clock (phase timer, time since progress) ─────────────
   - Think-aloud markers ("so…", "let me think")
   - Is it a question? Is it aimed at the interviewer?
   - Typing activity, test runs and results
-  - Time since last progress, phase, hint budget
+  - Time since last progress, phase, hints given so far
 - **Rules (first version):**
   - **SILENT** while the user is thinking aloud and making progress. Never interrupt mid-utterance.
   - **BACKCHANNEL** when a clause ends but the turn isn't over and there's been 600–1200 ms of silence. At most one every 8–10 s.
@@ -171,10 +171,12 @@ clock (phase timer, time since progress) ─────────────
   - **PROBE** when the turn ended and the rubric shows a gap (complexity, edge cases, a hand-waved component).
   - **HINT** only on request, or after a stall (60–120 s with no new code or idea, or circular talk). The ladder is nudge → question → concrete. Never the solution.
   - Barge-in cancels TTS and the LLM; user backchannels during AI speech are ignored.
-- **Persona knobs** (from the skill file): `patience`, `talkativeness`, `hint_policy`, `strictness`, `backchannel_rate`, `probe_depth`.
+- **Persona knobs** (deferred, see ADR 0014; v0.0 uses fixed defaults): `patience`, `talkativeness`, `hint_policy`, `strictness`, `backchannel_rate`, `probe_depth`.
 - **Every decision is logged with its signals** → the eval harness replays sessions to tune thresholds. This is also great video and blog content.
 
 ### 3.4 Interviewer personas = skills
+> **Deferred (ADR 0014):** we build one well-defined, human-like interviewer first. Personas may return later as variations on it.
+
 ```
 skills/interviewers/
   faang-coding/SKILL.md          # phases, tone, knobs, rubric anchors
@@ -185,7 +187,8 @@ skills/interviewers/
 Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks. Every file can be edited or overridden from Settings (the LearnHarness pattern).
 
 ### 3.5 Debrief
-- **Scorecard:** 1–4 per axis (problem solving, coding, verification, communication; design axes for system design), with **evidence links** that jump to the moment in the replay.
+- **Written feedback, not metrics:** a verdict on a six-level scale (Strong hire … Strong no hire) with reasons, then what went well and what to fix, each tied to a moment in the round. Hints used shape the feedback but are never shown as a count.
+- **Scorecard (internal):** 1–4 per axis (problem solving, coding, verification, communication; design axes for system design), with **evidence links** that jump to the moment in the replay.
 - **Replay timeline:** audio, transcript, code snapshots and whiteboard states on one scrubbable timeline. Interviewer decisions show as ticks ("why did it stay quiet here?").
 - **Weak-pattern tracker** across sessions: plain files, so you can query them from Claude Code via the bundled skill.
 
@@ -203,7 +206,7 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 **The interview room:**
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ ● REC   Coding · Faang persona        Phase 3/6  CODE   23:41 │
+│ ● REC   Coding round                  Phase 3/6  CODE   23:41 │
 ├───────────────────────┬──────────────────────────────────────┤
 │ Problem               │  editor                    [Run ⌘↵]   │
 │ (collapsible)         │                                      │
@@ -212,13 +215,13 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 ├───────────────────────┴──────────────────────────────────────┤
 │  ◉ ▁▂▅▃▁  "What happens if the input has duplicates?"         │  ← interviewer presence + subtitle
 │  you  …so I'd keep a hashmap from value to index…            │  ← your live transcript (dim)
-│  [SPACE hold to talk]  open-mic ○   hints left ▮▮▯            │
+│  [SPACE hold to talk]  open-mic ○                             │
 └──────────────────────────────────────────────────────────────┘
 ```
 - **The interviewer's presence:** a dot that **breathes** while listening, **nods** (a brief scale pulse) on a backchannel, and shows a waveform while speaking. Never a chat bubble.
 - **Subtitles** fade out; the full transcript is in a drawer (⌘T).
 - **Talk modes:** hold Space (default), open mic, or type (⌘/). Barge-in is always on.
-- **Hint ladder** is visible and costs something, so asking is a deliberate act.
+- **No hint counter.** Hints are asked for by talking; they shape the debrief but are never shown as a count or budget.
 
 ---
 
@@ -324,8 +327,8 @@ Packages that stand alone and could become separate open-source wins: **`board-g
 
 | Milestone | Scope | "Wow" moment |
 |---|---|---|
-| **v0.0 Prototype** (1 wk) | Clickable black-and-white interview room, fake interviewer | The look and feel |
-| **v0.1 Coding, text-first** (2–3 wk) | Providers (pi-ai + OpenAI-compatible + Ollama), safeStorage, CodeMirror, Pyodide/QuickJS runner, phase machine, persona skill, 10 original problems, scorecard with evidence | A real interview on a local model, offline |
+| **v0.0 Interview room** | Real Electron scaffold; start, room and debrief screens; early Floor Manager with canned lines, no AI, no mic (spec: issue #1) | The look and feel |
+| **v0.1 Coding, text-first** (2–3 wk) | Providers (pi-ai + OpenAI-compatible + Ollama), safeStorage, CodeMirror, Pyodide/QuickJS runner, phase machine, 10 original problems, scorecard with evidence | A real interview on a local model, offline |
 | **v0.2 Voice** (3–4 wk) | AudioWorklet, Silero, Smart Turn, sherpa-onnx local STT + Kokoro, Deepgram Flux, Floor Manager v1, backchannels, barge-in, push-to-talk | **"It stayed quiet while I thought, and said 'mm-hm'"** |
 | **v0.3 Debrief and evals** | Replay timeline, decision ticks, floor eval harness, grader median sampling | "Why did it stay quiet here?" made visible |
 | **v0.4 System design** | Excalidraw mono theme, board-graph, design phases and checklist, AI sketches suggestions back as ghost elements | AI critiques *your diagram* |
