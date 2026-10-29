@@ -17,9 +17,17 @@ let round: ActiveRound | null = null;
 // Only coding rounds exist so far; the start screen shows the others as disabled.
 const availableKinds: readonly RoundKind[] = ['coding'];
 
+/** Stops the round in progress, if any, and returns how it ended. */
+function endCurrentRound() {
+  const ended = round?.snapshot() ?? null;
+  round?.stop();
+  round = null;
+  return ended;
+}
+
 ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
   if (!availableKinds.includes(kind)) throw new Error(`Round kind not available yet: ${kind}`);
-  round?.stop();
+  endCurrentRound();
   round = runRound({
     kind,
     clock: systemClock,
@@ -31,6 +39,8 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
 });
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
+
+ipcMain.handle(channels.endRound, endCurrentRound);
 
 ipcMain.on(channels.signal, (_event, signal: unknown) => {
   if (isCandidateSignal(signal)) round?.signal(signal);
@@ -64,6 +74,6 @@ function createWindow() {
 void app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  round?.stop();
+  endCurrentRound();
   app.quit();
 });

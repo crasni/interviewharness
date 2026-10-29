@@ -32,7 +32,10 @@ export function runRound(options: {
   return {
     snapshot: () => round.snapshot(),
     signal,
-    stop: () => clearInterval(ticker),
+    stop() {
+      clearInterval(ticker);
+      floor.onSignal({ type: 'round-end' });
+    },
   };
 }
 

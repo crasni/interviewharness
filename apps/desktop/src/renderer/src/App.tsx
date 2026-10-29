@@ -1,13 +1,28 @@
 import type { RoundSnapshot } from '@interviewharness/engine';
 import { useState } from 'react';
+import { Debrief } from './debrief/Debrief.tsx';
 import { Room } from './room/Room.tsx';
 import { StartScreen } from './start/StartScreen.tsx';
 
-export function App() {
-  const [round, setRound] = useState<RoundSnapshot | null>(null);
+type Screen = { name: 'start' } | { name: 'room'; round: RoundSnapshot } | { name: 'debrief'; round: RoundSnapshot };
 
-  if (!round) {
-    return <StartScreen onStart={async (kind) => setRound(await window.harness.startRound(kind))} />;
+export function App() {
+  const [screen, setScreen] = useState<Screen>({ name: 'start' });
+
+  switch (screen.name) {
+    case 'start':
+      return (
+        <StartScreen onStart={async (kind) => setScreen({ name: 'room', round: await window.harness.startRound(kind) })} />
+      );
+    case 'room':
+      return (
+        <Room
+          initial={screen.round}
+          // Main only lacks a round if it already ended; the room's last known state is the best we have.
+          onEnd={async () => setScreen({ name: 'debrief', round: (await window.harness.endRound()) ?? screen.round })}
+        />
+      );
+    case 'debrief':
+      return <Debrief round={screen.round} onBack={() => setScreen({ name: 'start' })} />;
   }
-  return <Room initial={round} />;
 }

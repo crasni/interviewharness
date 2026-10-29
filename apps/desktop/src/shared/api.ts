@@ -18,6 +18,8 @@ export type SpokenDecision = Exclude<Decision, { kind: 'silent' }>;
 export interface HarnessApi {
   startRound(kind: RoundKind): Promise<RoundSnapshot>;
   roundSnapshot(): Promise<RoundSnapshot | null>;
+  /** Ends the round in progress and returns how it ended. */
+  endRound(): Promise<RoundSnapshot | null>;
   signal(signal: CandidateSignal): void;
   /** Subscribes to the interviewer's decisions; returns an unsubscribe function. */
   onDecision(listener: (decision: SpokenDecision) => void): () => void;
@@ -26,6 +28,7 @@ export interface HarnessApi {
 export const channels = {
   startRound: 'round:start',
   roundSnapshot: 'round:snapshot',
+  endRound: 'round:end',
   signal: 'floor:signal',
   decision: 'floor:decision',
 } as const;

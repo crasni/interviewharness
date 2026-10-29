@@ -2,6 +2,7 @@ import type { LaterPhase, RoundSnapshot } from '@interviewharness/engine';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { PresenceDot, type PresenceState } from '../ui/PresenceDot.tsx';
+import { formatElapsed } from '../ui/time.ts';
 import { CodeEditor } from './CodeEditor.tsx';
 import { ProblemPanel } from './ProblemPanel.tsx';
 import './room.css';
@@ -11,13 +12,14 @@ import { useHoldToTalk } from './useHoldToTalk.ts';
 import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
 
-export function Room({ initial }: { initial: RoundSnapshot }) {
+export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => void }) {
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
   const subtitle = useSubtitle();
   const [candidateWords, setCandidateWords] = useState('');
   const transcript = useTranscript();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [ending, setEnding] = useState(false);
   const closeTranscript = useCallback(() => setTranscriptOpen(false), []);
   // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
   const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
@@ -100,6 +102,17 @@ export function Room({ initial }: { initial: RoundSnapshot }) {
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>
+        <button
+          type="button"
+          className="room-end label"
+          disabled={ending}
+          onClick={() => {
+            setEnding(true); // once only: a second click would end a round that is already over
+            onEnd();
+          }}
+        >
+          End round
+        </button>
       </header>
 
       <div className="room-work">
@@ -161,11 +174,4 @@ function PresenceControls({ state, onChange }: { state: PresenceState; onChange:
       ))}
     </div>
   );
-}
-
-function formatElapsed(ms: number) {
-  const total = Math.floor(ms / 1000);
-  const minutes = String(Math.floor(total / 60)).padStart(2, '0');
-  const seconds = String(total % 60).padStart(2, '0');
-  return `${minutes}:${seconds}`;
 }

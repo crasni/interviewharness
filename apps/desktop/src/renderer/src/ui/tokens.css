@@ -59,6 +59,8 @@
   --drawer-min: 320px;
   --drawer-share: 30vw;
   --field-min: 320px;
+  /* A comfortable line length for reading feedback. */
+  --reading-width: 800px;
 
   /* Motion */
   --breathe: 4s;

@@ -12,6 +12,10 @@
   border-bottom: var(--rule);
 }
 
+.room-end {
+  padding: var(--space-1) var(--space-2);
+}
+
 .room-kind {
   font-weight: var(--weight-medium);
 }
