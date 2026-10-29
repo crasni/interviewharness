@@ -9,7 +9,7 @@
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--ink);
-  background: var(--paper);
+  background: var(--surface);
 }
 
 .code-editor .cm-editor.cm-focused {
@@ -27,9 +27,9 @@
 }
 
 .code-editor .cm-gutters {
-  background: var(--paper);
-  color: var(--ink);
-  border-right: var(--rule);
+  background: var(--surface);
+  color: var(--muted);
+  border-right: 0;
 }
 
 .code-editor .cm-lineNumbers .cm-gutterElement {
@@ -40,14 +40,10 @@
   border-left: var(--hairline) solid var(--ink);
 }
 
-/* State by inversion: the selection is black with white text. */
+/* The selection is a soft tint of the ink colour, so code stays readable. */
 .code-editor .cm-selectionBackground,
 .code-editor .cm-focused .cm-selectionBackground {
-  background: var(--ink) !important;
-}
-
-.code-editor .cm-content ::selection {
-  color: var(--paper);
+  background: color-mix(in srgb, var(--ink) 16%, transparent) !important;
 }
 
 .code-editor .cm-activeLine,
@@ -56,5 +52,5 @@
 }
 
 .code-editor .cm-activeLineGutter {
-  font-weight: var(--weight-bold);
+  color: var(--ink);
 }

@@ -14,8 +14,8 @@ export function Transcript({ entries, onClose }: { entries: TranscriptEntry[]; o
   return (
     <aside className="transcript" aria-label="Transcript">
       <header className="transcript-head">
-        <h2 className="label">Transcript</h2>
-        <button type="button" className="label" onClick={onClose}>
+        <h2>Transcript</h2>
+        <button type="button" onClick={onClose}>
           Close
         </button>
       </header>

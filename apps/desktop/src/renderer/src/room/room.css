@@ -1,42 +1,58 @@
+/* The interview room: a light top bar, two cards (problem, editor), and the exchange beneath them. */
 .room {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  gap: var(--space-4);
   height: 100%;
+  padding: 0 var(--space-5) var(--space-5);
 }
+
+/* ---------- top bar ---------- */
 
 .room-bar {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-6);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--rule);
-}
-
-.room-end {
-  padding: var(--space-1) var(--space-2);
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
 }
 
 .room-kind {
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-bold);
+}
+
+.room-sep {
+  color: var(--muted);
+}
+
+.room-spacer {
+  flex: 1;
 }
 
 .room-timer {
-  margin-left: auto;
+  margin-right: var(--space-2);
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- the two cards ---------- */
 
 .room-work {
   position: relative;
   display: grid;
   grid-template-columns: auto 1fr;
+  gap: var(--space-4);
   min-height: 0;
 }
 
 .room-editor {
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
 }
 
 .problem {
@@ -44,9 +60,11 @@
   flex-direction: column;
   align-items: start;
   gap: var(--space-4);
-  border-right: var(--rule);
-  padding: var(--space-4);
+  padding: var(--space-5);
   overflow-y: auto;
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
 }
 
 .problem[data-shown='true'] {
@@ -54,7 +72,8 @@
 }
 
 .problem-toggle {
-  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
 }
 
 .problem-text {
@@ -63,24 +82,24 @@
 }
 
 .problem-text h1 {
-  font-size: var(--text-lg);
-  line-height: var(--leading-lg);
-  font-weight: var(--weight-bold);
+  font-family: var(--font-voice);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
 }
 
 .problem-text h2 {
   margin-top: var(--space-2);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .problem-text p,
 .problem-text li {
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-lg);
 }
 
 .problem-text ul {
@@ -94,9 +113,12 @@
 
 .problem-text pre {
   padding: var(--space-3);
-  border: var(--rule);
   overflow-x: auto;
+  background: var(--sunk);
+  border-radius: var(--radius-sm);
 }
+
+/* ---------- transcript drawer (floats over the editor) ---------- */
 
 .transcript {
   position: absolute;
@@ -104,8 +126,10 @@
   width: max(var(--drawer-min), var(--drawer-share));
   display: flex;
   flex-direction: column;
-  background: var(--paper);
-  border-left: var(--rule);
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
 }
 
 .transcript-head {
@@ -116,8 +140,9 @@
   border-bottom: var(--rule);
 }
 
-.transcript-head button {
-  padding: var(--space-1) var(--space-2);
+.transcript-head h2 {
+  font-size: var(--text-sm);
+  color: var(--ink);
 }
 
 .transcript-entries {
@@ -130,29 +155,41 @@
 }
 
 .transcript-entries p {
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-lg);
 }
 
 .transcript-entries li[data-who='interviewer'] p {
-  font-weight: var(--weight-medium);
-}
-
-.room-presence {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(var(--field-min), auto);
-  align-items: center;
-  column-gap: var(--space-4);
-  row-gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-top: var(--rule);
-  min-height: var(--space-16);
-}
-
-.room-subtitle {
+  font-family: var(--font-voice);
   font-size: var(--text-lg);
-  line-height: var(--leading-lg);
-  font-weight: var(--weight-medium);
+}
+
+/* ---------- the exchange: interviewer, candidate, composer ---------- */
+
+.room-exchange {
+  width: min(var(--reading-width), 100%);
+  justify-self: center;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.room-interviewer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--leading-voice);
+}
+
+.room-interviewer .presence {
+  margin-top: var(--space-1);
+}
+
+/* The interviewer's voice: the one place the serif speaks. */
+.room-subtitle {
+  flex: 1;
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
   transition: opacity var(--fade) var(--ease);
 }
 
@@ -160,24 +197,17 @@
   opacity: 0;
 }
 
-/* Click to talk; stays inverted while the candidate holds the floor. */
-.room-talk {
-  align-self: center;
+/* The candidate's own words, as a bubble on the right. */
+.room-candidate-words {
+  justify-self: end;
+  max-width: 70%;
+  padding: var(--space-2) var(--space-4);
+  background: var(--sunk);
+  border-radius: var(--radius-md);
 }
 
-.room-dev {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.room-dev button {
-  padding: var(--space-1) var(--space-2);
-}
-
-.room-talk-status {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: end;
+.room-candidate-words:empty {
+  display: none;
 }
 
 .room-suggestion {
@@ -185,42 +215,52 @@
   gap: var(--space-2);
 }
 
-.room-suggestion button {
-  padding: var(--space-1) var(--space-3);
-}
-
-.room-candidate {
-  grid-column: 1 / 3;
+.room-composer {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
 }
 
-/* The candidate's own words: lighter weight than the subtitle, so the interviewer reads first. */
-.room-candidate-words {
-  font-weight: var(--weight-regular);
+.room-composer:focus-within {
+  border-color: var(--muted);
 }
 
 .say {
-  grid-column: 3;
+  flex: 1;
+  min-width: 0;
 }
 
 .say-input {
   width: 100%;
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
   color: var(--ink);
-  background: var(--paper);
-  border: var(--rule);
-  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 0;
+  padding: var(--space-2) 0;
+}
+
+.say-input:focus,
+.say-input:focus-visible {
+  outline: none;
 }
 
 .say-input::placeholder {
-  color: var(--ink);
-  font-style: italic;
+  color: var(--muted);
 }
 
-.say-input:focus {
-  outline: var(--hairline) solid var(--ink);
-  outline-offset: calc(var(--hairline) * -1);
+.room-dev {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.room-dev button {
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
 }

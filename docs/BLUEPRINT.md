@@ -196,12 +196,14 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 
 ## 4. UX and visual design
 
-**Black and white, strict.**
-- Hierarchy comes from type weight, size and space. State is shown by **inversion**.
-- One signal colour at most, for "recording".
-- Fonts: a grotesk for the UI (Geist / Inter Display alternatives), a mono for code (JetBrains Mono / Berkeley Mono).
+**Monochrome, "Editorial" identity (ADR 0015).**
+- Newsreader (serif) for the interviewer's voice and titles, Geist for the interface, Geist Mono for code.
+- A cool stone neutral, light and dark following the system. Soft surfaces and light hairlines instead of black rules; radius by role.
+- Hierarchy comes from type, weight and space; secondary text is muted grey; labels are sentence case. The one primary action is solid ink.
+- One reserved colour, for "recording".
 - 4 px grid, no gradients or glass, no ✨, no AI avatar with a face.
 - Keyboard-first, with a ⌘K palette.
+- All values live as role tokens in `ui/tokens.css`, so the identity can change in one place.
 
 **The interview room:**
 ```

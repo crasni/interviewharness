@@ -15,7 +15,7 @@ body,
 }
 
 body {
-  background: var(--paper);
+  background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: var(--text-md);
@@ -23,53 +23,74 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Buttons: outlined at rest, inverted when hovered, focused or pressed. */
+/* Buttons: quiet pills with a hairline; a faint wash on hover. `.primary` (or a pressed toggle) is the one solid ink action. */
 button {
   font: inherit;
+  font-size: var(--text-sm);
   color: var(--ink);
-  background: var(--paper);
+  background: transparent;
   border: var(--rule);
-  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-4);
+  min-height: 32px;
   cursor: pointer;
+  transition: background var(--fade) var(--ease);
 }
 
-button:hover:not(:disabled),
-button:focus-visible,
+button:hover:not(:disabled) {
+  background: var(--wash);
+}
+
+button.primary,
 button[aria-pressed='true'] {
-  background: var(--ink);
-  color: var(--paper);
-  outline: none;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+button.primary:hover:not(:disabled),
+button[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--primary);
+  opacity: 0.88;
 }
 
 button:disabled {
-  border: var(--rule-dashed);
+  opacity: 0.45;
   cursor: default;
 }
 
-/* Scrollbars: a thin black thumb on white, never the system grey. */
+:focus-visible {
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: var(--hairline);
+}
+
+/* Scrollbars: a thin rounded thumb in the hairline colour. */
 ::-webkit-scrollbar {
-  width: var(--space-2);
-  height: var(--space-2);
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--paper);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--ink);
+  background: var(--line);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
 }
 
 ::-webkit-scrollbar-button {
   display: none;
 }
 
+/* Small secondary text: metadata, section names. Sentence case, never shouted. */
 .label {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  color: var(--muted);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -78,5 +99,6 @@ button:disabled {
   *::after {
     animation-duration: 0s !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
   }
 }

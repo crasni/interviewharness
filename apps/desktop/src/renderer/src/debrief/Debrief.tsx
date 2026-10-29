@@ -39,7 +39,7 @@ export function Debrief({ round, onBack }: { round: RoundSnapshot; onBack: () =>
       <Points title="What to fix" points={feedback.toFix} />
 
       <footer>
-        <button type="button" onClick={onBack}>
+        <button type="button" className="primary" onClick={onBack}>
           Back to start
         </button>
       </footer>

@@ -1,27 +1,48 @@
 .start {
   display: grid;
   align-content: center;
+  justify-items: center;
   gap: var(--space-12);
   min-height: 100%;
-  padding: var(--space-16);
+  padding: var(--space-16) var(--space-6);
+  text-align: center;
+}
+
+.start-head {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .start-title {
+  font-family: var(--font-voice);
   font-size: var(--text-2xl);
   line-height: var(--leading-2xl);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-medium);
   letter-spacing: var(--tracking-display);
+}
+
+.start-lede {
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
+  color: var(--muted);
 }
 
 .start-rounds {
   list-style: none;
   display: grid;
   gap: var(--space-3);
-  justify-items: start;
+  justify-items: center;
 }
 
 .start-rounds li {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
+}
+
+.start-rounds button {
+  min-width: 220px;
+  min-height: 40px;
+  font-size: var(--text-md);
 }

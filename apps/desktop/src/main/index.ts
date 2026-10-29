@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
 import { createLineBook } from '@interviewharness/engine';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 import { channels, isCandidateSignal } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
@@ -55,7 +55,8 @@ function createWindow() {
     width: 1280,
     height: 800,
     show: !hidden,
-    backgroundColor: '#ffffff',
+    // The canvas colour of each theme (see tokens.css), so the window never flashes white.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#191918' : '#f4f4f2',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       sandbox: true,

@@ -96,15 +96,19 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
     <div className="room">
       <header className="room-bar" aria-label="Round status">
         <span className="room-kind">{roundLabel(round.kind)}</span>
-        <span className="label" data-testid="phase">
-          {phaseLabels[round.phase]}
+        <span className="room-sep" aria-hidden="true">
+          ·
         </span>
+        <span data-testid="phase">{phaseLabels[round.phase]}</span>
+        <span className="room-spacer" />
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>
+        <button type="button" aria-expanded={transcriptOpen} onClick={() => setTranscriptOpen((open) => !open)}>
+          Transcript
+        </button>
         <button
           type="button"
-          className="room-end label"
           disabled={ending}
           onClick={() => {
             setEnding(true); // once only: a second click would end a round that is already over
@@ -123,40 +127,39 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         {transcriptOpen && <Transcript entries={transcript.entries} onClose={closeTranscript} />}
       </div>
 
-      <footer className="room-presence">
-        <PresenceDot state={presence} onNodEnd={() => setPresence('listening')} />
-        <p className="room-subtitle" data-testid="subtitle" data-faded={subtitle.faded}>
-          {subtitle.text}
-        </p>
-        <div className="room-talk-status">
-          {suggestion && (
-            <div className="room-suggestion" role="group" aria-label={`Move on to ${phaseLabels[suggestion]}?`}>
-              <button type="button" onClick={() => answerSuggestion(true)}>
-                Move on
-              </button>
-              <button type="button" onClick={() => answerSuggestion(false)}>
-                Not yet
-              </button>
-            </div>
-          )}
-          <button type="button" className="room-talk" aria-pressed={talking} onClick={toggleTalking}>
-            {talking ? 'Stop talking' : 'Talk'}
-          </button>
+      <footer className="room-exchange">
+        <div className="room-interviewer">
+          <PresenceDot state={presence} onNodEnd={() => setPresence('listening')} />
+          <p className="room-subtitle" data-testid="subtitle" data-faded={subtitle.faded}>
+            {subtitle.text}
+          </p>
           {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
         </div>
-        <div className="room-candidate">
-          <span className="label">You</span>
-          <p className="room-candidate-words" data-testid="candidate-words">
-            {candidateWords}
-          </p>
+        <p className="room-candidate-words" data-testid="candidate-words">
+          {candidateWords}
+        </p>
+        {suggestion && (
+          <div className="room-suggestion" role="group" aria-label={`Move on to ${phaseLabels[suggestion]}?`}>
+            <button type="button" className="primary" onClick={() => answerSuggestion(true)}>
+              Move on
+            </button>
+            <button type="button" onClick={() => answerSuggestion(false)}>
+              Not yet
+            </button>
+          </div>
+        )}
+        <div className="room-composer">
+          <SayField
+            onSay={(text) => {
+              setCandidateWords(text);
+              transcript.add('candidate', text);
+              window.harness.signal({ type: 'said', text });
+            }}
+          />
+          <button type="button" aria-pressed={talking} onClick={toggleTalking}>
+            {talking ? 'Stop talking' : 'Talk'}
+          </button>
         </div>
-        <SayField
-          onSay={(text) => {
-            setCandidateWords(text);
-            transcript.add('candidate', text);
-            window.harness.signal({ type: 'said', text });
-          }}
-        />
       </footer>
     </div>
   );
@@ -168,7 +171,7 @@ function PresenceControls({ state, onChange }: { state: PresenceState; onChange:
   return (
     <div className="room-dev" role="group" aria-label="Presence (dev)">
       {states.map((s) => (
-        <button key={s} type="button" className="label" aria-pressed={state === s} onClick={() => onChange(s)}>
+        <button key={s} type="button" aria-pressed={state === s} onClick={() => onChange(s)}>
           {s}
         </button>
       ))}

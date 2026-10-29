@@ -11,7 +11,7 @@ export function ProblemPanel() {
 
   return (
     <section className="problem" aria-label="Problem" data-shown={shown}>
-      <button type="button" className="problem-toggle label" onClick={() => setShown(!shown)}>
+      <button type="button" className="problem-toggle" onClick={() => setShown(!shown)}>
         {shown ? 'Hide problem' : 'Show problem'}
       </button>
       {shown && <article className="problem-text" dangerouslySetInnerHTML={{ __html: problemHtml }} />}

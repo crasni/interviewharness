@@ -2,9 +2,10 @@
   display: grid;
   align-content: start;
   gap: var(--space-8);
-  max-width: var(--reading-width);
+  width: min(var(--reading-width), 100%);
   min-height: 100%;
-  padding: var(--space-16);
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6);
 }
 
 .debrief-head {
@@ -13,18 +14,27 @@
 }
 
 .debrief-title {
+  font-family: var(--font-voice);
   font-size: var(--text-2xl);
   line-height: var(--leading-2xl);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-medium);
   letter-spacing: var(--tracking-display);
 }
 
-/* The verdict: all six levels in a row, the given one inverted. */
+.debrief-head p {
+  color: var(--muted);
+}
+
+/* The verdict: all six levels as one segmented pill, the given one in solid ink. */
 .verdict-scale {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface);
   border: var(--rule);
+  border-radius: var(--radius-pill);
 }
 
 .verdict-scale li {
@@ -34,21 +44,25 @@
   line-height: var(--leading-sm);
   text-align: center;
   white-space: nowrap;
-}
-
-.verdict-scale li + li {
-  border-left: var(--rule);
+  color: var(--muted);
+  border-radius: var(--radius-pill);
 }
 
 .verdict-scale li[aria-current='true'] {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--primary);
+  color: var(--on-primary);
   font-weight: var(--weight-bold);
 }
 
 .debrief-section {
   display: grid;
   gap: var(--space-3);
+}
+
+.debrief-section > p {
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
 }
 
 .debrief-points {
@@ -61,11 +75,20 @@
   display: grid;
   grid-template-columns: auto 1fr;
   gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.debrief-points p {
+  line-height: var(--leading-lg);
 }
 
 .debrief-moment {
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  line-height: var(--leading-md);
+  font-size: var(--text-xs);
+  line-height: var(--leading-lg);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }

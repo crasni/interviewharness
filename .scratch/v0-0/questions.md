@@ -150,3 +150,10 @@ Holding Space clashed with typing code and felt fiddly. Now a **Talk** button to
 
 ### Q27: No menu bar; our own shortcuts
 The File / Edit / View / Window bar is gone. A hidden menu keeps copy/paste, close and quit, plus reload and dev tools in development. Zoom: **Ctrl/⌘ + =** (no Shift), **−** and **0**. Chromium's internal logs (like "Frame latency is negative") are hidden in development only; they were harmless.
+
+## Resolved by ADR 0015 (the "Editorial" identity)
+- **Q5 fonts:** Newsreader + Geist + Geist Mono (JetBrains Mono removed).
+- **Q7 disabled look:** disabled controls are faded (greys are allowed now), not dashed.
+- **Q14 dimming:** the candidate's words sit in a soft bubble; secondary text is muted grey.
+- **Q20 talk status:** replaced by the Talk / Stop talking button (Q26).
+- Still open from that group: **Q6** (recording colour, shown once the mic exists) and **Q8** (judge the speaking waveform in `pnpm dev`).

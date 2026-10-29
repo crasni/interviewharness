@@ -1,66 +1,80 @@
 /*
- * Design tokens: the only place colours, type, spacing and motion are defined.
- * Strict black and white. Hierarchy comes from weight, size and space; state is
- * shown by inversion. One colour, reserved for "recording".
+ * Design tokens: the only place colours, type, spacing, shape and motion are defined.
+ * Identity "Editorial" (ADR 0015): Newsreader for the interviewer's voice and titles,
+ * Geist for the interface, Geist Mono for code, on a cool stone neutral. Monochrome:
+ * the one primary action is ink; there is no accent colour.
+ *
+ * To change the look, change the values here. Components only use these role names.
  */
 @import '@fontsource-variable/geist';
-@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/newsreader';
 
 :root {
-  /* Colour */
-  --ink: #000;
-  --paper: #fff;
-  --recording: #e10600;
+  /* Colour roles: light (stone) */
+  --canvas: #f4f4f2; /* the window behind everything */
+  --surface: #fff; /* cards: problem, editor, composer */
+  --sunk: #ebebe8; /* wells inside a surface: code samples, the candidate's bubble */
+  --line: #e1e1dd; /* hairlines between and around surfaces */
+  --ink: #1a1a19; /* primary text */
+  --muted: #6d6d68; /* secondary text, placeholders */
+  --wash: rgb(26 26 25 / 0.05); /* hover */
+  --primary: #1a1a19; /* the one solid action (e.g. Move on, Talk while talking) */
+  --on-primary: #f4f4f2;
+  --recording: #e10600; /* reserved for "recording" once there is a mic */
 
   /* Type */
   --font-ui: 'Geist Variable', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-voice: 'Newsreader Variable', Georgia, serif; /* the interviewer's words, titles */
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
 
   --text-xs: 12px;
-  --text-sm: 14px;
-  --text-md: 16px;
-  --text-lg: 20px;
-  --text-xl: 32px;
-  --text-2xl: 48px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-voice: 21px;
+  --text-xl: 26px;
+  --text-2xl: 44px;
 
   --leading-xs: 16px;
   --leading-sm: 20px;
-  --leading-md: 24px;
-  --leading-lg: 28px;
-  --leading-xl: 40px;
-  --leading-2xl: 56px;
+  --leading-md: 20px;
+  --leading-lg: 24px;
+  --leading-voice: 30px;
+  --leading-xl: 32px;
+  --leading-2xl: 52px;
 
   --weight-regular: 400;
   --weight-medium: 500;
-  --weight-bold: 700;
+  --weight-bold: 600;
 
-  --tracking-label: 0.08em;
-  --tracking-display: -0.02em;
+  --tracking-display: -0.01em;
 
   /* Space: a 4 px grid */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
   --space-12: 48px;
   --space-16: 64px;
 
-  /* Lines */
+  /* Shape: radius by role */
+  --radius-sm: 8px; /* small wells, code samples */
+  --radius-md: 16px; /* cards, the composer */
+  --radius-pill: 999px; /* buttons, chips, the candidate's bubble */
   --hairline: 2px;
-  --rule: 1px solid var(--ink);
-  --rule-dashed: 1px dashed var(--ink);
+  --rule: 1px solid var(--line);
+  --shadow-float: 0 12px 40px rgb(0 0 0 / 0.08); /* only for things floating over the room */
 
   /* Layout */
-  --pane-min: 240px;
-  /* The problem pane's share of the window width when shown. */
-  --pane-share: 34vw;
+  --pane-min: 260px;
+  --pane-share: 32vw;
   --drawer-min: 320px;
   --drawer-share: 30vw;
-  --field-min: 320px;
-  /* A comfortable line length for reading feedback. */
-  --reading-width: 800px;
+  --reading-width: 820px;
 
   /* Motion */
   --breathe: 4s;
@@ -68,4 +82,20 @@
   --wave: 900ms;
   --fade: 600ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Colour roles: dark (graphite). Follows the system setting. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #191918;
+    --surface: #222221;
+    --sunk: #121211;
+    --line: #33332f;
+    --ink: #ecece8;
+    --muted: #9c9c96;
+    --wash: rgb(236 236 232 / 0.07);
+    --primary: #ecece8;
+    --on-primary: #191918;
+    --shadow-float: 0 12px 40px rgb(0 0 0 / 0.4);
+  }
 }
