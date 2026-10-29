@@ -6,10 +6,10 @@ Spec: `.scratch/v0-0/spec.md`
 
 **Blocked by:** 01 (walking skeleton)
 
-**Status:** ready-for-human (only the owner's review of the problem text is left; see questions.md Q21)
+**Status:** done
 
 - [x] One original problem exists as a plain content file
-- [ ] The owner reviews its text
+- [x] The owner reviews its text (2026-10-30: use Two sum for now, in our own words)
 - [x] The problem shows in a collapsible left panel
 - [x] CodeMirror editor with mono font and black-and-white theme; no code running
 - [x] Editor activity is sent to the engine as a signal

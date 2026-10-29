@@ -2,6 +2,12 @@
 
 Decisions I couldn't settle alone while implementing v0.0. Each one lists the default I went with, so nothing is blocked. Answer, and I'll change course where needed.
 
+## Answered 2026-10-30
+- **Q21:** use **Two sum** for now, written from scratch in our own words (`content/problems/two-sum.md`). "Longest calm stretch" is retired (still in git history). Ticket 06 is done.
+- **Q4:** commits are pushed to GitHub from now on.
+- **Every other default is kept** (Q1–Q3, Q8–Q11, Q13, Q15–Q19, Q22–Q25). BLUEPRINT §6 now shows the electron-vite layout (Q1, Q9). Timings stay tunable by feel. Q22's language list became the settings work (`.scratch/settings/`).
+- **Still open:** Q6, the recording colour and REC mark, waits for the mic in v0.2.
+
 ## From ticket 01 (walking skeleton)
 
 ### Q1: Folder layout inside the desktop app

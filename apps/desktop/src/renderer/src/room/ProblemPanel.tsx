@@ -1,6 +1,6 @@
 import { marked } from 'marked';
 import { useState } from 'react';
-import problemFile from '../../../../../../content/problems/longest-calm-stretch.md?raw';
+import problemFile from '../../../../../../content/problems/two-sum.md?raw';
 
 // The problem is our own bundled content file, not user input, so rendering its HTML is safe.
 const problemHtml = marked.parse(problemFile, { async: false });

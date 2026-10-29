@@ -291,15 +291,18 @@ content/ai-assisted/<slug>/
 ## 6. Repository layout
 ```
 /
-├─ apps/desktop/                 # Electron app
-│  ├─ electron/                  # main, preload, utility-process entries
-│  └─ src/                       # renderer (React)
-│     ├─ room/                   # interview room: layout, presence, subtitles, hint ladder
-│     ├─ editor/                 # CodeMirror 6 setup, mono theme, vim
-│     ├─ board/                  # Excalidraw wrapper, mono theme, scene→graph bridge
-│     ├─ debrief/                # scorecard, replay timeline
-│     ├─ settings/               # providers, models, voice, personas
-│     └─ ui/                     # design system: tokens, primitives (own, not stock shadcn)
+├─ apps/desktop/                 # Electron app (electron-vite layout)
+│  ├─ e2e/                       # Playwright UI tests
+│  └─ src/
+│     ├─ main/                   # main process, utility-process entries
+│     ├─ preload/
+│     └─ renderer/src/           # renderer (React)
+│        ├─ start/               # start screen
+│        ├─ room/                # interview room: layout, editor, interviewer tile, subtitles
+│        ├─ board/               # Excalidraw wrapper, mono theme, scene→graph bridge
+│        ├─ debrief/             # scorecard, replay timeline
+│        ├─ settings/            # room and editor preferences; later providers, models, voice
+│        └─ ui/                  # design system: tokens, primitives such as the presence dot
 ├─ packages/
 │  ├─ core/                      # pure domain, no I/O: phases, rubric, scoring math, types
 │  ├─ engine/                    # Floor Manager, phase machine, interviewer agent, grader

@@ -17,20 +17,20 @@ const problem = () => window.getByRole('region', { name: 'Problem' });
 const editor = () => window.getByRole('textbox', { name: 'Code editor' });
 
 test('the problem is shown, and can be hidden and shown again', async () => {
-  await expect(problem().getByRole('heading', { name: 'Longest calm stretch' })).toBeVisible();
+  await expect(problem().getByRole('heading', { name: 'Two sum' })).toBeVisible();
 
   await window.getByRole('button', { name: 'Hide problem' }).click();
-  await expect(problem().getByRole('heading', { name: 'Longest calm stretch' })).toBeHidden();
+  await expect(problem().getByRole('heading', { name: 'Two sum' })).toBeHidden();
 
   await window.getByRole('button', { name: 'Show problem' }).click();
-  await expect(problem().getByRole('heading', { name: 'Longest calm stretch' })).toBeVisible();
+  await expect(problem().getByRole('heading', { name: 'Two sum' })).toBeVisible();
 });
 
 test('the editor takes code, Space types a space, and typing is sent as activity', async () => {
   await editor().click();
-  await window.keyboard.type('def longest_calm(readings, t):');
+  await window.keyboard.type('def two_sum(nums, target):');
 
-  await expect(editor()).toContainText('def longest_calm(readings, t):');
+  await expect(editor()).toContainText('def two_sum(nums, target):');
   await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(() => readRoundLog(dataDir).some((e) => e.signal.type === 'editor-activity')).toBe(true);
 });
