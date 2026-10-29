@@ -6,10 +6,10 @@ Spec: `.scratch/settings/spec.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** needs-triage
+**Status:** done (2026-10-30)
 
-- [ ] Settings reachable from the start screen and the room
-- [ ] Text size scales the room's type tokens
-- [ ] Theme overrides the system setting
-- [ ] Transcript default and talk mode respected when a round opens
-- [ ] Settings persist; UI tests cover each
+- [x] Settings reachable from the start screen and the room
+- [x] Text size scales the room's type tokens
+- [x] Theme overrides the system setting
+- [x] Transcript default and talk mode respected when a round opens
+- [x] Settings persist; UI tests cover each

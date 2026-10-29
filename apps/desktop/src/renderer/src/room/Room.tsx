@@ -1,7 +1,9 @@
 import type { LaterPhase, RoundSnapshot } from '@interviewharness/engine';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
+import { useSettings } from '../settings/settings.tsx';
 import type { PresenceState } from '../ui/PresenceDot.tsx';
+import { Splitter } from '../ui/Splitter.tsx';
 import { formatElapsed } from '../ui/time.ts';
 import { CodeEditor } from './CodeEditor.tsx';
 import { Conversation } from './Conversation.tsx';
@@ -14,11 +16,15 @@ import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
 
 export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => void }) {
+  const { settings, change, setPanelOpen } = useSettings();
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
   const subtitle = useSubtitle();
   const transcript = useTranscript();
-  const [transcriptShown, setTranscriptShown] = useState(true);
+  const [transcriptShown, setTranscriptShown] = useState(settings.transcriptShown);
+  const [problemShown, setProblemShown] = useState(true);
+  const room = useRef<HTMLDivElement>(null);
+  const work = useRef<HTMLDivElement>(null);
   const [ending, setEnding] = useState(false);
   // A backchannel's words ("Mm-hm.") stay on the tile a moment longer than the nod itself.
   const [backchannelLine, setBackchannelLine] = useState<string | null>(null);
@@ -98,9 +104,16 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
   }, []);
 
   const tileLabel = backchannelLine ?? (presence === 'speaking' ? 'Speaking' : 'Listening');
+  const measure = (selector: string, side: 'offsetWidth' | 'offsetHeight') =>
+    room.current?.querySelector<HTMLElement>(selector)?.[side] ?? 0;
 
   return (
-    <div className="room">
+    <div
+      className="room"
+      ref={room}
+      style={sizeVar('--conversation-height', settings.conversationHeight)}
+      data-conversation-sized={settings.conversationHeight !== null}
+    >
       <header className="room-bar" aria-label="Round status">
         <span className="room-kind">{roundLabel(round.kind)}</span>
         <span className="room-sep" aria-hidden="true">
@@ -112,6 +125,9 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>
+        <button type="button" onClick={() => setPanelOpen(true)}>
+          Settings
+        </button>
         <button type="button" aria-expanded={transcriptShown} onClick={() => setTranscriptShown((shown) => !shown)}>
           {transcriptShown ? 'Hide transcript' : 'Show transcript'}
         </button>
@@ -127,13 +143,47 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         </button>
       </header>
 
-      <div className="room-work">
-        <ProblemPanel />
+      <div
+        className="room-work"
+        ref={work}
+        style={sizeVar('--problem-width', settings.problemWidth)}
+      >
+        <ProblemPanel shown={problemShown} onToggle={() => setProblemShown(!problemShown)} />
+        {problemShown && (
+          <Splitter
+            label="Resize the problem"
+            between="columns"
+            grows="right"
+            size={() => measure('.problem', 'offsetWidth')}
+            min={problemMin}
+            max={() => (work.current?.clientWidth ?? 0) - edgeWidth - editorMin}
+            onResize={(problemWidth) => change({ problemWidth })}
+            onReset={() => change({ problemWidth: null })}
+          />
+        )}
         <section className="room-editor" aria-label="Editor">
-          <CodeEditor onActivity={() => window.harness.signal({ type: 'editor-activity' })} />
+          <CodeEditor
+            options={{ language: settings.language, autocomplete: settings.autocomplete, highlighting: settings.highlighting }}
+            onActivity={() => window.harness.signal({ type: 'editor-activity' })}
+          />
         </section>
         <InterviewerTile presence={presence} label={tileLabel} onNodEnd={() => setPresence('listening')} />
       </div>
+
+      {transcriptShown ? (
+        <Splitter
+          label="Resize the transcript"
+          between="rows"
+          grows="up"
+          size={() => measure('.conversation', 'offsetHeight')}
+          min={conversationMin}
+          max={() => (room.current?.clientHeight ?? 0) * conversationMaxShare}
+          onResize={(conversationHeight) => change({ conversationHeight })}
+          onReset={() => change({ conversationHeight: null })}
+        />
+      ) : (
+        <div className="room-gap" aria-hidden="true" />
+      )}
 
       <footer className="room-exchange">
         {transcriptShown ? (
@@ -170,6 +220,18 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
 }
 
 const backchannelShownFor = 1_500;
+
+// Resize limits (px), so no area can be dragged out of use.
+const problemMin = 220;
+const editorMin = 360;
+const edgeWidth = 16; // the edge itself (--space-4), standing in the gap
+const conversationMin = 80;
+const conversationMaxShare = 0.6;
+
+/** A dragged size, handed to the CSS as a custom property; none means the stylesheet's default. */
+function sizeVar(name: string, px: number | null) {
+  return px === null ? undefined : ({ [name]: `${px}px` } as CSSProperties);
+}
 
 /** Dev-only: set the presence dot's state by hand to judge its look. */
 function PresenceControls({ state, onChange }: { state: PresenceState; onChange: (s: PresenceState) => void }) {

@@ -11,6 +11,7 @@ const api: HarnessApi = {
     ipcRenderer.on(channels.decision, handler);
     return () => ipcRenderer.off(channels.decision, handler);
   },
+  setTheme: (theme) => ipcRenderer.send(channels.setTheme, theme),
 };
 
 contextBridge.exposeInMainWorld('harness', api);

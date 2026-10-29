@@ -2,11 +2,22 @@ import type { RoundSnapshot } from '@interviewharness/engine';
 import { useState } from 'react';
 import { Debrief } from './debrief/Debrief.tsx';
 import { Room } from './room/Room.tsx';
+import { SettingsPanel } from './settings/SettingsPanel.tsx';
+import { SettingsProvider } from './settings/settings.tsx';
 import { StartScreen } from './start/StartScreen.tsx';
 
 type Screen = { name: 'start' } | { name: 'room'; round: RoundSnapshot } | { name: 'debrief'; round: RoundSnapshot };
 
 export function App() {
+  return (
+    <SettingsProvider>
+      <Screens />
+      <SettingsPanel />
+    </SettingsProvider>
+  );
+}
+
+function Screens() {
   const [screen, setScreen] = useState<Screen>({ name: 'start' });
 
   switch (screen.name) {

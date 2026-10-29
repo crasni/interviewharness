@@ -11,3 +11,5 @@ The owner expects to revise it, so every colour, font and shape is a role token 
 - **Pure black and white, refined** (rounded, sentence case): still read as stark.
 - **Cool neutral, ChatGPT-like** and **warm neutral, Claude-like**: liked, but too close to someone else's product.
 - **Engineer's notebook** (IBM Plex, slate) and **Modern grotesk** (Instrument, true neutral): own identities, not chosen for now.
+
+**Update 2026-10-30:** the candidate can override light/dark in Settings. Main sets Electron's `nativeTheme.themeSource`, so `prefers-color-scheme`, scrollbars and the window background all follow, and `tokens.css` keeps one media query. (`light-dark()` was tried first: Chromium left colours with a running transition on the old theme.)

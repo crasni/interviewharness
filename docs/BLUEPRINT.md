@@ -198,7 +198,7 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 
 **Monochrome, "Editorial" identity (ADR 0015).**
 - Newsreader (serif) for the interviewer's voice and titles, Mona Sans for the interface, JetBrains Mono for code.
-- A cool stone neutral, light and dark following the system. Soft surfaces and light hairlines instead of black rules; soft corners (10 px cards, 8 px controls).
+- A cool stone neutral, light and dark following the system unless the candidate picks one in Settings. Soft surfaces and light hairlines instead of black rules; soft corners (10 px cards, 8 px controls).
 - Hierarchy comes from type, weight and space; secondary text is muted grey; labels are sentence case. The one primary action is solid ink.
 - One reserved colour, for "recording".
 - 4 px grid, no gradients or glass, no ✨, no AI avatar with a face.
@@ -223,6 +223,8 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 - **The interviewer's presence:** a floating tile, like a video-call self-view, with a circle that **breathes** while listening, **nods** on a backchannel and pulses while speaking, plus its state in words. Drag it anywhere; it settles in the nearest corner and remembers it. Never a chat bubble or a face.
 - **Transcript** shown at the bottom by default (the interviewer in serif, the candidate in bubbles); hide it (button or ⌘T) to see only the interviewer's current line, which fades once said.
 - **Talk modes:** click **Talk** / **Stop talking** (default), open mic with speech detection (v0.2), or type. Barge-in is always on. Space is never a talk key: it belongs to the editor and the text field.
+- **Resizable:** drag the edge between problem and editor, or above the transcript (or move it with the arrow keys); double-click resets. Sizes are remembered.
+- **Settings** open as a sheet over any screen (button or ⌘,), so a round keeps running and changes show at once: text size, theme, transcript on by default, how you talk, panel sizes, and the editor's language, autocomplete and syntax highlighting. They change only how the room looks, never how the candidate is judged.
 - **No hint counter.** Hints are asked for by talking; they shape the debrief but are never shown as a count or budget.
 
 ---
@@ -259,7 +261,8 @@ interface FloorManager { onSignal(s: Signal): Decision | null; }
 ### 5.3 Storage (plain files, versioned)
 ```
 ~/interviewharness/                          # or Electron userData
-  settings.json                   # stores only what differs from defaults
+  settings.json                   # stores only what differs from defaults (room preferences live in
+                                  # browser storage for now; they move here with v0.1's provider settings)
   rounds/<start time>/            # one folder per round (GLOSSARY: round, not session)
     round.json                    # meta, models, verdict
     events.jsonl                  # every candidate signal + decision; ticks only when they weigh something

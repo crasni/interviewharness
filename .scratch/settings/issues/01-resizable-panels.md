@@ -6,9 +6,9 @@ Spec: `.scratch/settings/spec.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** needs-triage
+**Status:** done (2026-10-30)
 
-- [ ] Drag the problem/editor edge to resize; limits keep both usable
-- [ ] Drag the edge above the conversation to resize it
-- [ ] Sizes persist across rounds; double-click resets
-- [ ] UI test covers drag and persistence
+- [x] Drag the problem/editor edge to resize; limits keep both usable
+- [x] Drag the edge above the conversation to resize it
+- [x] Sizes persist across rounds; double-click resets
+- [x] UI test covers drag and persistence

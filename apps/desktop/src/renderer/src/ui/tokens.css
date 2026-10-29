@@ -19,6 +19,7 @@
   --ink: #1a1a19; /* primary text */
   --muted: #6d6d68; /* secondary text, placeholders */
   --wash: rgb(26 26 25 / 0.05); /* hover */
+  --scrim: rgb(26 26 25 / 0.12); /* dims the screen behind a sheet */
   --primary: #1a1a19; /* the one solid action (e.g. Move on, Talk while talking) */
   --on-primary: #f4f4f2;
   --recording: #e10600; /* reserved for "recording" once there is a mic */
@@ -28,21 +29,23 @@
   --font-voice: 'Newsreader Variable', Georgia, serif; /* the interviewer's words, titles */
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
-  --text-xs: 12px;
-  --text-sm: 13px;
-  --text-md: 14px;
-  --text-lg: 16px;
-  --text-voice: 21px;
-  --text-xl: 26px;
-  --text-2xl: 44px;
+  /* Sizes scale with the candidate's text size setting (data-text-size, below). */
+  --type-scale: 1;
+  --text-xs: calc(12px * var(--type-scale));
+  --text-sm: calc(13px * var(--type-scale));
+  --text-md: calc(14px * var(--type-scale));
+  --text-lg: calc(16px * var(--type-scale));
+  --text-voice: calc(21px * var(--type-scale));
+  --text-xl: calc(26px * var(--type-scale));
+  --text-2xl: calc(44px * var(--type-scale));
 
-  --leading-xs: 16px;
-  --leading-sm: 20px;
-  --leading-md: 20px;
-  --leading-lg: 24px;
-  --leading-voice: 30px;
-  --leading-xl: 32px;
-  --leading-2xl: 52px;
+  --leading-xs: calc(16px * var(--type-scale));
+  --leading-sm: calc(20px * var(--type-scale));
+  --leading-md: calc(20px * var(--type-scale));
+  --leading-lg: calc(24px * var(--type-scale));
+  --leading-voice: calc(30px * var(--type-scale));
+  --leading-xl: calc(32px * var(--type-scale));
+  --leading-2xl: calc(52px * var(--type-scale));
 
   --weight-regular: 400;
   --weight-medium: 500;
@@ -87,7 +90,7 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Colour roles: dark (graphite). Follows the system setting. */
+/* Colour roles: dark (graphite). Follows the system, or the theme chosen in Settings (set app-wide by main). */
 @media (prefers-color-scheme: dark) {
   :root {
     --canvas: #191918;
@@ -97,8 +100,13 @@
     --ink: #ecece8;
     --muted: #9c9c96;
     --wash: rgb(236 236 232 / 0.07);
+    --scrim: rgb(0 0 0 / 0.4);
     --primary: #ecece8;
     --on-primary: #191918;
     --shadow-float: 0 12px 40px rgb(0 0 0 / 0.4);
   }
 }
+
+/* The candidate's text size in Settings. */
+:root[data-text-size='small'] { --type-scale: 0.9; }
+:root[data-text-size='large'] { --type-scale: 1.15; }

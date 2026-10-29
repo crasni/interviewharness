@@ -11,6 +11,10 @@ export const candidateSignalTypes = [
 ] as const satisfies readonly Signal['type'][];
 export type CandidateSignal = Extract<Signal, { type: (typeof candidateSignalTypes)[number] }>;
 
+/** The candidate's theme choice; 'system' follows the operating system. */
+export const themes = ['system', 'light', 'dark'] as const;
+export type Theme = (typeof themes)[number];
+
 /** Decisions worth showing: everything except staying silent. */
 export type SpokenDecision = Exclude<Decision, { kind: 'silent' }>;
 
@@ -23,6 +27,8 @@ export interface HarnessApi {
   signal(signal: CandidateSignal): void;
   /** Subscribes to the interviewer's decisions; returns an unsubscribe function. */
   onDecision(listener: (decision: SpokenDecision) => void): () => void;
+  /** Sets the app's theme, so prefers-color-scheme, scrollbars and the window itself all follow it. */
+  setTheme(theme: Theme): void;
 }
 
 export const channels = {
@@ -31,7 +37,12 @@ export const channels = {
   endRound: 'round:end',
   signal: 'floor:signal',
   decision: 'floor:decision',
+  setTheme: 'window:theme',
 } as const;
+
+export function isTheme(value: unknown): value is Theme {
+  return (themes as readonly unknown[]).includes(value);
+}
 
 /** Checks a signal arriving over IPC: the renderer is not trusted to send well-formed data. */
 export function isCandidateSignal(value: unknown): value is CandidateSignal {

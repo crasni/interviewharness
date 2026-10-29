@@ -54,3 +54,40 @@
 .code-editor .cm-activeLineGutter {
   color: var(--ink);
 }
+
+/* Autocomplete: a small floating list in the room's own colours; the chosen line is a wash, not a colour. */
+.code-editor .cm-tooltip {
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+.code-editor .cm-tooltip-autocomplete > ul {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.code-editor .cm-tooltip-autocomplete > ul > li {
+  padding: var(--space-1) var(--space-3) !important;
+}
+
+.code-editor .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  color: var(--ink);
+  background: var(--sunk);
+}
+
+.code-editor .cm-completionIcon {
+  display: none;
+}
+
+.code-editor .cm-completionMatchedText {
+  text-decoration: none;
+  font-weight: var(--weight-bold);
+}
+
+.code-editor .cm-completionDetail {
+  color: var(--muted);
+}

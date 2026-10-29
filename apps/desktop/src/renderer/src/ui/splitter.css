@@ -1,0 +1,40 @@
+/* A resizable edge: as wide as the gap it sits in, showing a hairline only when hovered, dragged or focused. */
+.splitter {
+  position: relative;
+  flex: none;
+  touch-action: none;
+  outline: none;
+}
+
+.splitter[data-between='columns'] {
+  width: var(--space-4);
+  cursor: col-resize;
+}
+
+.splitter[data-between='rows'] {
+  height: var(--space-4);
+  cursor: row-resize;
+}
+
+.splitter::after {
+  content: '';
+  position: absolute;
+  background: var(--muted);
+  border-radius: var(--hairline);
+  opacity: 0;
+  transition: opacity var(--fade) var(--ease);
+}
+
+.splitter[data-between='columns']::after {
+  inset: var(--space-6) calc(50% - 1px);
+}
+
+.splitter[data-between='rows']::after {
+  inset: calc(50% - 1px) var(--space-6);
+}
+
+.splitter:hover::after,
+.splitter:active::after,
+.splitter:focus-visible::after {
+  opacity: 1;
+}

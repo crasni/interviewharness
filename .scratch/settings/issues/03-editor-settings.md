@@ -6,9 +6,9 @@ Spec: `.scratch/settings/spec.md`
 
 **Blocked by:** 02 (settings screen)
 
-**Status:** needs-triage
+**Status:** done (2026-10-30)
 
-- [ ] Language picker changes the editor's highlighting and indentation
-- [ ] Autocomplete on/off
-- [ ] Syntax highlighting on/off (monochrome either way)
-- [ ] UI tests cover each
+- [x] Language picker changes the editor's highlighting and indentation
+- [x] Autocomplete on/off
+- [x] Syntax highlighting on/off (monochrome either way)
+- [x] UI tests cover each

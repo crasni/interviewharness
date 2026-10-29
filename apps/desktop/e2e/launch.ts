@@ -13,6 +13,8 @@ export async function launchApp() {
     args: ['.'],
     cwd: join(import.meta.dirname, '..'),
     env: { ...process.env, INTERVIEWHARNESS_DATA_DIR: dataDir, INTERVIEWHARNESS_HIDDEN_WINDOW: '1' },
+    // No emulated colour scheme: Playwright's default (light) would hide the theme the app sets itself.
+    colorScheme: null,
   });
   const window = await app.firstWindow();
   return { app, window, dataDir };

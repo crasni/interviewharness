@@ -1,8 +1,8 @@
 /* The interview room: a light top bar, two cards (problem, editor), and the exchange beneath them. */
 .room {
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: var(--space-4);
+  /* bar, work, the edge above the exchange (it doubles as the gap), exchange */
+  grid-template-rows: auto 1fr auto auto;
   height: 100%;
   padding: 0 var(--space-5) var(--space-5);
 }
@@ -13,7 +13,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding-top: var(--space-3);
+  padding: var(--space-3) 0 var(--space-4);
+}
+
+.room-gap {
+  height: var(--space-4);
 }
 
 .room-kind {
@@ -40,13 +44,17 @@
 
 .room-work {
   position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-4);
+  display: flex;
   min-height: 0;
 }
 
+/* The edge between problem and editor is the gap between them; with the problem hidden there is no edge. */
+.problem[data-shown='false'] {
+  margin-right: var(--space-4);
+}
+
 .room-editor {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -56,6 +64,7 @@
 }
 
 .problem {
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: start;
@@ -68,7 +77,7 @@
 }
 
 .problem[data-shown='true'] {
-  width: max(var(--pane-min), var(--pane-share));
+  width: var(--problem-width, max(var(--pane-min), var(--pane-share)));
 }
 
 .problem-toggle {
@@ -135,6 +144,11 @@
   gap: var(--space-3);
   max-height: var(--conversation-height);
   overflow-y: auto;
+}
+
+/* Once the candidate has dragged its edge, the transcript keeps that height even while it is short. */
+.room[data-conversation-sized='true'] .conversation {
+  height: var(--conversation-height);
   padding-right: var(--space-2);
 }
 

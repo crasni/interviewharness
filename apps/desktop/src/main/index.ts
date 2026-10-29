@@ -3,7 +3,7 @@ import type { RoundKind } from '@interviewharness/core';
 import { createLineBook } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import { channels, isCandidateSignal } from '../shared/api.ts';
+import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { createEventsLog } from './events-log.ts';
 import { installAppMenu, setUpWindowChrome } from './window-chrome.ts';
@@ -49,6 +49,15 @@ ipcMain.on(channels.signal, (_event, signal: unknown) => {
   if (isCandidateSignal(signal)) round?.signal(signal);
 });
 
+ipcMain.on(channels.setTheme, (_event, theme: unknown) => {
+  if (!isTheme(theme)) return;
+  nativeTheme.themeSource = theme;
+  window?.setBackgroundColor(canvasColour());
+});
+
+// The canvas colour of each theme (see tokens.css), so the window never flashes the wrong one.
+const canvasColour = () => (nativeTheme.shouldUseDarkColors ? '#191918' : '#f4f4f2');
+
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
 
@@ -57,8 +66,7 @@ function createWindow() {
     width: 1280,
     height: 800,
     show: !hidden,
-    // The canvas colour of each theme (see tokens.css), so the window never flashes white.
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#191918' : '#f4f4f2',
+    backgroundColor: canvasColour(),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       sandbox: true,
