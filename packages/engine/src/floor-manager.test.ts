@@ -403,4 +403,28 @@ describe('the Floor Manager', () => {
       expect(wait(200).map((d) => d.kind)).toContain('suggestion-withdrawn');
     });
   });
+
+  describe('editor activity', () => {
+    it('is not quiet: typing code keeps the interviewer from taking silence as "done"', () => {
+      const { floor, wait } = setup();
+      floor.onSignal({ type: 'said', text: "Okay, I'll write it now." });
+      wait(3_000); // acknowledged
+
+      const decisions = [];
+      for (let second = 0; second < 30; second++) {
+        floor.onSignal({ type: 'editor-activity' });
+        decisions.push(...wait(1_000));
+      }
+
+      expect(decisions.some((d) => d.kind === 'suggest-phase')).toBe(false);
+    });
+
+    it('does not answer a suggestion either way', () => {
+      const { floor, wait } = suggested();
+
+      floor.onSignal({ type: 'editor-activity' });
+
+      expect(wait(1_000).some((d) => d.kind === 'suggestion-withdrawn')).toBe(false);
+    });
+  });
 });

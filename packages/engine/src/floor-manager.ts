@@ -10,6 +10,8 @@ export type Signal =
   | { type: 'said'; text: string }
   /** The candidate's answer to a suggestion to move on: "Move on" or "Not yet". */
   | { type: 'phase-answer'; accept: boolean }
+  /** The candidate is typing in the code editor. Sent at most about once a second. */
+  | { type: 'editor-activity' }
   | { type: 'tick' };
 
 /** A line the interviewer says aloud, holding the floor for about `speakingMs`. */
@@ -228,6 +230,11 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         phases.notYet(now);
         withdrawalToAnnounce = true;
         return [speak(now, spoken('ack', lines.next('acknowledgement'))), true];
+
+      case 'editor-activity':
+        // Coding is not silence: restart the quiet that would read as "done". It answers no suggestion.
+        if (turnClosedAt !== null) turnClosedAt = now;
+        return [silent, true];
 
       case 'tick':
         return onTick(now);
