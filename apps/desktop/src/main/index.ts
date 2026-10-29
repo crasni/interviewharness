@@ -6,7 +6,7 @@ import linesFile from '../../../../content/interviewer/lines.md?raw';
 import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { createEventsLog } from './events-log.ts';
-import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
+import { installAppMenu, setUpWindowChrome, setWindowDimmed, windowChromeOptions } from './window-chrome.ts';
 
 const systemClock = { now: () => performance.now() };
 // Tests point this at a throwaway folder; normally rounds live in the app's user data.
@@ -54,6 +54,10 @@ ipcMain.handle(channels.setTheme, (_event, theme: unknown) => {
     nativeTheme.themeSource = theme; // 'updated' fires, and setUpWindowChrome repaints the window
   }
   return nativeTheme.shouldUseDarkColors;
+});
+
+ipcMain.on(channels.setWindowDimmed, (_event, dim: unknown) => {
+  if (window && typeof dim === 'boolean') setWindowDimmed(window, dim);
 });
 
 // Automated UI tests set this so the window never appears on the developer's screen.

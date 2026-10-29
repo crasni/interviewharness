@@ -20,8 +20,32 @@ export function installAppMenu() {
 }
 
 // The canvas and ink of each theme (see tokens.css), for the parts of the window main draws itself.
-const themeColours = () =>
-  nativeTheme.shouldUseDarkColors ? { canvas: '#191918', ink: '#ecece8' } : { canvas: '#f4f4f2', ink: '#1a1a19' };
+// The scrim is what dims the page behind a dialog; the window buttons' strip is dimmed to match.
+const themes = {
+  light: { canvas: [244, 244, 242], ink: [26, 26, 25], scrim: { colour: [26, 26, 25], alpha: 0.32 } },
+  dark: { canvas: [25, 25, 24], ink: [236, 236, 232], scrim: { colour: [0, 0, 0], alpha: 0.6 } },
+} as const;
+
+/** Whether the page is dimmed under a dialog right now (the renderer says, see setWindowDimmed). */
+let dimmed = false;
+
+function themeColours() {
+  const theme = themes[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
+  const { colour, alpha } = theme.scrim;
+  const hex = (rgb: readonly number[]) =>
+    '#' +
+    rgb
+      .map((value, i) => (dimmed ? value * (1 - alpha) + colour[i]! * alpha : value))
+      .map((value) => Math.round(value).toString(16).padStart(2, '0'))
+      .join('');
+  return { canvas: hex(theme.canvas), ink: hex(theme.ink) };
+}
+
+/** Dims (or undims) the window buttons' strip along with the page, which the page can't reach. */
+export function setWindowDimmed(window: BrowserWindow, dim: boolean) {
+  dimmed = dim;
+  followTheme(window);
+}
 
 /** The top bar's height in px; the room's bar matches it (--bar-height in tokens.css). */
 const barHeight = 48;
