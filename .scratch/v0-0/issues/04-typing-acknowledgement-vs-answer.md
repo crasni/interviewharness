@@ -6,13 +6,13 @@ Spec: `.scratch/v0-0/spec.md`
 
 **Blocked by:** 03 (hold Space to talk, and backchannels)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Typed text is shown dimmed as the candidate's words
-- [ ] After the turn ends, a statement gets an acknowledgement and a question gets an answer, from the example-lines file
-- [ ] The interviewer never starts speaking while Space is held
-- [ ] Holding Space while the interviewer speaks stops it (barge-in)
-- [ ] No line repeats immediately
-- [ ] Every decision is logged with its signals
-- [ ] Engine tests: acknowledgement vs answer, no speaking during talk, barge-in
-- [ ] Playwright test: type a question, see an answer subtitle
+- [x] Typed text is shown dimmed as the candidate's words
+- [x] After the turn ends, a statement gets an acknowledgement and a question gets an answer, from the example-lines file
+- [x] The interviewer never starts speaking while Space is held
+- [x] Holding Space while the interviewer speaks stops it (barge-in)
+- [x] No line repeats immediately
+- [x] Every decision is logged with its signals
+- [x] Engine tests: acknowledgement vs answer, no speaking during talk, barge-in
+- [x] Playwright test: type a question, see an answer subtitle

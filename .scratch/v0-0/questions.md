@@ -67,3 +67,21 @@ Renderer code is split into `ui/` (design system: tokens, base, presence dot), `
 
 ### Q12: UI tests run in a hidden window
 At your request, the Playwright tests launch the app with its window hidden (`INTERVIEWHARNESS_HIDDEN_WINDOW=1`) and background throttling off, so nothing pops up. Nothing to decide; noting it so it isn't a surprise.
+
+## From ticket 04 (acknowledgement vs answer)
+
+### Q13: What ends the candidate's turn
+**Default taken:** pressing **Enter** on typed words ends the turn; the interviewer responds after a 600 ms beat. Releasing Space alone does **not** end the turn: a long silence after talking stays silent, so thinking is never interrupted (the thesis). If words are typed while Space is still held, the response waits until Space is released.
+**Your call:** OK? (Voice in v0.2 will end turns by end-of-turn detection instead.)
+
+### Q14: How "dimmed" the candidate's words are
+Strict black and white leaves no grey. **Default taken:** the candidate's words sit on their own row under a small "YOU" label, in regular weight; the interviewer's line is larger and medium weight. The typed-words placeholder is black italic.
+**Your call:** enough contrast, or allow one grey for secondary text?
+
+### Q15: Small behaviours worth knowing
+- A question is text **ending in "?"**. "Is it sorted? I assume so." counts as a statement.
+- Saying two things within the 600 ms beat: only the last one gets a response.
+- Typing or talking while the interviewer speaks stops it (barge-in), and the log records it.
+- Speaking time is estimated at ~15 characters a second (min 1 s), since there's no audio yet.
+- The answer lines are deliberately generic ("Assume the simplest reasonable case"): v0.0 has no AI to answer the real question.
+**Your call:** nothing needed unless one of these feels wrong in `pnpm dev`.
