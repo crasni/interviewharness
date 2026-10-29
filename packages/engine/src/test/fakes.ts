@@ -20,5 +20,11 @@ export function testLines() {
 ## Backchannel
 - Mm-hm.
 - Okay.
+
+## Acknowledgement
+- Okay, that makes sense.
+
+## Answer
+- Good question. You can assume the input fits in memory.
 `);
 }

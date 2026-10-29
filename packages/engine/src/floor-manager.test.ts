@@ -66,13 +66,13 @@ describe('the Floor Manager', () => {
     wait(1_000);
 
     expect(log.entries).toEqual([
-      { at: 10_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, talkMs: 0, silenceMs: null, sinceBackchannelMs: null } },
-      { at: 12_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null } },
+      { at: 10_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null } },
+      { at: 12_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null } },
       {
         at: 12_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null },
       },
     ]);
   });
@@ -102,5 +102,82 @@ describe('the Floor Manager', () => {
     const pauseDecisions = log.entries.filter((e) => e.signal.type === 'tick');
     expect(pauseDecisions.map((e) => e.decision.kind)).toEqual(['backchannel', 'silent']);
     expect(pauseDecisions[1]!.state.sinceBackchannelMs).toBe(3_000);
+  });
+
+  describe('when the candidate ends their turn by saying something', () => {
+    it('acknowledges a statement after a short beat', () => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text: 'I think a hash map works here.' });
+      const decisions = wait(1_000).filter((d) => d.kind !== 'silent');
+
+      expect(decisions).toEqual([{ kind: 'ack', line: 'Okay, that makes sense.', speakingMs: expect.any(Number) }]);
+    });
+
+    it('answers a question', () => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text: 'Can the input be empty?' });
+      const decisions = wait(1_000).filter((d) => d.kind !== 'silent');
+
+      expect(decisions).toEqual([
+        { kind: 'answer', line: 'Good question. You can assume the input fits in memory.', speakingMs: expect.any(Number) },
+      ]);
+    });
+
+    it('never starts speaking while the candidate is talking again', () => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text: 'I think a hash map works here.' });
+      wait(300);
+      floor.onSignal({ type: 'talk-start' });
+
+      expect(wait(5_000).every((d) => d.kind === 'silent')).toBe(true);
+    });
+  });
+
+  describe('barge-in', () => {
+    it('stops speaking when the candidate starts talking over it', () => {
+      const { floor, wait } = setup();
+      floor.onSignal({ type: 'said', text: 'I think a hash map works here.' });
+      wait(700); // the acknowledgement has started
+
+      expect(floor.onSignal({ type: 'talk-start' })).toEqual({ kind: 'stop-speaking' });
+    });
+
+    it('has nothing to stop once it has finished speaking', () => {
+      const { floor, wait } = setup();
+      floor.onSignal({ type: 'said', text: 'I think a hash map works here.' });
+      wait(5_000);
+
+      expect(floor.onSignal({ type: 'talk-start' })).toEqual({ kind: 'silent' });
+    });
+
+    it('stops speaking when the candidate says something over it, then responds to that', () => {
+      const { floor, wait } = setup();
+      floor.onSignal({ type: 'said', text: 'I think a hash map works here.' });
+      wait(700); // the acknowledgement has started
+
+      expect(floor.onSignal({ type: 'said', text: 'Can the input be empty?' })).toEqual({ kind: 'stop-speaking' });
+      expect(wait(1_000).filter((d) => d.kind !== 'silent').map((d) => d.kind)).toEqual(['answer']);
+    });
+
+    it('tells the room when it has finished speaking', () => {
+      const { floor, wait } = setup();
+      floor.onSignal({ type: 'said', text: 'I think a hash map works here.' });
+
+      expect(wait(5_000).filter((d) => d.kind !== 'silent').map((d) => d.kind)).toEqual(['ack', 'done-speaking']);
+    });
+  });
+
+  it('waits for the candidate to stop talking before responding to what they said', () => {
+    const { floor, wait } = setup();
+    floor.onSignal({ type: 'talk-start' });
+    floor.onSignal({ type: 'said', text: 'I think a hash map works here.' }); // typed while still holding Space
+
+    expect(wait(3_000).every((d) => d.kind === 'silent')).toBe(true);
+
+    floor.onSignal({ type: 'talk-end' });
+    expect(wait(1_000).filter((d) => d.kind !== 'silent').map((d) => d.kind)).toEqual(['ack']);
   });
 });
