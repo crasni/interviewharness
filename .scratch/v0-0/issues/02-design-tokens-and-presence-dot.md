@@ -8,10 +8,10 @@ The presence dot has three states: breathing (listening), nod (a brief pulse for
 
 **Blocked by:** 01 (walking skeleton)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Design tokens defined once: type scale (grotesk UI font, mono code font), 4 px spacing grid, black/white, one recording colour
-- [ ] Start screen and room use only the tokens (no one-off colours or spacings)
-- [ ] Presence dot breathes while listening, nods on a backchannel, and shows a distinct speaking state
-- [ ] The dot's state can be set by hand in dev builds
-- [ ] No hint counter, score or budget anywhere in the room
+- [x] Design tokens defined once: type scale (grotesk UI font, mono code font), 4 px spacing grid, black/white, one recording colour
+- [x] Start screen and room use only the tokens (no one-off colours or spacings)
+- [x] Presence dot breathes while listening, nods on a backchannel, and shows a distinct speaking state
+- [x] The dot's state can be set by hand in dev builds
+- [x] No hint counter, score or budget anywhere in the room

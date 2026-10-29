@@ -1,0 +1,27 @@
+.start {
+  display: grid;
+  align-content: center;
+  gap: var(--space-12);
+  min-height: 100%;
+  padding: var(--space-16);
+}
+
+.start-title {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+}
+
+.start-rounds {
+  list-style: none;
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.start-rounds li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}

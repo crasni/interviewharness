@@ -1,0 +1,64 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Buttons: outlined at rest, inverted when hovered, focused or pressed. */
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--rule);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+button:focus-visible,
+button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+  outline: none;
+}
+
+button:disabled {
+  border: var(--rule-dashed);
+  cursor: default;
+}
+
+.label {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+}

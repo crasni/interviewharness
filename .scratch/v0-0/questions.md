@@ -26,3 +26,27 @@ AGENTS.md says "no local HTTP port". The packaged app has none (it loads files, 
 ### Q4: Commits are local only
 All work is committed to `main` but **not pushed**, so you can review the history first.
 **Your call:** `git push` when happy.
+
+## From ticket 02 (design tokens and presence dot)
+
+### Q5: Fonts
+BLUEPRINT §4 names options, not a final pick.
+**Default taken:** **Geist** for the UI and **JetBrains Mono** for code, both OFL-licensed and bundled with the app (no network font loading).
+**Your call:** keep, or swap (Inter Display, Geist Mono, Berkeley Mono if you own a licence).
+
+### Q6: The recording colour
+**Default taken:** `--recording: #e10600` (a clean red). Defined but not shown anywhere yet: nothing records in v0.0, so the "● REC" mark from the blueprint mock is left out rather than shown falsely.
+**Your call:** colour OK? Show REC once the mic arrives (v0.2)?
+
+### Q7: Disabled look
+Strict black and white leaves no grey for "disabled".
+**Default taken:** disabled buttons get a **dashed** border; hover/focus/pressed is **inverted** (black fill, white text).
+**Your call:** OK, or prefer another cue?
+
+### Q8: The speaking state
+**Default taken:** while speaking, the dot holds still and a small 5-bar waveform appears beside it (BLUEPRINT §4: "shows a waveform while speaking"). Listening = slow breathing; nod = one quick pulse.
+**Your call:** judge it in `pnpm dev` with the dev-only buttons in the room's bottom-right.
+
+### Q9: Where renderer code lives
+Renderer code is split into `ui/` (design system: tokens, base, presence dot), `room/`, `start/`, plus `rounds.ts` for round/phase labels. BLUEPRINT §6 lists `room/` and `ui/` but not `start/`, and puts presence under `room/`.
+**Default taken:** the dot is a design-system primitive, so `ui/`. Fold into Q1 when you update §6.

@@ -1,0 +1,63 @@
+/*
+ * Design tokens: the only place colours, type, spacing and motion are defined.
+ * Strict black and white. Hierarchy comes from weight, size and space; state is
+ * shown by inversion. One colour, reserved for "recording".
+ */
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/jetbrains-mono';
+
+:root {
+  /* Colour */
+  --ink: #000;
+  --paper: #fff;
+  --recording: #e10600;
+
+  /* Type */
+  --font-ui: 'Geist Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 32px;
+  --text-2xl: 48px;
+
+  --leading-xs: 16px;
+  --leading-sm: 20px;
+  --leading-md: 24px;
+  --leading-lg: 28px;
+  --leading-xl: 40px;
+  --leading-2xl: 56px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  --tracking-label: 0.08em;
+  --tracking-display: -0.02em;
+
+  /* Space: a 4 px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Lines */
+  --hairline: 2px;
+  --rule: 1px solid var(--ink);
+  --rule-dashed: 1px dashed var(--ink);
+
+  /* Layout */
+  --pane-min: 240px;
+
+  /* Motion */
+  --breathe: 4s;
+  --nod: 280ms;
+  --wave: 900ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
