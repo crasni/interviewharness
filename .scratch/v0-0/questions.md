@@ -115,3 +115,20 @@ Strict black and white leaves no grey. **Default taken:** the candidate's words 
 ### Q20: "Hold Space to talk" has no border now
 Next to the Move on / Not yet buttons, the bordered status looked clickable. **Default taken:** it's plain text at rest and inverted while talking.
 **Your call:** OK?
+
+## From ticket 06 (problem, editor, transcript)
+
+### Q21: Review the problem text ← needs you
+`content/problems/longest-calm-stretch.md` is my original draft ("Longest calm stretch": longest run of readings whose max − min ≤ t). The wording and examples are written from scratch (examples checked by hand), but the underlying task is the same idea as a well-known LeetCode problem. That fits "no LeetCode text", but you may prefer a less familiar task.
+**Your call:** approve, edit, or ask for a different problem. Ticket 06 stays `ready-for-human` until you do.
+
+### Q22: Editor defaults
+**Default taken:** Python syntax (no language picker yet), shown with **bold keywords, underlined definitions, italic comments and strings**: no colour. The selection is inverted. Typing is sent to the engine at most once a second, and it keeps the interviewer from reading silence as "done" (it never answers a suggestion).
+**Your call:** OK? Which languages should v0.1 offer?
+
+### Q23: Subtitles and transcript
+**Default taken:**
+- A subtitle fades **4 s** after the interviewer finishes its line; the text stays in the page (just invisible).
+- **⌘T on macOS, Ctrl+T elsewhere** toggles the transcript; Escape or "Close" closes it. It sits over the right side of the editor without taking focus, so you can keep typing.
+- The transcript has the interviewer's spoken lines and your typed words. **Backchannels ("mm-hm") are left out**; lines you talked over are marked "cut off".
+**Your call:** OK?

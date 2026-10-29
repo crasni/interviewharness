@@ -6,12 +6,13 @@ Spec: `.scratch/v0-0/spec.md`
 
 **Blocked by:** 01 (walking skeleton)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (only the owner's review of the problem text is left; see questions.md Q21)
 
-- [ ] One original problem exists as a plain content file; the owner reviews its text
-- [ ] The problem shows in a collapsible left panel
-- [ ] CodeMirror editor with mono font and black-and-white theme; no code running
-- [ ] Editor activity is sent to the engine as a signal
-- [ ] Subtitles fade after a while
-- [ ] A keyboard shortcut opens and closes a transcript drawer with the full conversation
-- [ ] Playwright test: the problem is visible, and the editor accepts typing
+- [x] One original problem exists as a plain content file
+- [ ] The owner reviews its text
+- [x] The problem shows in a collapsible left panel
+- [x] CodeMirror editor with mono font and black-and-white theme; no code running
+- [x] Editor activity is sent to the engine as a signal
+- [x] Subtitles fade after a while
+- [x] A keyboard shortcut opens and closes a transcript drawer with the full conversation
+- [x] Playwright test: the problem is visible, and the editor accepts typing
