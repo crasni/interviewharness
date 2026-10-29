@@ -1,4 +1,4 @@
-import type { RoundSnapshot } from '@interviewharness/engine';
+import type { LaterPhase, RoundSnapshot } from '@interviewharness/engine';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { PresenceDot, type PresenceState } from '../ui/PresenceDot.tsx';
@@ -11,25 +11,38 @@ export function Room({ initial }: { initial: RoundSnapshot }) {
   const [presence, setPresence] = useState<PresenceState>('listening');
   const [subtitle, setSubtitle] = useState('');
   const [candidateWords, setCandidateWords] = useState('');
+  // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
+  const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
 
   const talking = useHoldToTalk(
     useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
     useCallback(() => window.harness.signal({ type: 'talk-end' }), []),
   );
 
+  function answerSuggestion(accept: boolean) {
+    setSuggestion(null);
+    window.harness.signal({ type: 'phase-answer', accept });
+  }
+
   // Subscribed before the room first paints, so no decision sent as it opens is missed.
   useLayoutEffect(
     () =>
       window.harness.onDecision((decision) => {
+        if ('speakingMs' in decision) {
+          setPresence('speaking');
+          setSubtitle(decision.line);
+        }
         switch (decision.kind) {
           case 'backchannel':
             setPresence('nodding');
             setSubtitle(decision.line);
             break;
-          case 'ack':
-          case 'answer':
-            setPresence('speaking');
-            setSubtitle(decision.line);
+          case 'suggest-phase':
+            setSuggestion(decision.next);
+            break;
+          case 'move-on':
+          case 'suggestion-withdrawn':
+            setSuggestion(null);
             break;
           case 'done-speaking':
             setPresence('listening');
@@ -74,6 +87,16 @@ export function Room({ initial }: { initial: RoundSnapshot }) {
           {subtitle}
         </p>
         <div className="room-talk-status">
+          {suggestion && (
+            <div className="room-suggestion" role="group" aria-label={`Move on to ${phaseLabels[suggestion]}?`}>
+              <button type="button" onClick={() => answerSuggestion(true)}>
+                Move on
+              </button>
+              <button type="button" onClick={() => answerSuggestion(false)}>
+                Not yet
+              </button>
+            </div>
+          )}
           <span className="room-you label" role="status" aria-label="You" data-talking={talking}>
             {talking ? 'Talking' : 'Hold Space to talk'}
           </span>

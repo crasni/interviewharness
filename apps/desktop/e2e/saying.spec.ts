@@ -34,7 +34,7 @@ test('a statement gets an acknowledgement', async () => {
 });
 
 test('talking over the interviewer stops it', async () => {
-  await say('I would use a hash map from value to index.');
+  await say('Can the input be empty?'); // the answer is long enough to talk over
   const interviewer = window.getByRole('status', { name: 'Interviewer' });
   await expect(interviewer).toHaveAttribute('data-state', 'speaking');
 

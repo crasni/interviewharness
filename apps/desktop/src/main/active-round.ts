@@ -20,7 +20,7 @@ export function runRound(options: {
   onDecision: (decision: Decision) => void;
 }) {
   const round = startRound(options.kind, options.clock);
-  const floor = createFloorManager({ clock: options.clock, lines: options.lines, log: options.log });
+  const floor = createFloorManager({ clock: options.clock, round, lines: options.lines, log: options.log });
 
   function signal(s: Signal) {
     const decision = floor.onSignal(s);

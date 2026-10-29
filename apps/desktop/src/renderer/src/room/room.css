@@ -50,10 +50,10 @@
   font-weight: var(--weight-medium);
 }
 
-/* Inverted while the candidate holds the floor. */
+/* Plain text at rest (it is a status, not a button); inverted while the candidate holds the floor. */
 .room-you {
+  align-self: center;
   padding: var(--space-1) var(--space-2);
-  border: var(--rule);
 }
 
 .room-you[data-talking='true'] {
@@ -74,6 +74,15 @@
   display: flex;
   gap: var(--space-2);
   justify-content: end;
+}
+
+.room-suggestion {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.room-suggestion button {
+  padding: var(--space-1) var(--space-3);
 }
 
 .room-candidate {

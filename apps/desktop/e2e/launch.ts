@@ -15,10 +15,24 @@ export async function launchApp() {
   return { app, window, dataDir };
 }
 
-/** Launches the app and starts a coding round. */
-export async function launchIntoRoom() {
+/** Launches the app and starts a coding round, stopping at the interviewer's intro. */
+export async function launchAtIntro() {
   const launched = await launchApp();
   await launched.window.getByRole('button', { name: 'Start coding round' }).click();
   await expect(launched.window.getByRole('status', { name: 'You' })).toBeVisible();
+  return launched;
+}
+
+/**
+ * Launches the app, starts a coding round, and talks over the intro so the room is quiet.
+ * (The intro takes ~10 s to say; a tap of Space is a barge-in that stops it.)
+ */
+export async function launchIntoRoom() {
+  const launched = await launchAtIntro();
+  const { window } = launched;
+  const interviewer = window.getByRole('status', { name: 'Interviewer' });
+  await expect(interviewer).toHaveAttribute('data-state', 'speaking');
+  await window.keyboard.press('Space');
+  await expect(interviewer).toHaveAttribute('data-state', 'listening');
   return launched;
 }
