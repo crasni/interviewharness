@@ -135,11 +135,20 @@ button:disabled {
   color: var(--muted);
 }
 
-/* A theme change cross-fades the whole window (settings.tsx starts it), gently, instead of flashing. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: var(--fade);
-  animation-timing-function: var(--ease);
+/*
+ * While the theme changes (settings.tsx marks it for one fade), every colour eases to the new theme
+ * instead of flipping. Movement with its own, more specific transition (the sliding highlight) keeps it.
+ */
+:root[data-theme-changing] *,
+:root[data-theme-changing] *::before,
+:root[data-theme-changing] *::after {
+  transition-property: background-color, color, border-color, outline-color, box-shadow, fill, stroke;
+  transition-duration: var(--fade);
+  transition-timing-function: var(--ease);
+}
+
+:root[data-theme-changing] body {
+  transition: background-color var(--fade) var(--ease), color var(--fade) var(--ease);
 }
 
 @media (prefers-reduced-motion: reduce) {

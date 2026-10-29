@@ -120,7 +120,8 @@
 .choice[data-sliding='true'] .choice-thumb {
   transition:
     transform var(--slide) var(--ease),
-    width var(--slide) var(--ease);
+    width var(--slide) var(--ease),
+    background-color var(--fade) var(--ease);
 }
 
 .choice label {

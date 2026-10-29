@@ -3,7 +3,7 @@ import type { RoundKind } from '@interviewharness/core';
 import { createLineBook } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import { channels, hiddenWindowArgument, isCandidateSignal, isTheme } from '../shared/api.ts';
+import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { createEventsLog } from './events-log.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
@@ -71,7 +71,6 @@ function createWindow() {
       contextIsolation: true,
       // A hidden window is throttled like a background tab; keep its timers running.
       backgroundThrottling: !hidden,
-      additionalArguments: hidden ? [hiddenWindowArgument] : [],
     },
   });
   setUpWindowChrome(window);

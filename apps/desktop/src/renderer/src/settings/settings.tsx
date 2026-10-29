@@ -94,18 +94,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // The theme is set app-wide by the main process, so prefers-color-scheme follows it (tokens.css).
-  // A change the candidate makes cross-fades the whole window instead of flashing to the new colours.
+  // When the candidate changes it, colours ease across for one fade (base.css) instead of flipping at once.
   const themeApplied = useRef(false);
   useEffect(() => {
-    const apply = () => applyTheme(settings.theme);
-    const fade =
-      themeApplied.current && !window.harness.windowHidden && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    themeApplied.current = true;
-    if (!fade || !document.startViewTransition) return void apply();
-    // The page is frozen while it fades; if frames stall (a hidden window, a busy machine), end it rather than wait.
-    const transition = document.startViewTransition(apply);
-    const giveUp = setTimeout(() => transition.skipTransition(), 1_500);
-    void transition.finished.finally(() => clearTimeout(giveUp));
+    const root = document.documentElement;
+    if (!themeApplied.current) {
+      themeApplied.current = true;
+      void applyTheme(settings.theme);
+      return;
+    }
+    root.dataset.themeChanging = 'true';
+    let done: ReturnType<typeof setTimeout>;
+    void applyTheme(settings.theme).then(() => {
+      const fade = parseFloat(getComputedStyle(root).getPropertyValue('--fade')) || 0;
+      done = setTimeout(() => delete root.dataset.themeChanging, fade);
+    });
+    return () => clearTimeout(done);
   }, [settings.theme]);
 
   // The type tokens (tokens.css) scale from an attribute on the root element.

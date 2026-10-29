@@ -32,12 +32,7 @@ export interface HarnessApi {
    * Resolves to whether the app is now dark.
    */
   setTheme(theme: Theme): Promise<boolean>;
-  /** True in automated UI tests: the window is never shown, so it draws no animation frames. */
-  readonly windowHidden: boolean;
 }
-
-/** Passed from main to the preload when the window is hidden (see windowHidden). */
-export const hiddenWindowArgument = '--interviewharness-hidden-window';
 
 export const channels = {
   startRound: 'round:start',

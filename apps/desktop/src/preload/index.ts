@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { channels, type HarnessApi, hiddenWindowArgument, type SpokenDecision } from '../shared/api.ts';
+import { channels, type HarnessApi, type SpokenDecision } from '../shared/api.ts';
 
 const api: HarnessApi = {
   startRound: (kind) => ipcRenderer.invoke(channels.startRound, kind),
@@ -12,7 +12,6 @@ const api: HarnessApi = {
     return () => ipcRenderer.off(channels.decision, handler);
   },
   setTheme: (theme) => ipcRenderer.invoke(channels.setTheme, theme),
-  windowHidden: process.argv.includes(hiddenWindowArgument),
 };
 
 contextBridge.exposeInMainWorld('harness', api);
