@@ -1,0 +1,24 @@
+{
+  "name": "interviewharness",
+  "private": true,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @interviewharness/desktop dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint . && node --test scripts/layering.test.mjs",
+    "test": "turbo run test",
+    "test:e2e": "pnpm --filter @interviewharness/desktop test:e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "10.13.0",
+    "turbo": "2.11.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}
