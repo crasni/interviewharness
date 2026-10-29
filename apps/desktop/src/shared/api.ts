@@ -32,8 +32,6 @@ export interface HarnessApi {
    * Resolves to whether the app is now dark.
    */
   setTheme(theme: Theme): Promise<boolean>;
-  /** Tells main the page is dimmed under a dialog, so the native window buttons' strip dims with it. */
-  setWindowDimmed(dimmed: boolean): void;
 }
 
 export const channels = {
@@ -43,7 +41,6 @@ export const channels = {
   signal: 'floor:signal',
   decision: 'floor:decision',
   setTheme: 'window:theme',
-  setWindowDimmed: 'window:dimmed',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

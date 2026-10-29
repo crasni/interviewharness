@@ -36,7 +36,6 @@ export function SettingsPanel() {
     if (!element) return;
     if (panelOpen && !element.open) element.showModal();
     if (!panelOpen && element.open) element.close();
-    window.harness.setWindowDimmed(panelOpen);
   }, [panelOpen]);
 
   const pages: Record<Category, ReactNode> = {
