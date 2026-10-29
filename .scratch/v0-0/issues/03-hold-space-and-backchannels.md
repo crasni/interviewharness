@@ -8,13 +8,13 @@ This brings in the first Floor Manager rules, the example-lines file (lines grou
 
 **Blocked by:** 01 (walking skeleton)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Holding Space shows a visible "talking" state; Space does not trigger talk while focus is in the editor or a text input
-- [ ] A short pause mid-turn produces a backchannel (nod + subtitle line from the example-lines file)
-- [ ] Backchannels are limited to at most one every several seconds (default threshold in the engine)
-- [ ] The Floor Manager never decides to speak while the candidate is talking
-- [ ] Example-lines file exists as plain, editable content with at least a backchannel group
-- [ ] Each evaluation is appended to the round's events.jsonl with decision + signals; logging goes through an injected writer
-- [ ] Engine tests (fake clock, fake writer): silence while talking, backchannel after a short pause, rate limit, log entries
-- [ ] Playwright test: hold Space, release after a pause, see the nod/subtitle
+- [x] Holding Space shows a visible "talking" state; Space does not trigger talk while focus is in the editor or a text input
+- [x] A short pause mid-turn produces a backchannel (nod + subtitle line from the example-lines file)
+- [x] Backchannels are limited to at most one every several seconds (default threshold in the engine)
+- [x] The Floor Manager never decides to speak while the candidate is talking
+- [x] Example-lines file exists as plain, editable content with at least a backchannel group
+- [x] Each evaluation is appended to the round's events.jsonl with decision + signals; logging goes through an injected writer
+- [x] Engine tests (fake clock, fake writer): silence while talking, backchannel after a short pause, rate limit, log entries
+- [x] Playwright test: hold Space, release after a pause, see the nod/subtitle

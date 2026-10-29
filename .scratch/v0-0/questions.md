@@ -50,3 +50,20 @@ Strict black and white leaves no grey for "disabled".
 ### Q9: Where renderer code lives
 Renderer code is split into `ui/` (design system: tokens, base, presence dot), `room/`, `start/`, plus `rounds.ts` for round/phase labels. BLUEPRINT §6 lists `room/` and `ui/` but not `start/`, and puts presence under `room/`.
 **Default taken:** the dot is a design-system primitive, so `ui/`. Fold into Q1 when you update §6.
+
+## From ticket 03 (hold Space and backchannels)
+
+### Q10: Backchannel timing
+**Defaults taken** (engine `floorRules`, within BLUEPRINT §3.3's ranges):
+- backchannel after **800 ms** of silence mid-turn
+- at most one every **8 s**
+- no backchannel if the candidate talked less than **1 s** (a tap isn't something said). This rule is mine, not from the docs.
+- each pause is weighed once: if the cooldown blocks it, that pause gets nothing, even after the cooldown ends.
+**Your call:** tune these by feel in `pnpm dev`; they are one object in `packages/engine/src/floor-manager.ts`.
+
+### Q11: What goes into events.jsonl
+**Default taken:** every candidate signal (talk start/end) is logged with the decision and state. Ticks run 10×/s, so a tick is only logged when it weighs a pause (a backchannel, or a deliberate silence because of the cooldown or a tap). Each entry carries `talkMs`, `silenceMs` and `sinceBackchannelMs`, so "why did it stay quiet?" is answerable. BLUEPRINT §5.3 updated to say so (and to use `rounds/`, not `sessions/`).
+**Your call:** OK, or log every tick?
+
+### Q12: UI tests run in a hidden window
+At your request, the Playwright tests launch the app with its window hidden (`INTERVIEWHARNESS_HIDDEN_WINDOW=1`) and background throttling off, so nothing pops up. Nothing to decide; noting it so it isn't a surprise.
