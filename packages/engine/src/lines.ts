@@ -1,5 +1,17 @@
 /** The situations the example-lines file groups lines under, one `##` heading each. */
-export const SITUATIONS = ['backchannel', 'acknowledgement', 'answer'] as const;
+export const SITUATIONS = [
+  'backchannel',
+  'acknowledgement',
+  'answer',
+  'intro',
+  'suggest-approach',
+  'suggest-code',
+  'suggest-test',
+  'suggest-complexity',
+  'suggest-wrap-up',
+  'move-on',
+  'wrap-up',
+] as const;
 export type Situation = (typeof SITUATIONS)[number];
 
 export interface LineBook {
