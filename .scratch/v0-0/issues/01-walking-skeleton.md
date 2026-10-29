@@ -8,13 +8,13 @@ This also lays the foundation every later ticket uses: the monorepo (pnpm worksp
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] One command installs, and one command runs the Electron app in dev
-- [ ] Start screen lists the coding round (enabled) and the system design and AI-assisted rounds (disabled, marked as later)
-- [ ] Starting a coding round opens the room; the top bar shows round type, phase "Clarify" and a running timer
-- [ ] The engine runs in the main process; the renderer talks to it over IPC only (no local HTTP port)
-- [ ] The engine takes an injected clock; a test advances a fake clock and checks the elapsed time it reports
-- [ ] A lint rule fails if `core` imports from `engine`/the app, or `engine` imports from the app
-- [ ] One Playwright test launches the Electron app, starts a coding round and sees the room
-- [ ] Tests run with no network
+- [x] One command installs, and one command runs the Electron app in dev
+- [x] Start screen lists the coding round (enabled) and the system design and AI-assisted rounds (disabled, marked as later)
+- [x] Starting a coding round opens the room; the top bar shows round type, phase "Clarify" and a running timer
+- [x] The engine runs in the main process; the renderer talks to it over IPC only (no local HTTP port)
+- [x] The engine takes an injected clock; a test advances a fake clock and checks the elapsed time it reports
+- [x] A lint rule fails if `core` imports from `engine`/the app, or `engine` imports from the app
+- [x] One Playwright test launches the Electron app, starts a coding round and sees the room
+- [x] Tests run with no network
