@@ -23,11 +23,18 @@ else carryOverOldDataFolder(join(app.getPath('appData'), '@interviewharness', 'd
 const settings = openSettingsFile(dataDir());
 
 // End-to-end tests set this to a script of replies (see the engine's scriptedModel), so they run with no
-// network or keys. Real providers arrive with the model setup; until then, with no model, the
-// interviewer says the example lines as written.
-const model: Model | null = process.env.INTERVIEWHARNESS_FAKE_MODEL
-  ? scriptedModel(JSON.parse(process.env.INTERVIEWHARNESS_FAKE_MODEL)).model
-  : null;
+// network or keys. Never in a packaged app. Real providers arrive with the model setup; until then, with
+// no model, the interviewer says the example lines as written.
+const model: Model | null = app.isPackaged ? null : fakeModel(process.env.INTERVIEWHARNESS_FAKE_MODEL);
+
+function fakeModel(script: string | undefined) {
+  if (!script) return null;
+  try {
+    return scriptedModel(JSON.parse(script)).model;
+  } catch (error) {
+    throw new Error(`INTERVIEWHARNESS_FAKE_MODEL is not a JSON script of replies: ${String(error)}`, { cause: error });
+  }
+}
 
 let window: BrowserWindow | null = null;
 let round: ActiveRound | null = null;

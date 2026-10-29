@@ -73,6 +73,18 @@ describe('settings.json', () => {
     expect(onDisk(dir)).toMatchObject({ theme: 'dark' });
     expect(readdirSync(dir)).toEqual(['settings.json']); // no temporary file left behind
   });
+  it('keeps a file written by a newer version of the app, so going back to an older version loses nothing', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ version: 2, textSize: 'small', voice: 'calm' }));
+
+    const file = openSettingsFile(dir);
+    file.change({ theme: 'dark' });
+    await file.flush();
+
+    expect(file.values()).toMatchObject({ textSize: 'small', theme: 'dark' });
+    expect(onDisk(dir)).toEqual({ ...defaultSettings, version: 2, textSize: 'small', theme: 'dark', voice: 'calm' });
+  });
+
 });
 
 describe('settings migrations', () => {

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { defaultSettings, type Settings, validSettings } from '../shared/settings.ts';
@@ -40,7 +40,9 @@ export function openSettingsFile(dir: string, { rename: renameFile = rename, ret
   const path = join(dir, 'settings.json');
   const fresh = !existsSync(path);
   const loaded = fresh ? null : load(path);
-  let values: Settings = loaded ?? defaultSettings;
+  let values: Settings = loaded?.values ?? defaultSettings;
+  // A file from a newer app keeps its version and the settings this app doesn't know, so going back loses nothing.
+  const kept = loaded?.newer ?? { version: settingsVersion };
 
   // Writes go one at a time, each with the latest values; changes made while one is going wait for the next.
   let writing: Promise<void> = Promise.resolve();
@@ -50,7 +52,7 @@ export function openSettingsFile(dir: string, { rename: renameFile = rename, ret
     pending = true;
     writing = writing.then(async () => {
       pending = false;
-      const text = `${JSON.stringify({ version: settingsVersion, ...values }, null, 2)}\n`;
+      const text = `${JSON.stringify({ ...kept, ...values }, null, 2)}\n`;
       try {
         await writeAtomically(path, text, renameFile, retryDelayMs);
       } catch (error) {
@@ -60,7 +62,7 @@ export function openSettingsFile(dir: string, { rename: renameFile = rename, ret
     });
   }
 
-  if (!fresh && !loaded) backUp(path);
+  if (!fresh && !loaded) backUp(path, dir);
   if (!loaded) save();
 
   return {
@@ -91,8 +93,11 @@ interface WriteOptions {
 const lockedCodes = new Set(['EPERM', 'EBUSY', 'EACCES']);
 const renameAttempts = 5;
 
-/** The settings the file holds, or null if it can't be read or isn't a settings object at all. */
-function load(path: string): Settings | null {
+/**
+ * The settings the file holds, or null if it can't be read or isn't a settings object at all.
+ * `newer` is the whole file when a newer app wrote it.
+ */
+function load(path: string): { values: Settings; newer: Record<string, unknown> | null } | null {
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(path, 'utf8'));
@@ -100,15 +105,21 @@ function load(path: string): Settings | null {
     return null;
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
-  return { ...defaultSettings, ...validSettings(migrateSettings(raw as Record<string, unknown>)) };
+  const file = raw as Record<string, unknown>;
+  const newer = typeof file.version === 'number' && file.version > settingsVersion ? file : null;
+  return { values: { ...defaultSettings, ...validSettings(migrateSettings(file)) }, newer };
 }
 
-/** Moves a bad settings file aside, so the candidate (or a bug report) still has it. */
-function backUp(path: string) {
+/**
+ * Keeps a copy of a bad settings file, so the candidate (or a bug report) still has it. A copy, not a
+ * rename: on Windows another program may be holding the file, which stops a rename but not a read.
+ */
+function backUp(path: string, dir: string) {
   try {
-    renameSync(path, `${path}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+    const backup = join(dir, `settings.json.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+    writeFileSync(backup, readFileSync(path));
   } catch {
-    // Can't move it (locked, or gone): the defaults are written over it, which is still better than not starting.
+    // Unreadable as well: the defaults are written over it, which is still better than not starting.
   }
 }
 
