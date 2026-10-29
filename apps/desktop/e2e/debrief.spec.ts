@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom, readRoundLog } from './launch.ts';
+import { closeApp, launchIntoRoom, readRoundLog } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -11,7 +11,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 const debrief = () => window.getByRole('main', { name: 'Debrief' });

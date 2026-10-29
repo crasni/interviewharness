@@ -4,14 +4,16 @@ export type PresenceState = 'listening' | 'nodding' | 'speaking';
 
 interface PresenceDotProps {
   state: PresenceState;
+  /** `large` is the circle in the interviewer tile: it pulses while speaking instead of showing bars. */
+  size?: 'small' | 'large';
   /** Called when a nod finishes, so the owner can return to listening. */
   onNodEnd?: () => void;
 }
 
 /** The interviewer's presence: breathes while listening, nods, shows a waveform while speaking. */
-export function PresenceDot({ state, onNodEnd }: PresenceDotProps) {
+export function PresenceDot({ state, size = 'small', onNodEnd }: PresenceDotProps) {
   return (
-    <div className="presence" role="status" aria-label="Interviewer" data-state={state}>
+    <div className="presence" role="status" aria-label="Interviewer" data-state={state} data-size={size}>
       <span
         className="presence-dot"
         onAnimationEnd={() => {
@@ -19,7 +21,7 @@ export function PresenceDot({ state, onNodEnd }: PresenceDotProps) {
           if (state === 'nodding') onNodEnd?.();
         }}
       />
-      {state === 'speaking' && (
+      {state === 'speaking' && size === 'small' && (
         <span className="presence-wave" aria-hidden="true">
           <span />
           <span />

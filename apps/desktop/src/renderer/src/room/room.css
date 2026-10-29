@@ -118,52 +118,6 @@
   border-radius: var(--radius-sm);
 }
 
-/* ---------- transcript drawer (floats over the editor) ---------- */
-
-.transcript {
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: max(var(--drawer-min), var(--drawer-share));
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: var(--rule);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-float);
-}
-
-.transcript-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--rule);
-}
-
-.transcript-head h2 {
-  font-size: var(--text-sm);
-  color: var(--ink);
-}
-
-.transcript-entries {
-  list-style: none;
-  display: grid;
-  align-content: start;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  overflow-y: auto;
-}
-
-.transcript-entries p {
-  font-size: var(--text-md);
-  line-height: var(--leading-lg);
-}
-
-.transcript-entries li[data-who='interviewer'] p {
-  font-family: var(--font-voice);
-  font-size: var(--text-lg);
-}
-
 /* ---------- the exchange: interviewer, candidate, composer ---------- */
 
 .room-exchange {
@@ -173,32 +127,24 @@
   gap: var(--space-3);
 }
 
-.room-interviewer {
-  display: flex;
-  align-items: flex-start;
+/* The transcript, shown by default: the interviewer in its serif voice on the left, the candidate in bubbles. */
+.conversation {
+  list-style: none;
+  display: grid;
+  align-content: start;
   gap: var(--space-3);
-  min-height: var(--leading-voice);
+  max-height: var(--conversation-height);
+  overflow-y: auto;
+  padding-right: var(--space-2);
 }
 
-.room-interviewer .presence {
-  margin-top: var(--space-1);
-}
-
-/* The interviewer's voice: the one place the serif speaks. */
-.room-subtitle {
-  flex: 1;
+.conversation li[data-who='interviewer'] {
   font-family: var(--font-voice);
   font-size: var(--text-voice);
   line-height: var(--leading-voice);
-  transition: opacity var(--fade) var(--ease);
 }
 
-.room-subtitle[data-faded='true'] {
-  opacity: 0;
-}
-
-/* The candidate's own words, as a bubble on the right. */
-.room-candidate-words {
+.conversation li[data-who='candidate'] {
   justify-self: end;
   max-width: 70%;
   padding: var(--space-2) var(--space-4);
@@ -206,8 +152,72 @@
   border-radius: var(--radius-md);
 }
 
-.room-candidate-words:empty {
-  display: none;
+.conversation li[data-cut-off='true'] {
+  color: var(--muted);
+}
+
+.conversation .conversation-end {
+  height: 0;
+}
+
+/* Older lines scroll away under a short fade at the top edge, instead of being sliced mid-letter. */
+.conversation {
+  mask-image: linear-gradient(to bottom, transparent, black var(--space-6));
+  padding-top: var(--space-4);
+}
+
+.conversation .label {
+  font-family: var(--font-ui);
+}
+
+/* With the transcript hidden: only the interviewer's current line, fading once it has been said. */
+.room-caption {
+  min-height: var(--leading-voice);
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
+  transition: opacity var(--fade) var(--ease);
+}
+
+.room-caption[data-faded='true'] {
+  opacity: 0;
+}
+
+/* ---------- the interviewer tile: floats over the work area, settles in a corner ---------- */
+
+.interviewer-tile {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-3);
+  width: var(--tile-width);
+  height: var(--tile-height);
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: inset var(--fade) var(--ease);
+}
+
+.interviewer-tile[data-dragging='true'] {
+  cursor: grabbing;
+  transition: none;
+}
+
+.interviewer-tile[data-corner^='top'] { top: var(--space-3); }
+.interviewer-tile[data-corner^='bottom'] { bottom: var(--space-3); }
+.interviewer-tile[data-corner$='left'] { left: var(--space-3); }
+.interviewer-tile[data-corner$='right'] { right: var(--space-3); }
+
+.interviewer-tile-label {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--muted);
 }
 
 .room-suggestion {

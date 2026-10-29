@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom, readRoundLog, talkButton } from './launch.ts';
+import { closeApp, launchIntoRoom, readRoundLog, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -10,7 +10,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 const problem = () => window.getByRole('region', { name: 'Problem' });
@@ -35,24 +35,24 @@ test('the editor takes code, Space types a space, and typing is sent as activity
   await expect.poll(() => readRoundLog(dataDir).some((e) => e.signal.type === 'editor-activity')).toBe(true);
 });
 
-test('the transcript drawer shows the whole conversation, toggled with a shortcut', async () => {
+test('the transcript is shown by default with the whole conversation, and hides with a shortcut', async () => {
   await window.getByRole('textbox', { name: 'What you said' }).fill('Can the readings be negative?');
   await window.getByRole('textbox', { name: 'What you said' }).press('Enter');
-  await expect(window.getByTestId('subtitle')).not.toHaveText('');
-
-  await window.getByRole('banner', { name: 'Round status' }).click(); // leave the text field so Ctrl+T reaches the room
-  await window.keyboard.press('ControlOrMeta+t');
-  const transcript = window.getByRole('complementary', { name: 'Transcript' });
+  const transcript = window.getByRole('log', { name: 'Transcript' });
 
   await expect(transcript).toContainText('Hi, thanks for joining.');
   await expect(transcript).toContainText('Can the readings be negative?');
   await expect(transcript).toContainText('Good question. You can assume the input fits in memory.');
 
+  await window.getByRole('banner', { name: 'Round status' }).click(); // leave the text field so Ctrl+T reaches the room
   await window.keyboard.press('ControlOrMeta+t');
   await expect(transcript).toBeHidden();
+  await window.getByRole('button', { name: 'Show transcript' }).click();
+  await expect(transcript).toBeVisible();
 });
 
-test('a subtitle fades a few seconds after the interviewer finishes', async () => {
+test('with the transcript hidden, the current line fades a few seconds after the interviewer finishes', async () => {
+  await window.getByRole('button', { name: 'Hide transcript' }).click();
   await window.getByRole('textbox', { name: 'What you said' }).fill('I would use two pointers.');
   await window.getByRole('textbox', { name: 'What you said' }).press('Enter');
   const subtitle = window.getByTestId('subtitle');

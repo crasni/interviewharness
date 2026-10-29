@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, test } from '@playwright/test';
-import { launchApp } from './launch.ts';
+import { closeApp, launchApp } from './launch.ts';
 
 let app: ElectronApplication;
 
@@ -8,7 +8,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 test('there is no File / Edit / View menu bar', async () => {

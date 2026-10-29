@@ -1,10 +1,10 @@
 import { type ElectronApplication, expect, test } from '@playwright/test';
-import { launchAtIntro, launchIntoRoom, talkButton } from './launch.ts';
+import { closeApp, launchAtIntro, launchIntoRoom, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 test('the interviewer opens the round with an intro', async () => {

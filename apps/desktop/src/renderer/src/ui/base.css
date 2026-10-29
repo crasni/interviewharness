@@ -23,14 +23,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Buttons: quiet pills with a hairline; a faint wash on hover. `.primary` (or a pressed toggle) is the one solid ink action. */
+/* Buttons: quiet, softly rounded, with a hairline; a faint wash on hover. `.primary` (or a pressed toggle) is the one solid ink action. */
 button {
   font: inherit;
   font-size: var(--text-sm);
   color: var(--ink);
   background: transparent;
   border: var(--rule);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-control);
   padding: var(--space-1) var(--space-4);
   min-height: 32px;
   cursor: pointer;
@@ -78,7 +78,7 @@ button:disabled {
   background: var(--line);
   background-clip: padding-box;
   border: 3px solid transparent;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-control);
 }
 
 ::-webkit-scrollbar-button {

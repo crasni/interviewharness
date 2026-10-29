@@ -1,13 +1,13 @@
 /*
  * Design tokens: the only place colours, type, spacing, shape and motion are defined.
  * Identity "Editorial" (ADR 0015): Newsreader for the interviewer's voice and titles,
- * Geist for the interface, Geist Mono for code, on a cool stone neutral. Monochrome:
+ * Mona Sans for the interface, JetBrains Mono for code, on a cool stone neutral. Monochrome:
  * the one primary action is ink; there is no accent colour.
  *
  * To change the look, change the values here. Components only use these role names.
  */
-@import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/mona-sans';
+@import '@fontsource-variable/jetbrains-mono';
 @import '@fontsource-variable/newsreader';
 
 :root {
@@ -24,9 +24,9 @@
   --recording: #e10600; /* reserved for "recording" once there is a mic */
 
   /* Type */
-  --font-ui: 'Geist Variable', system-ui, sans-serif;
+  --font-ui: 'Mona Sans Variable', system-ui, sans-serif;
   --font-voice: 'Newsreader Variable', Georgia, serif; /* the interviewer's words, titles */
-  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
   --text-xs: 12px;
   --text-sm: 13px;
@@ -62,9 +62,10 @@
   --space-16: 64px;
 
   /* Shape: radius by role */
-  --radius-sm: 8px; /* small wells, code samples */
-  --radius-md: 16px; /* cards, the composer */
-  --radius-pill: 999px; /* buttons, chips, the candidate's bubble */
+  --radius-sm: 6px; /* small wells, code samples */
+  --radius-md: 10px; /* cards, the composer, the interviewer tile */
+  --radius-control: 8px; /* buttons, chips, the candidate's bubble */
+  --radius-round: 50%; /* the interviewer's circle */
   --hairline: 2px;
   --rule: 1px solid var(--line);
   --shadow-float: 0 12px 40px rgb(0 0 0 / 0.08); /* only for things floating over the room */
@@ -72,9 +73,10 @@
   /* Layout */
   --pane-min: 260px;
   --pane-share: 32vw;
-  --drawer-min: 320px;
-  --drawer-share: 30vw;
   --reading-width: 820px;
+  --conversation-height: 200px;
+  --tile-width: 168px;
+  --tile-height: 128px;
 
   /* Motion */
   --breathe: 4s;

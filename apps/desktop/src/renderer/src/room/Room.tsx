@@ -1,13 +1,14 @@
 import type { LaterPhase, RoundSnapshot } from '@interviewharness/engine';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
-import { PresenceDot, type PresenceState } from '../ui/PresenceDot.tsx';
+import type { PresenceState } from '../ui/PresenceDot.tsx';
 import { formatElapsed } from '../ui/time.ts';
 import { CodeEditor } from './CodeEditor.tsx';
+import { Conversation } from './Conversation.tsx';
+import { InterviewerTile } from './InterviewerTile.tsx';
 import { ProblemPanel } from './ProblemPanel.tsx';
 import './room.css';
 import { SayField } from './SayField.tsx';
-import { Transcript } from './Transcript.tsx';
 import { useTalking } from './useTalking.ts';
 import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
@@ -16,11 +17,12 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
   const subtitle = useSubtitle();
-  const [candidateWords, setCandidateWords] = useState('');
   const transcript = useTranscript();
-  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [transcriptShown, setTranscriptShown] = useState(true);
   const [ending, setEnding] = useState(false);
-  const closeTranscript = useCallback(() => setTranscriptOpen(false), []);
+  // A backchannel's words ("Mm-hm.") stay on the tile a moment longer than the nod itself.
+  const [backchannelLine, setBackchannelLine] = useState<string | null>(null);
+  const backchannelTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
   const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
 
@@ -46,8 +48,9 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         switch (decision.kind) {
           case 'backchannel':
             setPresence('nodding');
-            subtitle.show(decision.line);
-            subtitle.finish();
+            clearTimeout(backchannelTimer.current);
+            setBackchannelLine(decision.line);
+            backchannelTimer.current = setTimeout(() => setBackchannelLine(null), backchannelShownFor);
             break;
           case 'suggest-phase':
             setSuggestion(decision.next);
@@ -70,14 +73,16 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
     [subtitle.show, subtitle.finish, subtitle.clear, transcript.add, transcript.markCutOff],
   );
 
-  // ⌘T on macOS, Ctrl+T elsewhere, opens and closes the transcript. (On macOS, Ctrl+T stays the editor's.)
+  useEffect(() => () => clearTimeout(backchannelTimer.current), []);
+
+  // ⌘T on macOS, Ctrl+T elsewhere, shows and hides the transcript. (On macOS, Ctrl+T stays the editor's.)
   useEffect(() => {
     const isMac = navigator.userAgent.includes('Mac');
     const toggle = (event: KeyboardEvent) => {
       const modifier = isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
       if (modifier && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 't') {
         event.preventDefault();
-        setTranscriptOpen((open) => !open);
+        setTranscriptShown((shown) => !shown);
       }
     };
     window.addEventListener('keydown', toggle);
@@ -92,6 +97,8 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
     return () => clearInterval(id);
   }, []);
 
+  const tileLabel = backchannelLine ?? (presence === 'speaking' ? 'Speaking' : 'Listening');
+
   return (
     <div className="room">
       <header className="room-bar" aria-label="Round status">
@@ -101,11 +108,12 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         </span>
         <span data-testid="phase">{phaseLabels[round.phase]}</span>
         <span className="room-spacer" />
+        {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>
-        <button type="button" aria-expanded={transcriptOpen} onClick={() => setTranscriptOpen((open) => !open)}>
-          Transcript
+        <button type="button" aria-expanded={transcriptShown} onClick={() => setTranscriptShown((shown) => !shown)}>
+          {transcriptShown ? 'Hide transcript' : 'Show transcript'}
         </button>
         <button
           type="button"
@@ -124,20 +132,17 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         <section className="room-editor" aria-label="Editor">
           <CodeEditor onActivity={() => window.harness.signal({ type: 'editor-activity' })} />
         </section>
-        {transcriptOpen && <Transcript entries={transcript.entries} onClose={closeTranscript} />}
+        <InterviewerTile presence={presence} label={tileLabel} onNodEnd={() => setPresence('listening')} />
       </div>
 
       <footer className="room-exchange">
-        <div className="room-interviewer">
-          <PresenceDot state={presence} onNodEnd={() => setPresence('listening')} />
-          <p className="room-subtitle" data-testid="subtitle" data-faded={subtitle.faded}>
+        {transcriptShown ? (
+          <Conversation entries={transcript.entries} />
+        ) : (
+          <p className="room-caption" data-testid="subtitle" data-faded={subtitle.faded}>
             {subtitle.text}
           </p>
-          {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
-        </div>
-        <p className="room-candidate-words" data-testid="candidate-words">
-          {candidateWords}
-        </p>
+        )}
         {suggestion && (
           <div className="room-suggestion" role="group" aria-label={`Move on to ${phaseLabels[suggestion]}?`}>
             <button type="button" className="primary" onClick={() => answerSuggestion(true)}>
@@ -151,7 +156,6 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         <div className="room-composer">
           <SayField
             onSay={(text) => {
-              setCandidateWords(text);
               transcript.add('candidate', text);
               window.harness.signal({ type: 'said', text });
             }}
@@ -164,6 +168,8 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
     </div>
   );
 }
+
+const backchannelShownFor = 1_500;
 
 /** Dev-only: set the presence dot's state by hand to judge its look. */
 function PresenceControls({ state, onChange }: { state: PresenceState; onChange: (s: PresenceState) => void }) {

@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom, stopTalkingButton, talkButton } from './launch.ts';
+import { closeApp, launchIntoRoom, stopTalkingButton, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -9,7 +9,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 const said = () => window.getByRole('textbox', { name: 'What you said' });
@@ -41,13 +41,9 @@ test('talking over the interviewer stops it', async () => {
   await talkButton(window).click();
 
   await expect(interviewer).toHaveAttribute('data-state', 'listening');
-  await expect(window.getByTestId('subtitle')).toHaveText('');
+  await expect(window.getByTestId('subtitle')).toHaveAttribute('data-cut-off', 'true');
+  await expect(window.getByTestId('subtitle')).toContainText('cut off');
   await stopTalkingButton(window).click();
-
-  await window.keyboard.press('ControlOrMeta+t');
-  await expect(window.getByRole('complementary', { name: 'Transcript' }).getByRole('listitem').last()).toContainText(
-    'Interviewer · cut off',
-  );
 });
 
 test('Space types a space in the text field', async () => {

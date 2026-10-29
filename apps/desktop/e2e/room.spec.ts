@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom } from './launch.ts';
+import { closeApp, launchIntoRoom } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -9,7 +9,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 test('the interviewer is present and listening when the round starts', async () => {

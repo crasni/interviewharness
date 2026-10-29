@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { _electron as electron, expect, type Page } from '@playwright/test';
+import { _electron as electron, type ElectronApplication, expect, type Page } from '@playwright/test';
 
 export const talkButton = (window: Page) => window.getByRole('button', { name: 'Talk', exact: true });
 export const stopTalkingButton = (window: Page) => window.getByRole('button', { name: 'Stop talking' });
@@ -35,8 +35,9 @@ export async function launchIntoRoom() {
   const { window } = launched;
   const interviewer = window.getByRole('status', { name: 'Interviewer' });
   await expect(interviewer).toHaveAttribute('data-state', 'speaking');
-  await talkButton(window).click();
-  await stopTalkingButton(window).click();
+  // An instant tap, under the 1 s that counts as having said something, so setup never earns a backchannel.
+  await talkButton(window).dispatchEvent('click');
+  await stopTalkingButton(window).dispatchEvent('click');
   await expect(interviewer).toHaveAttribute('data-state', 'listening');
   return launched;
 }
@@ -48,4 +49,11 @@ export function readRoundLog(dataDir: string) {
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
+}
+
+/** Closes the app; if Electron hangs on close (rare, seen once in ~50 runs), kills the process instead. */
+export async function closeApp(app: ElectronApplication) {
+  const closed = app.close().then(() => true);
+  const timedOut = new Promise<false>((resolve) => setTimeout(() => resolve(false), 5_000));
+  if (!(await Promise.race([closed, timedOut]))) app.process().kill('SIGKILL');
 }

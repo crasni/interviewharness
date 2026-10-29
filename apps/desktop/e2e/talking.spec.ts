@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { launchIntoRoom, readRoundLog, stopTalkingButton, talkButton } from './launch.ts';
+import { closeApp, launchIntoRoom, readRoundLog, stopTalkingButton, talkButton } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -10,7 +10,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
 });
 
 const roundLog = () => readRoundLog(dataDir);
@@ -36,7 +36,7 @@ test('a short pause mid-turn gets a backchannel, and it is logged', async () => 
   await window.waitForTimeout(1_500);
   await stopTalkingButton(window).click();
 
-  await expect(window.getByTestId('subtitle')).toHaveText('Mm-hm.', { timeout: 3_000 });
+  await expect(window.getByTestId('interviewer-state')).toHaveText('Mm-hm.', { timeout: 3_000 });
   expect(roundLog().find((entry) => entry.decision.kind === 'backchannel')).toMatchObject({
     decision: { line: 'Mm-hm.' },
     state: { talking: false },

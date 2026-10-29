@@ -70,3 +70,26 @@
     transform: scaleY(1);
   }
 }
+
+/* Large: the circle in the interviewer tile. */
+.presence[data-size='large'] {
+  height: auto;
+}
+
+.presence[data-size='large'] .presence-dot {
+  width: var(--space-12);
+  height: var(--space-12);
+}
+
+.presence[data-size='large'][data-state='speaking'] .presence-dot {
+  animation: presence-speak var(--wave) var(--ease) infinite alternate;
+}
+
+@keyframes presence-speak {
+  from {
+    transform: scale(0.86);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}

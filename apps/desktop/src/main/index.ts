@@ -11,6 +11,8 @@ import { installAppMenu, setUpWindowChrome } from './window-chrome.ts';
 const systemClock = { now: () => performance.now() };
 // Tests point this at a throwaway folder; normally rounds live in the app's user data.
 const dataDir = () => process.env.INTERVIEWHARNESS_DATA_DIR ?? app.getPath('userData');
+// With a throwaway folder, keep everything there (browser storage too), so tests never touch the real profile.
+if (process.env.INTERVIEWHARNESS_DATA_DIR) app.setPath('userData', process.env.INTERVIEWHARNESS_DATA_DIR);
 
 let window: BrowserWindow | null = null;
 let round: ActiveRound | null = null;
