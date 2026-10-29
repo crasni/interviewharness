@@ -93,19 +93,19 @@
 }
 
 .icon-button:hover::after,
-.icon-button:focus-visible::after {
+:root[data-input='keyboard'] .icon-button:focus-visible::after {
   opacity: 1;
   transition-delay: 400ms;
 }
 
 .icon-button[data-tip-side='below']:hover::after,
 .icon-button[data-tip-side='above']:hover::after,
-.icon-button[data-tip-side='below']:focus-visible::after,
-.icon-button[data-tip-side='above']:focus-visible::after {
+:root[data-input='keyboard'] .icon-button[data-tip-side='below']:focus-visible::after,
+:root[data-input='keyboard'] .icon-button[data-tip-side='above']:focus-visible::after {
   transform: translate(-50%, 0);
 }
 
 .icon-button[data-tip-side='below-end']:hover::after,
-.icon-button[data-tip-side='below-end']:focus-visible::after {
+:root[data-input='keyboard'] .icon-button[data-tip-side='below-end']:focus-visible::after {
   transform: none;
 }

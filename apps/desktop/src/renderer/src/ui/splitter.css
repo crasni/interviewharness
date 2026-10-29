@@ -52,6 +52,6 @@
 
 .splitter:hover::after,
 .splitter:active::after,
-.splitter:focus-visible::after {
+:root[data-input='keyboard'] .splitter:focus-visible::after {
   opacity: 1;
 }

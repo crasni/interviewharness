@@ -80,6 +80,11 @@ button:disabled {
   outline-offset: var(--hairline);
 }
 
+/* After a click, no focus ring, even when Chromium would bring one back (see ui/input-mode.ts). */
+:root[data-input='pointer'] :focus-visible {
+  outline: none;
+}
+
 /* Scrollbars: a thin rounded thumb in the hairline colour. */
 ::-webkit-scrollbar {
   width: 10px;

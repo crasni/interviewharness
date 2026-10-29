@@ -27,3 +27,16 @@ test('icon buttons keep their words: as the name screen readers hear, and as the
     await expect(button).toHaveAttribute('data-tip', name);
   }
 });
+
+test('a clicked button shows no focus ring; moving focus with Tab does', async () => {
+  const hideProblem = window.getByRole('button', { name: 'Hide problem' });
+  await hideProblem.click();
+  const showProblem = window.getByRole('button', { name: 'Show problem' });
+  await expect(showProblem).toBeFocused();
+  await expect(showProblem).toHaveCSS('outline-style', 'none');
+
+  await window.keyboard.press('Shift+Tab');
+  await window.keyboard.press('Tab');
+  await expect(showProblem).toBeFocused();
+  await expect(showProblem).toHaveCSS('outline-style', 'solid');
+});
