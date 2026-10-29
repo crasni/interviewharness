@@ -64,6 +64,21 @@ test('text size scales the type, and is remembered', async () => {
   await expect(body()).toHaveCSS('font-size', '16.1px');
 });
 
+test('one highlight slides to the chosen option', async () => {
+  await openSettings();
+  const textSize = settings().getByRole('group', { name: 'Text size' });
+  const thumbUnder = (label: string) =>
+    textSize.locator('.choice').evaluate((track, label) => {
+      const chosen = [...track.querySelectorAll('label')].find((l) => l.textContent === label)!;
+      return track.style.getPropertyValue('--thumb-x') === `${chosen.offsetLeft}px`;
+    }, label);
+
+  await expect.poll(() => thumbUnder('Medium')).toBe(true);
+  await textSize.getByText('Small', { exact: true }).click();
+  await expect.poll(() => thumbUnder('Small')).toBe(true);
+  await expect(textSize.locator('.choice')).toHaveAttribute('data-sliding', 'true');
+});
+
 test('theme overrides the system setting', async () => {
   await openSettings();
   // A switch that is on carries a colour transition; it must end on the new theme's ink, not the old one.

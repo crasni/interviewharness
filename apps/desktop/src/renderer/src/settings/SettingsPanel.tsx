@@ -1,5 +1,5 @@
 import { RotateCcw, X } from 'lucide-react';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { type CodeLanguage, type Settings, type TextSize, type Theme, useSettings } from './settings.tsx';
 import './settings.css';
@@ -148,7 +148,10 @@ export function SettingsPanel() {
   );
 }
 
-/** One of a few options, shown side by side. Options not available yet are shown but can't be picked. */
+/**
+ * One of a few options, shown side by side. Options not available yet are shown but can't be picked.
+ * One highlight slides to the chosen option, rather than each option lighting up on its own.
+ */
 function Choice<T extends string>({
   legend,
   value,
@@ -163,10 +166,37 @@ function Choice<T extends string>({
   onChange: (value: T) => void;
 }) {
   const name = useId();
+  const track = useRef<HTMLDivElement>(null);
+  const placed = useRef(false);
+
+  // Slides only when the choice changes. Its first place, and new sizes (the sheet opening, a new
+  // text size), are set without motion, so it never sweeps in from the edge.
+  function place(slide: boolean) {
+    const element = track.current;
+    const chosen = element?.querySelector<HTMLElement>('label:has(:checked)');
+    if (!element || !chosen) return;
+    if (!slide) element.dataset.sliding = 'false';
+    element.style.setProperty('--thumb-x', `${chosen.offsetLeft}px`);
+    element.style.setProperty('--thumb-width', `${chosen.offsetWidth}px`);
+    if (!slide) requestAnimationFrame(() => (element.dataset.sliding = 'true'));
+  }
+
+  useLayoutEffect(() => {
+    place(placed.current);
+    placed.current = true;
+  }, [value]);
+
+  useLayoutEffect(() => {
+    const resized = new ResizeObserver(() => place(false));
+    resized.observe(track.current!);
+    return () => resized.disconnect();
+  }, []);
+
   return (
     <fieldset className="settings-row">
       <legend>{legend}</legend>
-      <div className="choice">
+      <div className="choice" ref={track}>
+        <span className="choice-thumb" aria-hidden="true" />
         {options.map(([option, label]) => (
           <label key={option} title={unavailable[option]}>
             <input

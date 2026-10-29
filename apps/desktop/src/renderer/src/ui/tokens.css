@@ -88,6 +88,7 @@
   --wave: 900ms;
   --fade: 600ms;
   --settle: 420ms;
+  --slide: 360ms; /* a highlight moving between options */
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
