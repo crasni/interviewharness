@@ -28,6 +28,7 @@ Inspired by [LearnHarness](https://github.com/amosblomqvist/learnharness) (AGPL)
 - Plan logins: ChatGPT only through OpenAI's official partner program. **Never use Claude consumer OAuth**; the only option is spawning the user's own `claude` CLI.
 
 ## Rules
+- **macOS, Linux and Windows are all first-class.** Every feature must work on all three (x64 and arm64). Check paths, line endings, key storage, packaging and sandboxes per OS; no single-OS dependencies without a plan for the others.
 - Layering: `packages/core` (pure, no I/O) ← `engine` ← `providers|voice|runner` ← `apps/desktop`. Enforce with lint.
 - Tests are deterministic, using a scripted fake LLM and fake audio. No network in tests.
 - Every interviewer decision is logged with its signals (`events.jsonl`) so sessions can be replayed and evaluated.

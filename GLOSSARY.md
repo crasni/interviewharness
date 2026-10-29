@@ -11,7 +11,7 @@ One complete mock interview with an interviewer, from start to verdict, of one k
 _Avoid_: Session, interview, mode
 
 **Phase**:
-One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Wrap-up. The debrief comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
+One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Wrap-up. Feedback comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
 _Avoid_: Step, stage, section
 
 **Interviewer**:
@@ -40,15 +40,19 @@ _Avoid_: Ack, filler
 A short spoken reply after the candidate's turn ends ("Okay, that makes sense") that takes the floor briefly and hands it back.
 _Avoid_: Backchannel, reply
 
+**Check-in**:
+One neutral line from the interviewer after a long stretch with no talking or typing ("Want to talk me through where you are?"). Never a hint, and never repeated until the candidate does something.
+_Avoid_: Nudge, prompt, reminder
+
 ### Help and feedback
 
 **Hint**:
-Help the interviewer gives toward the next step, never the answer. The candidate never sees a hint count or budget; hints used only shape the feedback afterwards.
+Help the interviewer gives toward the next step, only when the candidate asks and never the answer. Hints used lower the problem-solving score, as in a real interview, but the candidate never sees a hint count or budget.
 _Avoid_: Clue, help, hints left
 
-**Debrief**:
-The interviewer's written feedback after a round: a verdict, what went well and what to fix, each point tied to a moment in the round.
-_Avoid_: Report, scorecard, results, stats
+**Feedback**:
+The interviewer's written assessment after a round: a verdict, a score per area, what went well and what to fix, each point tied to a moment in the round.
+_Avoid_: Debrief, report, scorecard, results, stats
 
 **Verdict**:
 The interviewer's overall call at the end of a round, on a six-level scale: Strong hire, Hire, Lean hire, Lean no hire, No hire, Strong no hire. Always given with reasons.

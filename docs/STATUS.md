@@ -20,20 +20,18 @@ _Last updated: 2026-10-30_
 - Domain is bought, but DNS, website and email aren't set up (next: Cloudflare Pages landing page, Email Routing for hello@).
 
 ## Next steps (in order)
-1. **v0.1: a real AI interviewer.**
-   - Provider layer (pi-ai + OpenAI-compatible + Ollama), safeStorage keys. Blocked on pi-ai's license (see below); fallback AI SDK v6.
-   - `settings.json` in user data (BLUEPRINT §5.3): provider settings go there, and the room preferences move there from browser storage.
-   - Pyodide/QuickJS runner (Python and JavaScript first; the editor already offers six languages).
-   - AI interviewer using the example-lines file as tone guidance.
-   - 10 original problems, replacing the stand-in Two sum.
-   - Real debrief: verdict and written feedback with evidence. Add a confirmation to End round once there is feedback to lose (Q24).
-2. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode (already shown, disabled, in Settings), the REC mark and its colour (Q6, the one question still open).
-3. **Setup chores:** DNS, a landing page on Cloudflare Pages, Email Routing for hello@; move the repo to the `interviewharness` org; create the npm scope.
+1. **v0.1a: a real AI interviewer.** Spec: `.scratch/v0-1/spec.md` (ready for tickets: `/mattpocock-skills:to-tickets`). Decisions: `.scratch/v0-1/grilling.md`; research: `docs/research/08` and `10`; ADR 0016.
+   - Providers via pi-ai: Continue with ChatGPT first, then Ollama (native API), then API keys. safeStorage keys.
+   - `settings.json` in user data; data folder renamed to "InterviewHarness".
+   - The AI writes the interviewer's words; the Floor Manager still decides when (keyword rules). One check-in after a long silence.
+   - Feedback (renamed from Debrief): area scores with evidence, fixed verdict table, End round confirmation (Q24).
+2. **v0.1b:** 10 original problems (Claude drafts, the owner reviews) in the new problem folder format.
+3. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open).
+4. **v0.3: the code runner.** Pyodide/QuickJS in a sandboxed worker (`docs/research/09`; its owner questions wait until then).
+5. **Setup chores:** DNS, a landing page on Cloudflare Pages, Email Routing for hello@; move the repo to the `interviewharness` org; create the npm scope.
 
 ## Open questions
-- pi-ai's license and maintainer (blocks D7). Fallback: AI SDK v6.
 - Is SystemDesign.ai open source, and how good is it? (Check before v0.4.)
-- When to apply for OpenAI's "Sign in with ChatGPT" partner program?
 - Which local model sizes make an acceptable interviewer on an 8–16 GB laptop? (Needs an eval.)
 
 ## How to resume
