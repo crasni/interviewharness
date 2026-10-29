@@ -132,11 +132,18 @@
   color: var(--muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color var(--slide) var(--ease);
+  transition:
+    color var(--quick) var(--ease),
+    transform var(--quick) var(--ease);
 }
 
+.choice label:hover:not(:has(:disabled)),
 .choice label:has(:checked) {
   color: var(--ink);
+}
+
+.choice label:active:not(:has(:disabled)) {
+  transform: scale(var(--press));
 }
 
 .choice label:has(:disabled) {
@@ -164,7 +171,8 @@
   background: var(--line);
   border-radius: 9px;
   cursor: pointer;
-  transition: background var(--fade) var(--ease);
+  /* The track's colour moves with its knob. */
+  transition: background-color var(--settle) var(--ease);
 }
 
 .settings input[type='checkbox']::after {

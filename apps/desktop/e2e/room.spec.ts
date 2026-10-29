@@ -40,3 +40,15 @@ test('a clicked button shows no focus ring; moving focus with Tab does', async (
   await expect(showProblem).toBeFocused();
   await expect(showProblem).toHaveCSS('outline-style', 'solid');
 });
+
+test('worded and icon buttons answer the pointer with the same motion', async () => {
+  const motion = (name: string) =>
+    window.getByRole('button', { name, exact: true }).evaluate((el) => {
+      const style = el.ownerDocument.defaultView!.getComputedStyle(el);
+      return `${style.transitionProperty} | ${style.transitionDuration}`;
+    });
+  const endRound = await motion('End round');
+  expect(endRound).toContain('transform');
+  expect(await motion('Settings')).toBe(endRound);
+  expect(await motion('Talk')).toBe(endRound);
+});

@@ -86,13 +86,22 @@
   --tile-width: 168px;
   --tile-height: 128px;
 
-  /* Motion */
+  /*
+   * Motion: one easing, and a duration by what is moving.
+   *   --quick   a control answering the pointer: hover wash, press, colour of a hovered option
+   *   --slide   a highlight moving between options
+   *   --settle  something travelling or turning: the tile to its corner, icons on hover, a switch's knob
+   *   --fade    things appearing and going: subtitles, a theme change
+   * The interviewer's presence keeps its own rhythm (--breathe, --nod, --wave).
+   */
+  --quick: 160ms;
+  --slide: 360ms;
+  --settle: 420ms;
+  --fade: 600ms;
   --breathe: 4s;
   --nod: 280ms;
   --wave: 900ms;
-  --fade: 600ms;
-  --settle: 420ms;
-  --slide: 360ms; /* a highlight moving between options */
+  --press: 0.96; /* how far any button gives when pressed */
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 

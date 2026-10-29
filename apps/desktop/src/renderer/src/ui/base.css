@@ -55,11 +55,21 @@ button {
   padding: var(--space-1) var(--space-4);
   min-height: 32px;
   cursor: pointer;
-  transition: background var(--fade) var(--ease);
+  /* Every button answers the same way: a quick wash on hover, a small give when pressed. */
+  transition:
+    background-color var(--quick) var(--ease),
+    border-color var(--quick) var(--ease),
+    color var(--quick) var(--ease),
+    opacity var(--quick) var(--ease),
+    transform var(--quick) var(--ease);
 }
 
 button:hover:not(:disabled) {
   background: var(--wash);
+}
+
+button:active:not(:disabled) {
+  transform: scale(var(--press));
 }
 
 button.primary,

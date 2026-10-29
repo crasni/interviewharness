@@ -39,7 +39,7 @@
   background: var(--muted);
   border-radius: var(--hairline);
   opacity: 0;
-  transition: opacity var(--fade) var(--ease);
+  transition: opacity var(--quick) var(--ease);
 }
 
 .splitter[data-between='columns']::after {

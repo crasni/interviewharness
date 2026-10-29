@@ -13,10 +13,6 @@
   transition: transform var(--settle) var(--ease);
 }
 
-.icon-button:active:not(:disabled) svg {
-  transform: scale(0.88);
-}
-
 /* Small movements on hover that say what the button does. */
 .icon-button[data-motion='turn']:hover:not(:disabled) svg {
   transform: rotate(90deg); /* close: the cross turns */
