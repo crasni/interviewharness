@@ -169,8 +169,8 @@ function Choice<T extends string>({
   const track = useRef<HTMLDivElement>(null);
   const placed = useRef(false);
 
-  // Slides only when the choice changes. Its first place, and new sizes (the sheet opening, a new
-  // text size), are set without motion, so it never sweeps in from the edge.
+  // Slides to each new place, except its very first and when the track was hidden (0 px wide, as while
+  // Settings is closed), so it never sweeps in from the edge. A new text size resizes the options: it slides along.
   function place(slide: boolean) {
     const element = track.current;
     const chosen = element?.querySelector<HTMLElement>('label:has(:checked)');
@@ -187,7 +187,12 @@ function Choice<T extends string>({
   }, [value]);
 
   useLayoutEffect(() => {
-    const resized = new ResizeObserver(() => place(false));
+    let lastWidth = 0;
+    const resized = new ResizeObserver(([entry]) => {
+      const width = entry!.contentRect.width;
+      place(lastWidth > 0 && width > 0);
+      lastWidth = width;
+    });
     resized.observe(track.current!);
     return () => resized.disconnect();
   }, []);

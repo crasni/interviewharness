@@ -11,6 +11,7 @@ type Screen = { name: 'start' } | { name: 'room'; round: RoundSnapshot } | { nam
 export function App() {
   return (
     <SettingsProvider>
+      <div className="window-drag" aria-hidden="true" />
       <Screens />
       <SettingsPanel />
     </SettingsProvider>

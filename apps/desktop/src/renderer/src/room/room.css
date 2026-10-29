@@ -10,10 +10,13 @@
 /* ---------- top bar ---------- */
 
 .room-bar {
+  position: relative; /* above the window's drag strip, which it lies on */
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) 0;
+  height: var(--bar-height);
+  padding: 0 var(--window-buttons-right) 0 var(--window-buttons-left);
+  -webkit-app-region: drag; /* its empty parts move the window */
 }
 
 .room-gap {

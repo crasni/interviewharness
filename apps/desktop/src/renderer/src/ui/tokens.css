@@ -75,6 +75,10 @@
   --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.18); /* a dialog over a dimmed page */
 
   /* Layout */
+  --bar-height: 48px; /* the top bar, which is also the window's top edge (main/window-chrome.ts) */
+  /* Room the native window buttons take at each end of the top bar (0 where there are none). */
+  --window-buttons-left: env(titlebar-area-x, 0px);
+  --window-buttons-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
   --pane-min: 260px;
   --pane-share: 32vw;
   --reading-width: 820px;

@@ -3,10 +3,10 @@ import type { RoundKind } from '@interviewharness/core';
 import { createLineBook } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
+import { channels, hiddenWindowArgument, isCandidateSignal, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { createEventsLog } from './events-log.ts';
-import { installAppMenu, setUpWindowChrome } from './window-chrome.ts';
+import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
 
 const systemClock = { now: () => performance.now() };
 // Tests point this at a throwaway folder; normally rounds live in the app's user data.
@@ -49,14 +49,12 @@ ipcMain.on(channels.signal, (_event, signal: unknown) => {
   if (isCandidateSignal(signal)) round?.signal(signal);
 });
 
-ipcMain.on(channels.setTheme, (_event, theme: unknown) => {
-  if (!isTheme(theme)) return;
-  nativeTheme.themeSource = theme;
-  window?.setBackgroundColor(canvasColour());
+ipcMain.handle(channels.setTheme, (_event, theme: unknown) => {
+  if (isTheme(theme)) {
+    nativeTheme.themeSource = theme; // 'updated' fires, and setUpWindowChrome repaints the window
+  }
+  return nativeTheme.shouldUseDarkColors;
 });
-
-// The canvas colour of each theme (see tokens.css), so the window never flashes the wrong one.
-const canvasColour = () => (nativeTheme.shouldUseDarkColors ? '#191918' : '#f4f4f2');
 
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
@@ -66,13 +64,14 @@ function createWindow() {
     width: 1280,
     height: 800,
     show: !hidden,
-    backgroundColor: canvasColour(),
+    ...windowChromeOptions(),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       sandbox: true,
       contextIsolation: true,
       // A hidden window is throttled like a background tab; keep its timers running.
       backgroundThrottling: !hidden,
+      additionalArguments: hidden ? [hiddenWindowArgument] : [],
     },
   });
   setUpWindowChrome(window);

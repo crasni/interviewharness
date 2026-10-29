@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Theme } from '../../../shared/api.ts';
 
 export type { Theme };
@@ -55,6 +55,22 @@ function save(settings: Settings) {
   }
 }
 
+/** Sets the theme and resolves once the page's colour scheme has followed (it changes a moment after main's). */
+async function applyTheme(theme: Theme) {
+  const dark = await window.harness.setTheme(theme);
+  const query = matchMedia('(prefers-color-scheme: dark)');
+  if (query.matches === dark) return;
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      query.removeEventListener('change', done);
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, 500); // never hold the cross-fade's snapshot longer than this
+    query.addEventListener('change', done);
+  });
+}
+
 type SettingsContext = {
   settings: Settings;
   change: (changes: Partial<Settings>) => void;
@@ -78,7 +94,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // The theme is set app-wide by the main process, so prefers-color-scheme follows it (tokens.css).
-  useEffect(() => window.harness.setTheme(settings.theme), [settings.theme]);
+  // A change the candidate makes cross-fades the whole window instead of flashing to the new colours.
+  const themeApplied = useRef(false);
+  useEffect(() => {
+    const apply = () => applyTheme(settings.theme);
+    const fade =
+      themeApplied.current && !window.harness.windowHidden && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    themeApplied.current = true;
+    if (!fade || !document.startViewTransition) return void apply();
+    // The page is frozen while it fades; if frames stall (a hidden window, a busy machine), end it rather than wait.
+    const transition = document.startViewTransition(apply);
+    const giveUp = setTimeout(() => transition.skipTransition(), 1_500);
+    void transition.finished.finally(() => clearTimeout(giveUp));
+  }, [settings.theme]);
 
   // The type tokens (tokens.css) scale from an attribute on the root element.
   useEffect(() => {

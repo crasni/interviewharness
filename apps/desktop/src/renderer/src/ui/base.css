@@ -23,6 +23,27 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * The window has no system title bar: the top strip of every screen drags the window, as a title bar
+ * would. Anything you can click or type in stays clickable there.
+ */
+.window-drag {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--bar-height);
+  -webkit-app-region: drag;
+}
+
+button,
+input,
+select,
+textarea,
+label,
+dialog,
+[role='separator'] {
+  -webkit-app-region: no-drag;
+}
+
 /* Buttons: quiet, softly rounded, with a hairline; a faint wash on hover. `.primary` (or a pressed toggle) is the one solid ink action. */
 button {
   font: inherit;
@@ -112,6 +133,13 @@ button:disabled {
   line-height: var(--leading-xs);
   font-weight: var(--weight-medium);
   color: var(--muted);
+}
+
+/* A theme change cross-fades the whole window (settings.tsx starts it), gently, instead of flashing. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--fade);
+  animation-timing-function: var(--ease);
 }
 
 @media (prefers-reduced-motion: reduce) {

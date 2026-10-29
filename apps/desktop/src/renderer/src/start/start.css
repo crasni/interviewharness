@@ -11,8 +11,8 @@
 
 .start-settings {
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-5);
+  top: calc((var(--bar-height) - 32px) / 2);
+  right: calc(var(--window-buttons-right) + var(--space-3));
 }
 
 .start-head {

@@ -27,9 +27,17 @@ export interface HarnessApi {
   signal(signal: CandidateSignal): void;
   /** Subscribes to the interviewer's decisions; returns an unsubscribe function. */
   onDecision(listener: (decision: SpokenDecision) => void): () => void;
-  /** Sets the app's theme, so prefers-color-scheme, scrollbars and the window itself all follow it. */
-  setTheme(theme: Theme): void;
+  /**
+   * Sets the app's theme, so prefers-color-scheme, scrollbars and the window itself all follow it.
+   * Resolves to whether the app is now dark.
+   */
+  setTheme(theme: Theme): Promise<boolean>;
+  /** True in automated UI tests: the window is never shown, so it draws no animation frames. */
+  readonly windowHidden: boolean;
 }
+
+/** Passed from main to the preload when the window is hidden (see windowHidden). */
+export const hiddenWindowArgument = '--interviewharness-hidden-window';
 
 export const channels = {
   startRound: 'round:start',
