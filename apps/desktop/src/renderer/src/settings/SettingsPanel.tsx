@@ -1,4 +1,6 @@
+import { RotateCcw, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { type CodeLanguage, type Settings, type TextSize, type Theme, useSettings } from './settings.tsx';
 import './settings.css';
 
@@ -61,13 +63,14 @@ export function SettingsPanel() {
         />
         <div className="settings-row">
           <span>Panel sizes</span>
-          <button
-            type="button"
+          <IconButton
+            label="Reset panel sizes"
+            motion="unwind"
+            tip="below-end"
+            icon={<RotateCcw {...iconProps} />}
             disabled={settings.problemWidth === null && settings.conversationHeight === null}
             onClick={() => change({ problemWidth: null, conversationHeight: null })}
-          >
-            Reset panel sizes
-          </button>
+          />
         </div>
       </>
     ),
@@ -115,9 +118,7 @@ export function SettingsPanel() {
       <div className="settings-card">
         <header className="settings-head">
           <h2 className="settings-title">Settings</h2>
-          <button type="button" onClick={() => setPanelOpen(false)}>
-            Close
-          </button>
+          <IconButton label="Close" motion="turn" icon={<X {...iconProps} />} onClick={() => setPanelOpen(false)} />
         </header>
 
         <div className="settings-body">

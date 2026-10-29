@@ -1,0 +1,111 @@
+/* An icon-only button: a square of the usual control height, with the same hairline and wash as any button. */
+.icon-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.icon-button svg {
+  display: block;
+  transition: transform var(--settle) var(--ease);
+}
+
+.icon-button:active:not(:disabled) svg {
+  transform: scale(0.88);
+}
+
+/* Small movements on hover that say what the button does. */
+.icon-button[data-motion='turn']:hover:not(:disabled) svg {
+  transform: rotate(90deg); /* close: the cross turns */
+}
+
+.icon-button[data-motion='spin']:hover:not(:disabled) svg {
+  transform: rotate(60deg); /* settings: the gear turns */
+}
+
+.icon-button[data-motion='unwind']:hover:not(:disabled) svg {
+  transform: rotate(-120deg); /* reset: winds back */
+}
+
+.icon-button[data-motion='nudge']:hover:not(:disabled) svg {
+  transform: translateX(-2px); /* back: leans the way it goes */
+}
+
+/* Two states: both icons stacked, the current one shown; they cross-fade with a slight turn. */
+.icon-swap {
+  display: grid;
+}
+
+.icon-swap > span {
+  grid-area: 1 / 1;
+  display: grid;
+  transition:
+    opacity var(--settle) var(--ease),
+    transform var(--settle) var(--ease);
+}
+
+.icon-swap > span[data-shown='false'] {
+  opacity: 0;
+  transform: scale(0.6) rotate(-30deg);
+}
+
+/* The tooltip: the button's words, fading in after a short pause. */
+.icon-button::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  transition:
+    opacity var(--nod) var(--ease),
+    transform var(--nod) var(--ease);
+}
+
+.icon-button[data-tip-side='below']::after {
+  top: calc(100% + var(--space-2));
+  transform: translate(-50%, calc(-1 * var(--space-1)));
+}
+
+.icon-button[data-tip-side='above']::after {
+  bottom: calc(100% + var(--space-2));
+  transform: translate(-50%, var(--space-1));
+}
+
+/* At the right edge of the window: aligned to the button's right side so it stays on screen. */
+.icon-button[data-tip-side='below-end']::after {
+  top: calc(100% + var(--space-2));
+  left: auto;
+  right: 0;
+  transform: translateY(calc(-1 * var(--space-1)));
+}
+
+.icon-button:hover::after,
+.icon-button:focus-visible::after {
+  opacity: 1;
+  transition-delay: 400ms;
+}
+
+.icon-button[data-tip-side='below']:hover::after,
+.icon-button[data-tip-side='above']:hover::after,
+.icon-button[data-tip-side='below']:focus-visible::after,
+.icon-button[data-tip-side='above']:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.icon-button[data-tip-side='below-end']:hover::after,
+.icon-button[data-tip-side='below-end']:focus-visible::after {
+  transform: none;
+}

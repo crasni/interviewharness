@@ -3,6 +3,8 @@ import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, us
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
 import type { PresenceState } from '../ui/PresenceDot.tsx';
+import { Mic, PanelBottomClose, PanelBottomOpen, Settings as SettingsIcon } from 'lucide-react';
+import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { Splitter } from '../ui/Splitter.tsx';
 import { formatElapsed } from '../ui/time.ts';
 import { CodeEditor } from './CodeEditor.tsx';
@@ -125,12 +127,19 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>
-        <button type="button" onClick={() => setPanelOpen(true)}>
-          Settings
-        </button>
-        <button type="button" aria-expanded={transcriptShown} onClick={() => setTranscriptShown((shown) => !shown)}>
-          {transcriptShown ? 'Hide transcript' : 'Show transcript'}
-        </button>
+        <IconButton
+          label={transcriptShown ? 'Hide transcript' : 'Show transcript'}
+          aria-expanded={transcriptShown}
+          on={transcriptShown}
+          swap={{ on: <PanelBottomClose {...iconProps} />, off: <PanelBottomOpen {...iconProps} /> }}
+          onClick={() => setTranscriptShown((shown) => !shown)}
+        />
+        <IconButton
+          label="Settings"
+          motion="spin"
+          icon={<SettingsIcon {...iconProps} />}
+          onClick={() => setPanelOpen(true)}
+        />
         <button
           type="button"
           disabled={ending}
@@ -210,9 +219,14 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
               window.harness.signal({ type: 'said', text });
             }}
           />
-          <button type="button" aria-pressed={talking} onClick={toggleTalking}>
-            {talking ? 'Stop talking' : 'Talk'}
-          </button>
+          <IconButton
+            className="talk"
+            label={talking ? 'Stop talking' : 'Talk'}
+            tip="above"
+            aria-pressed={talking}
+            icon={<Mic {...iconProps} />}
+            onClick={toggleTalking}
+          />
         </div>
       </footer>
     </div>

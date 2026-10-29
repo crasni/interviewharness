@@ -81,7 +81,6 @@
 }
 
 .problem-toggle {
-  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -259,6 +258,31 @@
 .say {
   flex: 1;
   min-width: 0;
+}
+
+/* Talk: the room's main control, a little larger. While talking it is solid ink with a ring breathing out. */
+.talk.icon-button {
+  width: 40px;
+  height: 40px;
+}
+
+.talk::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--hairline));
+  border: var(--hairline) solid var(--primary);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.talk[aria-pressed='true']::before {
+  animation: talk-ring var(--breathe) var(--ease) infinite;
+}
+
+@keyframes talk-ring {
+  0% { opacity: 0.5; transform: scale(1); }
+  60%, 100% { opacity: 0; transform: scale(1.35); }
 }
 
 .say-input {

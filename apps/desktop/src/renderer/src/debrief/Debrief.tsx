@@ -1,6 +1,8 @@
 import { VERDICTS } from '@interviewharness/core';
+import { ArrowLeft } from 'lucide-react';
 import type { RoundSnapshot } from '@interviewharness/engine';
 import { roundLabel } from '../rounds.ts';
+import { iconProps } from '../ui/IconButton.tsx';
 import { formatElapsed } from '../ui/time.ts';
 import './debrief.css';
 import { type FeedbackPoint, sampleFeedback } from './sample.ts';
@@ -44,7 +46,8 @@ export function Debrief({ round, onBack }: { round: RoundSnapshot; onBack: () =>
       </div>
 
       <footer className="debrief-foot">
-        <button type="button" className="primary" onClick={onBack}>
+        <button type="button" className="primary with-icon" data-motion="nudge" onClick={onBack}>
+          <ArrowLeft {...iconProps} size={16} />
           Back to start
         </button>
       </footer>

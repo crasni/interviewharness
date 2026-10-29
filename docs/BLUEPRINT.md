@@ -203,6 +203,7 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 - One reserved colour, for "recording".
 - 4 px grid, no gradients or glass, no ✨, no AI avatar with a face.
 - Keyboard-first, with a ⌘K palette.
+- Buttons whose purpose is obvious (settings, close, show/hide a panel, talk, reset) are icons from Lucide, each with a small movement on hover and its words kept as tooltip and accessible name. Decisions and commitments (Start, End round, Move on / Not yet) keep their words.
 - All values live as role tokens in `ui/tokens.css`, so the identity can change in one place.
 
 **The interview room:**
