@@ -1,12 +1,11 @@
-import { _electron as electron, type ElectronApplication, expect, type Page, test } from '@playwright/test';
+import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
+import { launchIntoRoom } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
 
 test.beforeEach(async () => {
-  app = await electron.launch({ args: ['.'], cwd: import.meta.dirname + '/..' });
-  window = await app.firstWindow();
-  await window.getByRole('button', { name: 'Start coding round' }).click();
+  ({ app, window } = await launchIntoRoom());
 });
 
 test.afterEach(async () => {

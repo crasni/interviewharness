@@ -258,9 +258,9 @@ interface FloorManager { onSignal(s: Signal): Decision | null; }
 ```
 ~/interviewharness/                          # or Electron userData
   settings.json                   # stores only what differs from defaults
-  sessions/<id>/
-    session.json                  # meta, persona, models, scores
-    events.jsonl                  # every signal + decision (replayable)
+  rounds/<start time>/            # one folder per round (GLOSSARY: round, not session)
+    round.json                    # meta, models, verdict
+    events.jsonl                  # every candidate signal + decision; ticks only when they weigh something
     transcript.jsonl
     code/*.snap                   # snapshots at each run/phase
     board/*.excalidraw            # whiteboard states

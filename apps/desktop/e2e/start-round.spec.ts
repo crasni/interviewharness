@@ -1,8 +1,8 @@
-import { _electron as electron, expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { launchApp } from './launch.ts';
 
 test('candidate starts a coding round and sees the room', async () => {
-  const app = await electron.launch({ args: ['.'], cwd: import.meta.dirname + '/..' });
-  const window = await app.firstWindow();
+  const { app, window } = await launchApp();
 
   await expect(window.getByRole('button', { name: 'System design round' })).toBeDisabled();
   await expect(window.getByRole('button', { name: 'AI-assisted round' })).toBeDisabled();

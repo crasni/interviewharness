@@ -1,12 +1,28 @@
 import type { RoundSnapshot } from '@interviewharness/engine';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { PresenceDot, type PresenceState } from '../ui/PresenceDot.tsx';
 import './room.css';
+import { useHoldToTalk } from './useHoldToTalk.ts';
 
 export function Room({ initial }: { initial: RoundSnapshot }) {
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
+  const [subtitle, setSubtitle] = useState('');
+
+  const talking = useHoldToTalk(
+    useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
+    useCallback(() => window.harness.signal({ type: 'talk-end' }), []),
+  );
+
+  useEffect(
+    () =>
+      window.harness.onDecision((decision) => {
+        if (decision.kind === 'backchannel') setPresence('nodding');
+        setSubtitle(decision.line);
+      }),
+    [],
+  );
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -35,6 +51,12 @@ export function Room({ initial }: { initial: RoundSnapshot }) {
 
       <footer className="room-presence">
         <PresenceDot state={presence} onNodEnd={() => setPresence('listening')} />
+        <p className="room-subtitle" data-testid="subtitle">
+          {subtitle}
+        </p>
+        <span className="room-you label" role="status" aria-label="You" data-talking={talking}>
+          {talking ? 'Talking' : 'Hold Space to talk'}
+        </span>
         {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
       </footer>
     </div>

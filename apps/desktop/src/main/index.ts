@@ -1,32 +1,57 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { type Round, startRound } from '@interviewharness/engine';
+import { createLineBook } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { channels } from '../shared/api.ts';
+import linesFile from '../../../../content/interviewer/lines.md?raw';
+import { type CandidateSignal, candidateSignalTypes, channels } from '../shared/api.ts';
+import { type ActiveRound, runRound } from './active-round.ts';
+import { createEventsLog } from './events-log.ts';
 
 const systemClock = { now: () => performance.now() };
-let round: Round | null = null;
+// Tests point this at a throwaway folder; normally rounds live in the app's user data.
+const dataDir = () => process.env.INTERVIEWHARNESS_DATA_DIR ?? app.getPath('userData');
+
+let window: BrowserWindow | null = null;
+let round: ActiveRound | null = null;
 
 // Only coding rounds exist so far; the start screen shows the others as disabled.
 const availableKinds: readonly RoundKind[] = ['coding'];
 
 ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
   if (!availableKinds.includes(kind)) throw new Error(`Round kind not available yet: ${kind}`);
-  round = startRound(kind, systemClock);
+  round?.stop();
+  round = runRound({
+    kind,
+    clock: systemClock,
+    lines: createLineBook(linesFile),
+    log: createEventsLog(dataDir(), new Date()),
+    onDecision: (decision) => window?.webContents.send(channels.decision, decision),
+  });
   return round.snapshot();
 });
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
 
+ipcMain.on(channels.signal, (_event, signal: CandidateSignal) => {
+  if (!(candidateSignalTypes as readonly string[]).includes(signal?.type)) return;
+  round?.signal(signal);
+});
+
+// Automated UI tests set this so the window never appears on the developer's screen.
+const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
+
 function createWindow() {
-  const window = new BrowserWindow({
+  window = new BrowserWindow({
     width: 1280,
     height: 800,
+    show: !hidden,
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       sandbox: true,
       contextIsolation: true,
+      // A hidden window is throttled like a background tab; keep its timers running.
+      backgroundThrottling: !hidden,
     },
   });
 
@@ -39,4 +64,7 @@ function createWindow() {
 
 void app.whenReady().then(createWindow);
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => {
+  round?.stop();
+  app.quit();
+});
