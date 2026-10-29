@@ -22,8 +22,12 @@ export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack
           <p className="feedback-sample label">Sample feedback · real feedback arrives with the AI interviewer</p>
         </div>
 
-        <section className="feedback-section">
-          <h2 className="label">Verdict</h2>
+        {/* The verdict is the answer, so it leads: in words first, then where it sits on the scale. */}
+        <section className="feedback-verdict" aria-labelledby="verdict-label">
+          <h2 id="verdict-label" className="label">
+            Verdict
+          </h2>
+          <p className="verdict-given">{feedback.verdict}</p>
           <ol className="verdict-scale" aria-label="Verdict">
             {VERDICTS.map((verdict) => (
               <li key={verdict} aria-current={verdict === feedback.verdict}>
@@ -58,7 +62,7 @@ export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack
 function Points({ title, points }: { title: string; points: FeedbackPoint[] }) {
   return (
     <section className="feedback-section" aria-label={title}>
-      <h2 className="label">{title}</h2>
+      <h2 className="feedback-section-title">{title}</h2>
       <ul className="feedback-points">
         {points.map((point, i) => (
           <li key={i}>
