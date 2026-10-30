@@ -1,11 +1,14 @@
 import {
-  type Api,
+  type AssistantMessage,
   type AuthContext,
   type AuthInteraction,
   type CredentialStore,
   createModels,
-  type Model as PiModel,
+  type Message,
   type Models,
+  type Tool,
+  type ToolCall,
+  Type,
 } from '@earendil-works/pi-ai';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { type Model, ModelError, type ModelErrorKind, type ModelRequest } from '@interviewharness/engine';
@@ -149,60 +152,92 @@ export type Providers = ReturnType<typeof createProviders>;
 
 function piModel(models: Models, choice: ModelChoice, fetchFn: typeof fetch | undefined): Model {
   const identity = { provider: choice.provider, model: choice.model };
-  const find = (): PiModel<Api> => {
+
+  /** One request, streamed to its end. Resolves with the finished message; fails with a typed error. */
+  async function run(request: ModelRequest, messages: Message[], extra: { tools?: Tool[]; toolChoice?: unknown }, onText?: (delta: string) => void) {
     const model = models.getModel(piProviderIds[choice.provider], choice.model);
     if (!model) throw new ModelError('other', `Unknown model ${choice.model}`);
-    return model;
-  };
+    // Resolving auth may refresh the login's token, which can fail for being offline as much as for a revoked login.
+    const auth = await models.getAuth(model).catch((error: unknown) => {
+      throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
+    });
+    if (!auth) throw new ModelError('auth', 'Not logged in');
+    const stream = models.stream(
+      model,
+      { systemPrompt: request.system, messages, tools: extra.tools },
+      {
+        signal: request.signal,
+        // Reasoning tokens count as output, so a cap could leave a reasoning model with no words at all.
+        maxTokens: model.reasoning ? undefined : request.maxOutputTokens,
+        // An interviewer reply needs little thought, and every second of it is silence in the room.
+        ...(model.reasoning ? { reasoningEffort: 'low' } : {}),
+        ...(extra.toolChoice ? { toolChoice: extra.toolChoice } : {}),
+        // A failed reply falls back to an example line at once; retrying would only stretch the silence.
+        maxRetries: 0,
+        fetch: fetchFn,
+      } as Parameters<Models['stream']>[2],
+    );
+    for await (const event of stream) {
+      if (event.type === 'text_delta') onText?.(event.delta);
+      if (event.type === 'error') {
+        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage);
+      }
+      if (event.type === 'done') return event.message;
+    }
+    throw new ModelError('bad-output', 'The reply ended without finishing');
+  }
+
+  const usageOf = (message: AssistantMessage) => ({ inputTokens: message.usage.input, outputTokens: message.usage.output });
 
   return {
     identity,
 
-    async streamText(request: ModelRequest, onText) {
-      const model = find();
-      // Resolving auth may refresh the login's token, which can fail for being offline as much as for a revoked login.
-      const auth = await models.getAuth(model).catch((error: unknown) => {
-        throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
-      });
-      if (!auth) throw new ModelError('auth', 'Not logged in');
-      const stream = models.stream(
-        model,
-        {
-          systemPrompt: request.system,
-          messages: request.messages.map((m) =>
-            m.role === 'user'
-              ? { role: 'user', content: m.text, timestamp: Date.now() }
-              : { role: 'assistant', content: [{ type: 'text', text: m.text }], api: model.api, provider: model.provider, model: model.id, usage: emptyUsage, stopReason: 'stop', timestamp: Date.now() },
-          ),
-        },
-        {
-          signal: request.signal,
-          // Reasoning tokens count as output, so a cap could leave a reasoning model with no words at all.
-          maxTokens: model.reasoning ? undefined : request.maxOutputTokens,
-          // An interviewer reply needs little thought, and every second of it is silence in the room.
-          ...(model.reasoning ? { reasoningEffort: 'low' } : {}),
-          // A failed reply falls back to an example line at once; retrying would only stretch the silence.
-          maxRetries: 0,
-          fetch: fetchFn,
-        },
-      );
-      for await (const event of stream) {
-        if (event.type === 'text_delta') onText?.(event.delta);
-        if (event.type === 'error') {
-          throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage);
-        }
-        if (event.type === 'done') {
-          const text = event.message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('');
-          return { text, usage: { inputTokens: event.message.usage.input, outputTokens: event.message.usage.output } };
-        }
-      }
-      throw new ModelError('bad-output', 'The reply ended without finishing');
+    async streamText(request, onText) {
+      const message = await run(request, toPiMessages(request), {}, onText);
+      const text = message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('');
+      return { text, usage: usageOf(message) };
     },
 
-    async generateObject() {
-      throw new ModelError('other', 'Structured replies arrive with grading and hints');
+    /**
+     * pi-ai has no structured-output call, so the model is made to call one tool whose parameters are the
+     * schema. The arguments are checked; on a mismatch the model is told what was wrong and asked once more.
+     */
+    async generateObject(request) {
+      const { schema } = request;
+      const tool: Tool = {
+        name: schema.name,
+        description: 'Give your reply by calling this tool.',
+        parameters: Type.Unsafe(schema.jsonSchema),
+        constrainedSampling: { type: 'json_schema', strict: 'prefer' },
+      };
+      const messages = toPiMessages(request);
+      for (let tries = 0; ; tries++) {
+        const message = await run(request, messages, { tools: [tool], toolChoice: { type: 'function', name: tool.name } });
+        const call = message.content.find((part): part is ToolCall => part.type === 'toolCall' && part.name === tool.name);
+        try {
+          if (!call) throw new Error(`Call the ${tool.name} tool to reply.`);
+          return { object: schema.parse(call.arguments), usage: usageOf(message) };
+        } catch (error) {
+          if (tries === 1) throw new ModelError('bad-output', String(error));
+          messages.push(message);
+          if (call) {
+            messages.push({ role: 'toolResult', toolCallId: call.id, toolName: call.name, content: [{ type: 'text', text: String(error) }], isError: true, timestamp: Date.now() });
+          } else {
+            messages.push({ role: 'user', content: String(error), timestamp: Date.now() });
+          }
+        }
+      }
     },
   };
+}
+
+/** Our messages as pi-ai's. Earlier assistant turns carry no model metadata, as they're only context. */
+function toPiMessages(request: ModelRequest): Message[] {
+  return request.messages.map((m) =>
+    m.role === 'user'
+      ? { role: 'user', content: m.text, timestamp: Date.now() }
+      : { role: 'assistant', content: [{ type: 'text', text: m.text }], api: 'openai-responses', provider: 'openai', model: '', usage: emptyUsage, stopReason: 'stop', timestamp: Date.now() },
+  );
 }
 
 const emptyUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };

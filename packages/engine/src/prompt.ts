@@ -1,5 +1,5 @@
 import type { CodingPhase } from '@interviewharness/core';
-import type { Reply } from './floor-manager.ts';
+import type { CodeSnapshot, Reply } from './floor-manager.ts';
 import type { ModelMessage } from './model.ts';
 import type { Problem } from './problem.ts';
 
@@ -18,6 +18,12 @@ export interface ReplyPromptInput {
   /** The example-lines file: how the interviewer sounds, and how long its lines are. */
   toneGuide: string;
   transcript: readonly TranscriptLine[];
+  /** The candidate's code as of their latest words, if they've written any. */
+  code: CodeSnapshot | null;
+  /** The hint rung the interviewer may give next if asked, or null when all three are given. */
+  nextHint: keyof Problem['hintLadder'] | null;
+  /** Why the last attempt at these words was rejected, so this one avoids it. */
+  correction?: string;
 }
 
 /** How much of the conversation each prompt carries; older lines are left out to keep prompts small. */
@@ -28,7 +34,8 @@ const rules = `You are the interviewer in a live mock coding interview. The cand
 Rules:
 - You decide only the words. When to speak and what kind of reply to give have already been decided; give exactly that kind of reply.
 - Speak as a person talks: one to three short sentences, plain words, no markdown, no lists, no code.
-- Never give a hint, an approach or any part of the solution. Answer only what was asked.
+- Never give a hint, an approach or any part of the solution unless the candidate asks for help. Answer only what was asked.
+- Comment on the candidate's code only when they say they're done, or ask you about it directly.
 - Don't praise or judge the candidate's ideas while the round is going on.
 - Stay in role all round: you are the interviewer, not an assistant.`;
 
@@ -49,16 +56,28 @@ const nextPhaseOffers: Record<Exclude<CodingPhase, 'clarify'>, string> = {
   'wrap-up': 'wrap up',
 };
 
-function instruction(reply: Reply): string {
+function instruction(reply: Reply, nextHint: ReplyPromptInput['nextHint']): string {
   switch (reply.kind) {
     case 'intro':
       return 'Open the round: greet the candidate briefly, say this is a 45-minute coding round, and invite them to read the problem and ask any clarifying questions.';
-    case 'answer':
-      return "Answer the candidate's last question, briefly and correctly, from the problem as written. Answer only what they asked; suggest no approach.";
+    case 'answer': {
+      const help = nextHint
+        ? `If they asked for help, give only the next rung of the hint ladder, ${nextHint}, in your own words, and set hintLevel to "${nextHint}".`
+        : 'If they asked for help, every rung is given already: say so kindly and repeat the concrete rung in other words, with hintLevel "concrete".';
+      return [
+        "Answer the candidate's last question, briefly and correctly, from the problem as written and your notes. Answer only what they asked.",
+        "If they asked about their code, read it against the reference solution: point them to a case to try, or ask them to walk an example through it, but never name the fix.",
+        help,
+        'Otherwise give no hint at all: hintLevel "none". Set askedForHelp only if they asked for help, a hint or what to do next.',
+      ].join(' ');
+    }
     case 'ack':
       return 'Acknowledge what the candidate just said in a few words, then hand the floor back. Add nothing and judge nothing.';
-    case 'suggest-phase':
-      return `Ask the candidate whether they're ready to ${nextPhaseOffers[reply.next]}. It's an offer; they may say not yet.`;
+    case 'suggest-phase': {
+      const offer = `Ask the candidate whether they're ready to ${nextPhaseOffers[reply.next]}. It's an offer; they may say not yet.`;
+      if (!reply.afterDone) return offer;
+      return `The candidate says they're done. First read their code against the reference solution: if it looks wrong, ask them to walk a small example through it (your notes suggest one) instead of pointing at the bug, and make no offer yet. If it looks right, say so in a few words, then: ${offer}`;
+    }
     case 'move-on':
       return reply.phase === 'wrap-up'
         ? "Time is nearly up. Say so, and ask whether they have any questions for you."
@@ -100,12 +119,20 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     .map((line) => `${line.who === 'candidate' ? 'Candidate' : 'You'} (${clock(line.atMs)}): ${line.text}`)
     .join('\n');
 
+  const code = input.code?.text.trim()
+    ? `The candidate's code right now (${input.code.language}):\n\`\`\`\n${input.code.text.trimEnd()}\n\`\`\``
+    : "The candidate's code right now: (empty)";
+
   const user = [
     `Phase: ${phaseNames[input.phase]}, ${Math.floor(input.phaseElapsedMs / 60_000)} min in.`,
     `Recent conversation:\n${conversation || '(nothing said yet)'}`,
-    `What to say now: ${instruction(input.reply)}`,
+    code,
+    `What to say now: ${instruction(input.reply, input.nextHint)}`,
+    input.correction ? `Your last attempt was rejected: ${input.correction} Write it again.` : null,
     'Reply with only the words you say aloud.',
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   return { system, messages: [{ role: 'user', text: user }] };
 }

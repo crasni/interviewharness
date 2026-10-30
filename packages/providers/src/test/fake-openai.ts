@@ -8,6 +8,8 @@ const realFetch = globalThis.fetch;
 export type FakeResponse =
   | { text: string; chunks?: number; inputTokens?: number; outputTokens?: number }
   | { status: number; body: string }
+  /** A reply that calls a tool (how a structured reply arrives), with these arguments. */
+  | { toolCall: { name: string; arguments: unknown } }
   /** Sends the start of a reply, then waits until the request is aborted. */
   | { hang: true };
 
@@ -47,7 +49,8 @@ export async function fakeOpenAI() {
       response.end(next.body);
       return;
     }
-    streamReply(response, next);
+    if ('toolCall' in next) streamToolCall(response, next.toolCall);
+    else streamReply(response, next);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -78,7 +81,33 @@ function readBody(request: IncomingMessage) {
   });
 }
 
-function streamReply(response: ServerResponse, reply: Exclude<FakeResponse, { status: number }>) {
+function streamToolCall(response: ServerResponse, call: { name: string; arguments: unknown }) {
+  response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+  let sequence = 0;
+  const send = (type: string, data: Record<string, unknown>) =>
+    response.write(`event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: sequence++, ...data })}\n\n`);
+  const args = JSON.stringify(call.arguments);
+  const item = { id: 'fc_1', type: 'function_call', call_id: 'call_1', name: call.name, arguments: '', status: 'in_progress' };
+  const done = { ...item, arguments: args, status: 'completed' };
+  send('response.created', { response: { id: 'resp_1', object: 'response', status: 'in_progress', model: 'gpt-test', output: [] } });
+  send('response.output_item.added', { output_index: 0, item });
+  send('response.function_call_arguments.delta', { item_id: 'fc_1', output_index: 0, delta: args });
+  send('response.function_call_arguments.done', { item_id: 'fc_1', output_index: 0, arguments: args });
+  send('response.output_item.done', { output_index: 0, item: done });
+  send('response.completed', {
+    response: {
+      id: 'resp_1',
+      object: 'response',
+      status: 'completed',
+      model: 'gpt-test',
+      output: [done],
+      usage: { input_tokens: 150, output_tokens: 20, total_tokens: 170, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+    },
+  });
+  response.end();
+}
+
+function streamReply(response: ServerResponse, reply: Exclude<FakeResponse, { status: number } | { toolCall: unknown }>) {
   response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
   let sequence = 0;
   const send = (type: string, data: Record<string, unknown>) =>

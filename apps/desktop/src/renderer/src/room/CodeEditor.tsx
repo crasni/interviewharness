@@ -9,7 +9,7 @@ import { HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
-import { useEffect, useRef } from 'react';
+import { type Ref, useEffect, useImperativeHandle, useRef } from 'react';
 import type { CodeLanguage } from '../settings/settings.tsx';
 import './code-editor.css';
 
@@ -44,7 +44,21 @@ const activityEvery = 1_000;
  * CodeMirror 6 in the mono theme. Reports typing as activity, at most once a second. No code runs yet.
  * Language, autocomplete and highlighting follow Settings live; the code stays as it is.
  */
-export function CodeEditor({ options, onActivity }: { options: EditorOptions; onActivity: () => void }) {
+/** What the room can ask of the editor. */
+export interface CodeEditorHandle {
+  /** The code as it stands. */
+  text(): string;
+}
+
+export function CodeEditor({
+  options,
+  onActivity,
+  ref,
+}: {
+  options: EditorOptions;
+  onActivity: () => void;
+  ref?: Ref<CodeEditorHandle>;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   const activity = useRef(onActivity);
@@ -53,6 +67,8 @@ export function CodeEditor({ options, onActivity }: { options: EditorOptions; on
   const autocomplete = useRef(new Compartment());
   const highlighting = useRef(new Compartment());
   const initial = useRef(options);
+
+  useImperativeHandle(ref, () => ({ text: () => view.current?.state.doc.toString() ?? '' }), []);
 
   useEffect(() => {
     let lastSent = 0;

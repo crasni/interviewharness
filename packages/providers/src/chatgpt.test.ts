@@ -24,6 +24,23 @@ const loggedIn = () =>
     openai: { type: 'oauth', access: 'chatgpt-access-token', refresh: 'refresh-token', expires: Date.now() + 3_600_000, clientId: 'oaiapp_1' },
   });
 
+/** A small schema for structured replies: some words and a level. */
+const sayLevel = {
+  name: 'say',
+  jsonSchema: {
+    type: 'object',
+    properties: { words: { type: 'string' }, level: { type: 'number' } },
+    required: ['words', 'level'],
+    additionalProperties: false,
+  },
+  parse(value: unknown) {
+    const { words, level } = value as { words?: unknown; level?: unknown };
+    if (typeof words !== 'string') throw new Error('The reply needs words');
+    if (typeof level !== 'number') throw new Error('The reply needs a level');
+    return { words, level };
+  },
+};
+
 const request = { purpose: 'interviewer-reply' as const, system: 'You are the interviewer.', messages: [{ role: 'user' as const, text: 'Can the list be empty?' }] };
 
 let openai: Awaited<ReturnType<typeof fakeOpenAI>>;
@@ -88,6 +105,37 @@ describe('a model on the ChatGPT plan', () => {
     const limited = model.streamText(request);
     await expect(limited).rejects.toBeInstanceOf(ModelError);
     await expect(limited).rejects.toMatchObject({ kind: 'rate-limit' });
+  });
+
+  it('gives a structured reply by calling one tool, forced, with the schema as its parameters', async () => {
+    const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0', fetch: openai.fetchVia });
+    openai.reply({ toolCall: { name: 'say', arguments: { words: 'Yes.', level: 2 } } });
+
+    const result = await providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).generateObject({ ...request, schema: sayLevel });
+
+    expect(result).toEqual({ object: { words: 'Yes.', level: 2 }, usage: { inputTokens: 150, outputTokens: 20 } });
+    const { body } = openai.requests[0]!;
+    expect(body.tool_choice).toEqual({ type: 'function', name: 'say' });
+    expect(body.tools).toMatchObject([{ type: 'function', name: 'say', parameters: sayLevel.jsonSchema }]);
+  });
+
+  it('asks once more, saying what was wrong, when the reply does not fit the schema', async () => {
+    const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0', fetch: openai.fetchVia });
+    openai.reply({ toolCall: { name: 'say', arguments: { words: 'Yes.' } } }, { toolCall: { name: 'say', arguments: { words: 'Yes.', level: 1 } } });
+
+    const result = await providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).generateObject({ ...request, schema: sayLevel });
+
+    expect(result.object).toEqual({ words: 'Yes.', level: 1 });
+    expect(JSON.stringify(openai.requests[1]!.body.input)).toContain('needs a level');
+  });
+
+  it('gives up with a bad-output error after a second reply that does not fit', async () => {
+    const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0', fetch: openai.fetchVia });
+    openai.reply({ toolCall: { name: 'say', arguments: {} } }, { toolCall: { name: 'say', arguments: {} } });
+
+    await expect(providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).generateObject({ ...request, schema: sayLevel })).rejects.toMatchObject({
+      kind: 'bad-output',
+    });
   });
 
   it('fails as not logged in when there is no ChatGPT login', async () => {

@@ -4,13 +4,13 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Code snapshots ride on each said signal and appear in events.jsonl
-- [ ] No code feedback unless the candidate said they're done or asked about their code
-- [ ] Hint levels are logged, never skip a rung, and never appear unasked
-- [ ] The solution guard regenerates or replaces a leaking reply and logs it
-- [ ] Engine tests with the scripted fake model cover snapshots, hint rungs, the guard and the done path
-- [ ] An end-to-end test shows a hint after asking for one
+- [x] Code snapshots ride on each said signal and appear in events.jsonl
+- [x] No code feedback unless the candidate said they're done or asked about their code
+- [x] Hint levels are logged, never skip a rung, and never appear unasked
+- [x] The solution guard regenerates or replaces a leaking reply and logs it
+- [x] Engine tests with the scripted fake model cover snapshots, hint rungs, the guard and the done path
+- [x] An end-to-end test shows a hint after asking for one
 
 Spec: `.scratch/v0-1/spec.md`.

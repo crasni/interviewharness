@@ -230,7 +230,7 @@ describe('the Floor Manager', () => {
       const suggestions = wait(5 * 60_000).filter((d) => d.kind === 'suggest-phase');
 
       expect(suggestions).toEqual([
-        { kind: 'suggest-phase', next: 'approach', line: 'Want to talk through your approach?', speakingMs: expect.any(Number) },
+        { kind: 'suggest-phase', next: 'approach', afterDone: false, line: 'Want to talk through your approach?', speakingMs: expect.any(Number) },
       ]);
       expect(round.snapshot().phase).toBe('clarify'); // a suggestion, not a move
     });
@@ -299,7 +299,7 @@ describe('the Floor Manager', () => {
       floor.onSignal({ type: 'said', text: "I think that's it." });
       const spokenNext = wait(1_000).find((d) => d.kind !== 'silent');
 
-      expect(spokenNext).toMatchObject({ kind: 'suggest-phase', next: 'approach' });
+      expect(spokenNext).toMatchObject({ kind: 'suggest-phase', next: 'approach', afterDone: true });
     });
 
     it('suggests moving on after a long silence once the candidate has finished their turn', () => {

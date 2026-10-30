@@ -9,7 +9,10 @@ const problem: Problem = {
   notes: 'Key idea: a map from value to position.',
   hintLadder: { nudge: 'Think about what you have seen.', question: 'Which value completes the pair?', concrete: 'Map each value to its position.' },
   followUps: ['What if the list were sorted?'],
-  reference: { language: 'python', code: 'def two_sum(nums, target):\n    seen = {}\n' },
+  reference: {
+    language: 'python',
+    code: 'def two_sum(nums, target):\n    seen = {}\n    for i, value in enumerate(nums):\n        if target - value in seen:\n            return [seen[target - value], i]\n        seen[value] = i\n',
+  },
   tests: { function: 'two_sum', cases: [] },
 };
 
@@ -45,6 +48,11 @@ function setup({ script = {}, withModel = true }: { script?: ModelScript; withMo
   return { clock, log, model, events, interviewer, wait, kinds, spoken, modelCalls };
 }
 
+/** A structured reply to a question, as the model gives it: its words, and whether (and how much) it hinted. */
+const answer = (words: string, { askedForHelp = false, hintLevel = 'none' }: { askedForHelp?: boolean; hintLevel?: string } = {}) => ({
+  object: { words, askedForHelp, hintLevel },
+});
+
 /** Lets the model's promise settle: its words arrive between ticks, as they would from the network. */
 const settle = () => new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
 
@@ -72,7 +80,7 @@ describe('the interviewer', () => {
   });
 
   it("answers a question in the model's words, holding the floor quietly while they're written", async () => {
-    const { interviewer, wait, kinds, spoken, model } = await afterIntro(['Yes, the list can be empty.']);
+    const { interviewer, wait, kinds, spoken, model } = await afterIntro([answer('Yes, the list can be empty.')]);
 
     interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
     wait(1_000);
@@ -87,7 +95,7 @@ describe('the interviewer', () => {
     // The interviewer's own notes, hint ladder and the solution, to judge by (never to reveal).
     expect(request.system).toContain('Key idea: a map from value to position.');
     expect(request.system).toContain('Map each value to its position.');
-    expect(request.system).toContain('def two_sum(nums, target):\n    seen = {}');
+    expect(request.system).toContain('def two_sum(nums, target):\n    seen = {}\n    for i, value in enumerate(nums):');
     expect(request.messages.at(-1)!.text).toContain('Can the list be empty?');
   });
 
@@ -106,7 +114,7 @@ describe('the interviewer', () => {
   });
 
   it('carries the conversation so far into each request', async () => {
-    const { interviewer, wait, model } = await afterIntro(['Yes.', 'No, exactly one pair.']);
+    const { interviewer, wait, model } = await afterIntro([answer('Yes.'), answer('No, exactly one pair.')]);
 
     interviewer.onSignal({ type: 'said', text: 'Can values repeat?' });
     wait(1_000);
@@ -141,7 +149,7 @@ describe('the interviewer', () => {
 
       interviewer.onSignal({ type: 'talk-start' });
       expect(model.waiting[0]!.request.signal!.aborted).toBe(true);
-      model.waiting[0]!.answer('Yes, it can be empty.'); // the model answers anyway, too late
+      model.waiting[0]!.answer(answer('Yes, it can be empty.').object); // the model answers anyway, too late
       await settle();
       wait(2_000);
 
@@ -151,7 +159,7 @@ describe('the interviewer', () => {
     });
 
     it('while speaking: stops at once', async () => {
-      const { interviewer, wait, kinds } = await afterIntro(['Yes, it can be empty, and you should handle that.']);
+      const { interviewer, wait, kinds } = await afterIntro([answer('Yes, it can be empty, and you should handle that.')]);
       interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
       wait(1_000);
       await settle();
@@ -182,7 +190,7 @@ describe('the interviewer', () => {
       expect(spoken()).toEqual([]);
 
       wait(300);
-      model.waiting[0]!.answer('Yes.');
+      model.waiting[0]!.answer(answer('Yes.').object);
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout' });
@@ -195,7 +203,7 @@ describe('the interviewer', () => {
     });
 
     it('treats an empty reply as a failure', async () => {
-      const { interviewer, wait, events, spoken } = await afterIntro(['   ']);
+      const { interviewer, wait, events, spoken } = await afterIntro([answer('   ')]);
 
       interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
       wait(1_000);
@@ -207,7 +215,7 @@ describe('the interviewer', () => {
   });
 
   it('logs each model reply with the model, its timing and outcome, and nothing secret', async () => {
-    const { interviewer, wait, log, modelCalls } = await afterIntro([{ text: 'Yes.' }]);
+    const { interviewer, wait, log, modelCalls } = await afterIntro([answer('Yes.')]);
 
     interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
     wait(1_000);
@@ -222,6 +230,7 @@ describe('the interviewer', () => {
         ms: 400, // asked 600 ms after the question; the words arrived when the test let them, after the ticks
         outcome: 'spoken',
         usage: { inputTokens: 0, outputTokens: 0 },
+        hint: { askedForHelp: false, level: 'none' },
       },
     ]);
     expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.' } }));
@@ -235,4 +244,119 @@ describe('the interviewer', () => {
 
     expect(spoken()).toEqual(["Hi, thanks for joining. Let's start with the problem."]);
   });
+});
+
+describe("the candidate's code", () => {
+  it('rides on what they say, is logged, and is in the next prompt', async () => {
+    const { interviewer, wait, model, log } = await afterIntro([answer('Yes, that handles it.')]);
+    const code = { language: 'python', text: 'def two_sum(nums, target):\n    return []\n' };
+
+    interviewer.onSignal({ type: 'said', text: 'Does my code handle an empty list?', code });
+    wait(1_000);
+    await settle();
+
+    expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'said', text: 'Does my code handle an empty list?', code } }));
+    const prompt = model.requests.at(-1)!;
+    expect(prompt.messages.at(-1)!.text).toContain('def two_sum(nums, target):\n    return []');
+  });
+});
+
+describe('hints', () => {
+  const askForHelp = (interviewer: { onSignal: (s: Parameters<ReturnType<typeof createInterviewer>['onSignal']>[0]) => void }, wait: (ms: number) => void) => {
+    interviewer.onSignal({ type: 'said', text: "I'm stuck, can I get a hint?" });
+    wait(1_000);
+  };
+
+  it('gives one rung at a time when asked, and logs the level', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro([
+      answer('Think about what you have already seen.', { askedForHelp: true, hintLevel: 'nudge' }),
+      answer('Which value would complete the pair?', { askedForHelp: true, hintLevel: 'question' }),
+    ]);
+
+    askForHelp(interviewer, wait);
+    await settle();
+    wait(5_000);
+    askForHelp(interviewer, wait);
+    await settle();
+
+    expect(spoken()).toEqual(['Think about what you have already seen.', 'Which value would complete the pair?']);
+    expect(modelCalls().map((c) => c.hint)).toEqual([
+      { askedForHelp: true, level: 'nudge' },
+      { askedForHelp: true, level: 'question' },
+    ]);
+  });
+
+  it('never skips a rung: a reply that jumps ahead is written again', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro([
+      answer('Keep a map from value to position.', { askedForHelp: true, hintLevel: 'concrete' }),
+      answer('Think about what you have already seen.', { askedForHelp: true, hintLevel: 'nudge' }),
+    ]);
+
+    askForHelp(interviewer, wait);
+    await settle();
+
+    expect(spoken()).toEqual(['Think about what you have already seen.']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'spoken', rejected: ['hint-skipped-rung'], hint: { level: 'nudge' } }]);
+  });
+
+  it('never hints unasked: such a reply is written again, then replaced', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro([
+      answer('Yes. Also, try a hash map.', { askedForHelp: false, hintLevel: 'concrete' }),
+      answer('Yes, and a map would help.', { askedForHelp: false, hintLevel: 'nudge' }),
+    ]);
+
+    interviewer.onSignal({ type: 'said', text: 'Can values repeat?' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'replaced', rejected: ['hint-unasked', 'hint-unasked'] }]);
+  });
+});
+
+describe('the solution guard', () => {
+  const leak = 'Sure: for i, value in enumerate(nums): if target - value in seen: return [seen[target - value], i]';
+
+  it('writes a reply again when it quotes the reference solution', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro([answer(leak), answer('I can’t give you the code, but think about lookups.')]);
+
+    interviewer.onSignal({ type: 'said', text: 'Can you just show me the code?' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['I can’t give you the code, but think about lookups.']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'spoken', rejected: ['solution-leak'] }]);
+  });
+
+  it('replaces it with the fallback line when it quotes the solution twice', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro([answer(leak), answer(leak)]);
+
+    interviewer.onSignal({ type: 'said', text: 'Can you just show me the code?' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'replaced', rejected: ['solution-leak', 'solution-leak'] }]);
+  });
+
+  it('lets ordinary words about the problem through', async () => {
+    const { interviewer, wait, spoken } = await afterIntro([answer('Yes, values can repeat, and the target can be negative.')]);
+
+    interviewer.onSignal({ type: 'said', text: 'Can values repeat?' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Yes, values can repeat, and the target can be negative.']);
+  });
+});
+
+it('keeps replies short, cutting a long one at a sentence', async () => {
+  const sentence = 'This sentence has exactly ten words in it, all told.';
+  const { interviewer, wait, spoken } = await afterIntro([answer(Array(9).fill(sentence).join(' '))]);
+
+  interviewer.onSignal({ type: 'said', text: 'Can values repeat?' });
+  wait(1_000);
+  await settle();
+
+  expect(spoken()).toEqual([Array(6).fill(sentence).join(' ')]);
 });

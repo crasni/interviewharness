@@ -6,8 +6,8 @@ import type { Clock, LaterPhase, Round } from './round.ts';
 export type Signal =
   | { type: 'talk-start' }
   | { type: 'talk-end' }
-  /** The candidate's words for their turn (typed for now); ends their turn. */
-  | { type: 'said'; text: string }
+  /** The candidate's words for their turn (typed for now), with their code as it stood; ends their turn. */
+  | { type: 'said'; text: string; code?: CodeSnapshot }
   /** The candidate's answer to a suggestion to move on: "Move on" or "Not yet". */
   | { type: 'phase-answer'; accept: boolean }
   /** The candidate is typing in the code editor. Sent at most about once a second. */
@@ -17,6 +17,12 @@ export type Signal =
   | { type: 'round-end' }
   /** The words for the reply being prepared have arrived (from the model, or a fallback line). */
   | { type: 'words'; line: string };
+
+/** The editor's contents at a moment: the code and its language. */
+export interface CodeSnapshot {
+  language: string;
+  text: string;
+}
 
 /** A line the interviewer says aloud, holding the floor for about `speakingMs`. */
 export type Spoken<K extends string> = { kind: K; line: string; speakingMs: number };
@@ -29,7 +35,8 @@ export type Reply =
   | { kind: 'ack' }
   | { kind: 'answer' }
   | { kind: 'intro' }
-  | { kind: 'suggest-phase'; next: LaterPhase }
+  /** `afterDone`: the candidate said they're done, so the words react to their work first. */
+  | { kind: 'suggest-phase'; next: LaterPhase; afterDone: boolean }
   | { kind: 'move-on'; phase: LaterPhase };
 
 /** What the interviewer does at this moment. */
@@ -186,16 +193,16 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     silentSince = null; // this silence was the end of their turn, not a pause to backchannel
     if (lastSaid === 'done') {
       const next = phases.toOffer(now, 'candidate-said-done');
-      if (next) return suggest(now, next);
+      if (next) return suggest(now, next, true);
     }
     if (lastSaid === 'question') return prepare({ kind: 'answer' });
     return prepare({ kind: 'ack' }, { turnAck: true });
   }
 
-  function suggest(now: number, next: LaterPhase) {
+  function suggest(now: number, next: LaterPhase, afterDone = false) {
     phases.offer(next, now);
     turnClosedAt = null;
-    return prepare({ kind: 'suggest-phase', next });
+    return prepare({ kind: 'suggest-phase', next, afterDone });
   }
 
   function moveOn(): Decision {

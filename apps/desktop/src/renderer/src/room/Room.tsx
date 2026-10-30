@@ -7,7 +7,7 @@ import { Mic, PanelBottomClose, PanelBottomOpen, Settings as SettingsIcon } from
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { Splitter } from '../ui/Splitter.tsx';
 import { formatElapsed } from '../ui/time.ts';
-import { CodeEditor } from './CodeEditor.tsx';
+import { CodeEditor, type CodeEditorHandle } from './CodeEditor.tsx';
 import { Conversation } from './Conversation.tsx';
 import { InterviewerTile } from './InterviewerTile.tsx';
 import { ProblemPanel } from './ProblemPanel.tsx';
@@ -34,6 +34,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
   // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
   const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
   const notice = useNotice();
+  const editor = useRef<CodeEditorHandle>(null);
 
   const { talking, toggle: toggleTalking } = useTalking(
     useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
@@ -187,6 +188,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
         )}
         <section className="room-editor" aria-label="Editor">
           <CodeEditor
+            ref={editor}
             options={{ language: settings.language, autocomplete: settings.autocomplete, highlighting: settings.highlighting }}
             onActivity={() => window.harness.signal({ type: 'editor-activity' })}
           />
@@ -231,7 +233,8 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
           <SayField
             onSay={(text) => {
               transcript.add('candidate', text);
-              window.harness.signal({ type: 'said', text });
+              // What they said goes with their code as it stands, so the interviewer's reply fits where they are.
+              window.harness.signal({ type: 'said', text, code: { language: settings.language, text: editor.current?.text() ?? '' } });
             }}
           />
           <IconButton

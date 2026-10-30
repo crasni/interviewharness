@@ -94,9 +94,16 @@ export function isTheme(value: unknown): value is Theme {
 /** Checks a signal arriving over IPC: the renderer is not trusted to send well-formed data. */
 export function isCandidateSignal(value: unknown): value is CandidateSignal {
   if (typeof value !== 'object' || value === null) return false;
-  const { type, text, accept } = value as { type?: unknown; text?: unknown; accept?: unknown };
+  const { type, text, accept, code } = value as { type?: unknown; text?: unknown; accept?: unknown; code?: unknown };
   if (!(candidateSignalTypes as readonly unknown[]).includes(type)) return false;
-  if (type === 'said') return typeof text === 'string';
+  if (type === 'said') return typeof text === 'string' && (code === undefined || isCodeSnapshot(code));
   if (type === 'phase-answer') return typeof accept === 'boolean';
   return true;
+}
+
+/** A code snapshot as the renderer sends it: a language and the code, capped so a paste can't flood the log. */
+function isCodeSnapshot(value: unknown) {
+  if (typeof value !== 'object' || value === null) return false;
+  const { language, text } = value as { language?: unknown; text?: unknown };
+  return typeof language === 'string' && language.length <= 20 && typeof text === 'string' && text.length <= 100_000;
 }

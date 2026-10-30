@@ -64,17 +64,24 @@ export function testLines() {
 /**
  * One scripted reply:
  * - words, said at once (or after `delayMs` of real time);
+ * - `{ object }`, a structured reply (checked against the request's schema, like a real model's);
  * - an error of a given kind;
  * - 'wait': nothing until the test answers it through `waiting` (it ignores abort, like a model that
  *   answers late, so tests can check a late reply is dropped).
  */
-export type ScriptedReply = string | { text: string; delayMs?: number } | { error: ModelErrorKind } | 'wait';
+export type ScriptedReply =
+  | string
+  | { text: string; delayMs?: number }
+  | { object: unknown; delayMs?: number }
+  | { error: ModelErrorKind }
+  | 'wait';
 
 export type ModelScript = Partial<Record<ModelPurpose, ScriptedReply[]>>;
 
 interface Waiting {
   request: ModelRequest;
-  answer(text: string): void;
+  /** Words for a text request, or the object for a structured one. */
+  answer(reply: unknown): void;
   fail(kind: ModelErrorKind): void;
 }
 
@@ -88,32 +95,40 @@ export function scriptedModel(script: ModelScript = {}) {
   const waiting: Waiting[] = [];
   const usage = { inputTokens: 0, outputTokens: 0 };
 
+  /** The next scripted reply for a request: words or an object, once any delay has passed. */
+  async function next(request: ModelRequest, kind: 'text' | 'object'): Promise<unknown> {
+    requests.push(request);
+    const reply = queues.get(request.purpose)?.shift();
+    if (reply === undefined) throw new ModelError('other', `The script has no ${request.purpose} reply left`);
+    if (reply === 'wait') {
+      return new Promise((resolve, reject) => {
+        waiting.push({ request, answer: resolve, fail: (error) => reject(new ModelError(error)) });
+      });
+    }
+    if (typeof reply === 'object' && 'error' in reply) throw new ModelError(reply.error);
+    const scripted = typeof reply === 'string' ? { text: reply } : reply;
+    if (scripted.delayMs) await abortableDelay(scripted.delayMs, request.signal);
+    if (kind === 'text' && 'text' in scripted) return scripted.text;
+    if (kind === 'object' && 'object' in scripted) return scripted.object;
+    throw new ModelError('bad-output', `The script has ${'text' in scripted ? 'words' : 'an object'} where ${kind === 'text' ? 'words' : 'an object'} were asked for`);
+  }
+
   const model: Model = {
     identity: { provider: 'scripted', model: 'scripted-fake' },
 
     async streamText(request, onText) {
-      requests.push(request);
-      const next = queues.get(request.purpose)?.shift();
-      if (next === undefined) throw new ModelError('other', `The script has no ${request.purpose} reply left`);
-      if (next === 'wait') {
-        return new Promise((resolve, reject) => {
-          waiting.push({
-            request,
-            answer: (text) => resolve({ text, usage }),
-            fail: (kind) => reject(new ModelError(kind)),
-          });
-        });
-      }
-      if (typeof next === 'object' && 'error' in next) throw new ModelError(next.error);
-      const { text, delayMs = 0 } = typeof next === 'string' ? { text: next } : next;
-      if (delayMs) await abortableDelay(delayMs, request.signal);
+      const text = String(await next(request, 'text'));
       onText?.(text);
       return { text, usage };
     },
 
     async generateObject(request) {
-      requests.push(request);
-      throw new ModelError('other', 'The scripted model has no structured replies yet');
+      const object = await next(request, 'object');
+      try {
+        return { object: request.schema.parse(object), usage };
+      } catch (error) {
+        throw new ModelError('bad-output', String(error));
+      }
     },
   };
 

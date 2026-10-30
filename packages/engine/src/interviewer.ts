@@ -1,8 +1,24 @@
-import { createFloorManager, type Decision, type FloorLogEntry, type Reply, type Signal } from './floor-manager.ts';
+import {
+  type CodeSnapshot,
+  createFloorManager,
+  type Decision,
+  type FloorLogEntry,
+  type Reply,
+  type Signal,
+} from './floor-manager.ts';
 import type { LineBook, Situation } from './lines.ts';
-import { type Model, type ModelErrorKind, type ModelIdentity, type ModelUsage, modelErrorKind } from './model.ts';
-import type { Problem } from './problem.ts';
+import {
+  type Model,
+  ModelError,
+  type ModelErrorKind,
+  type ModelIdentity,
+  type ModelUsage,
+  modelErrorKind,
+  type ObjectSchema,
+} from './model.ts';
+import type { HintLadder, Problem } from './problem.ts';
 import { buildReplyPrompt, type TranscriptLine } from './prompt.ts';
+import { quotesSolution } from './solution-guard.ts';
 import type { Clock, Round } from './round.ts';
 
 /** Timing rules for the interviewer's words, in milliseconds. */
@@ -11,6 +27,50 @@ export const replyRules = {
   timeout: 10_000,
   /** A cap on a reply's length, so small models stay short and in role. */
   maxOutputTokens: 200,
+  /** Words beyond this are cut at the last whole sentence: an interviewer never lectures. */
+  maxWords: 60,
+};
+
+/** How much help a reply gave: none, or a rung of the problem's hint ladder. */
+export const hintLevels = ['none', 'nudge', 'question', 'concrete'] as const;
+export type HintLevel = (typeof hintLevels)[number];
+const rungs: (keyof HintLadder)[] = ['nudge', 'question', 'concrete'];
+
+/** Why an attempt at a reply's words was thrown away and written again. */
+export type Rejection = 'hint-unasked' | 'hint-skipped-rung' | 'solution-leak';
+
+const corrections: Record<Rejection, string> = {
+  'hint-unasked': "it gave a hint the candidate didn't ask for. Answer only what they asked, with no hint.",
+  'hint-skipped-rung': 'it gave more help than the next rung of the hint ladder. Give only that rung.',
+  'solution-leak': 'it quoted the reference solution. Never quote or describe its code.',
+};
+
+interface AnswerWords {
+  words: string;
+  askedForHelp: boolean;
+  hintLevel: HintLevel;
+}
+
+/** An answer comes back structured, so code can check how much help it gave before it's said. */
+const answerSchema: ObjectSchema<AnswerWords> = {
+  name: 'say',
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      words: { type: 'string', description: 'What you say aloud.' },
+      askedForHelp: { type: 'boolean', description: 'Whether the candidate asked for help, a hint or what to do next.' },
+      hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
+    },
+    required: ['words', 'askedForHelp', 'hintLevel'],
+    additionalProperties: false,
+  },
+  parse(value) {
+    const { words, askedForHelp, hintLevel } = (value ?? {}) as Record<string, unknown>;
+    if (typeof words !== 'string' || typeof askedForHelp !== 'boolean' || !hintLevels.includes(hintLevel as HintLevel)) {
+      throw new Error('Expected { words: string, askedForHelp: boolean, hintLevel: none|nudge|question|concrete }');
+    }
+    return { words, askedForHelp, hintLevel: hintLevel as HintLevel };
+  },
 };
 
 /** One model call, logged once its fate is known. Never holds a key, a token or a prompt. */
@@ -25,12 +85,17 @@ export interface ModelCallEntry {
     ms: number;
     /**
      * spoken: its words were said. failed: an error or the time limit; the fallback line was said.
+     * replaced: every attempt was rejected (see `rejected`), so the fallback line was said.
      * aborted: a barge-in, a newer reply or the round's end made it pointless. late-reply-dropped: words
      * arrived after the call was already aborted or timed out, and were thrown away.
      */
-    outcome: 'spoken' | 'failed' | 'aborted' | 'late-reply-dropped';
+    outcome: 'spoken' | 'failed' | 'replaced' | 'aborted' | 'late-reply-dropped';
     error?: ModelErrorKind;
     usage?: ModelUsage;
+    /** For an answer: whether the candidate asked for help, and the hint rung given. Grading reads this. */
+    hint?: { askedForHelp: boolean; level: HintLevel };
+    /** Attempts thrown away before the words were said (or replaced), and why. */
+    rejected?: Rejection[];
   };
 }
 
@@ -93,6 +158,9 @@ export function createInterviewer(options: InterviewerOptions) {
   // The call whose words the interviewer is waiting on. Any other call that finishes is too late.
   let pending: Call | null = null;
   let calls = 0;
+  let code: CodeSnapshot | null = null;
+  // How many rungs of the hint ladder the candidate has been given, so the next is never skipped.
+  let hintsGiven = 0;
 
   function logCall(call: Call, outcome: ModelCallEntry['modelCall']['outcome'], extra: Partial<ModelCallEntry['modelCall']> = {}) {
     const now = clock.now();
@@ -138,47 +206,89 @@ export function createInterviewer(options: InterviewerOptions) {
     say(lines.next(fallbackSituation(reply)));
   }
 
+  /** The rung the interviewer may give next if asked, or null when all three are given. */
+  const nextHint = () => rungs[hintsGiven] ?? null;
+
+  /** One attempt at a reply's words. An answer comes back structured, with the help it gave. */
+  async function attempt(call: Call, correction: string | undefined) {
+    const { phase, phaseElapsedMs } = round.snapshot();
+    const prompt = buildReplyPrompt({
+      reply: call.reply,
+      phase,
+      phaseElapsedMs,
+      problem: options.problem,
+      toneGuide: options.toneGuide,
+      transcript,
+      code,
+      nextHint: nextHint(),
+      correction,
+    });
+    const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
+    if (call.reply.kind !== 'answer') {
+      const { text, usage } = await model!.streamText(request);
+      return { words: text.trim(), usage };
+    }
+    const { object, usage } = await model!.generateObject({ ...request, schema: answerSchema });
+    return { words: object.words.trim(), usage, hint: { askedForHelp: object.askedForHelp, level: object.hintLevel } };
+  }
+
+  /** What's wrong with an attempt's words, if anything: help that wasn't asked for or skips a rung, or a leak. */
+  function rejection({ words, hint }: Awaited<ReturnType<typeof attempt>>): Rejection | null {
+    if (hint && hint.level !== 'none') {
+      if (!hint.askedForHelp) return 'hint-unasked';
+      const allowed = Math.max(1, rungs.indexOf(nextHint() ?? 'concrete') + 1);
+      if (hintLevels.indexOf(hint.level) > allowed) return 'hint-skipped-rung';
+    }
+    return quotesSolution(words, options.problem.reference.code) ? 'solution-leak' : null;
+  }
+
+  /** Writes a reply's words: a rejected attempt is written once more, and then given up for the fallback line. */
+  async function compose(call: Call) {
+    const rejected: Rejection[] = [];
+    for (let tries = 0; tries < 2; tries++) {
+      const written = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
+      if (!written.words) throw new ModelError('bad-output', 'The reply was empty');
+      const problem = rejection(written);
+      if (!problem) return { written: { ...written, words: capped(written.words) }, rejected };
+      rejected.push(problem);
+    }
+    return { written: null, rejected };
+  }
+
   function requestWords(reply: Reply) {
     abandon('aborted'); // a newer reply replaces one still being prepared
     if (!model) return say(lines.next(fallbackSituation(reply)));
 
     const call: Call = { id: ++calls, reply, startedAt: clock.now(), controller: new AbortController() };
     pending = call;
-    const { phase, phaseElapsedMs } = round.snapshot();
-    const prompt = buildReplyPrompt({ reply, phase, phaseElapsedMs, problem: options.problem, toneGuide: options.toneGuide, transcript });
-    model
-      .streamText({
-        purpose: 'interviewer-reply',
-        ...prompt,
-        signal: call.controller.signal,
-        maxOutputTokens: replyRules.maxOutputTokens,
-      })
-      .then(
-        ({ text, usage }) => {
-          const words = text.trim();
-          if (pending !== call) return logCall(call, 'late-reply-dropped', { usage });
-          pending = null;
-          if (!words) {
-            logCall(call, 'failed', { error: 'bad-output', usage });
-            return fallBack(reply, 'bad-output');
-          }
-          logCall(call, 'spoken', { usage });
-          say(words);
-        },
-        (error: unknown) => {
-          if (pending !== call) return; // aborted or timed out already, and logged then
-          pending = null;
-          const kind = modelErrorKind(error);
-          logCall(call, 'failed', { error: kind });
-          fallBack(reply, kind);
-        },
-      );
+    compose(call).then(
+      ({ written, rejected }) => {
+        if (pending !== call) return logCall(call, 'late-reply-dropped', { usage: written?.usage });
+        pending = null;
+        const extra = rejected.length ? { rejected } : {};
+        if (!written) {
+          logCall(call, 'replaced', extra);
+          return say(lines.next(fallbackSituation(reply)));
+        }
+        if (written.hint && written.hint.level !== 'none') hintsGiven = Math.max(hintsGiven, rungs.indexOf(written.hint.level) + 1);
+        logCall(call, 'spoken', { usage: written.usage, ...(written.hint ? { hint: written.hint } : {}), ...extra });
+        say(written.words);
+      },
+      (error: unknown) => {
+        if (pending !== call) return; // aborted or timed out already, and logged then
+        pending = null;
+        const kind = modelErrorKind(error);
+        logCall(call, 'failed', { error: kind });
+        fallBack(reply, kind);
+      },
+    );
   }
 
   return {
     onSignal(signal: Signal) {
       if (signal.type === 'said' && signal.text.trim()) {
         transcript.push({ who: 'candidate', text: signal.text.trim(), atMs: round.snapshot().elapsedMs });
+        if (signal.code) code = signal.code;
       }
       if (signal.type === 'round-end') abandon('aborted');
       handle(floor.onSignal(signal));
@@ -192,3 +302,12 @@ export function createInterviewer(options: InterviewerOptions) {
 }
 
 export type Interviewer = ReturnType<typeof createInterviewer>;
+
+/** A reply cut to at most `replyRules.maxWords`, at the end of a sentence where there is one. */
+function capped(words: string) {
+  const all = words.split(/\s+/);
+  if (all.length <= replyRules.maxWords) return words;
+  const kept = all.slice(0, replyRules.maxWords).join(' ');
+  const sentenceEnd = Math.max(kept.lastIndexOf('. '), kept.lastIndexOf('? '), kept.lastIndexOf('! '), /[.?!]$/.test(kept) ? kept.length - 1 : -1);
+  return sentenceEnd > 0 ? kept.slice(0, sentenceEnd + 1) : kept;
+}
