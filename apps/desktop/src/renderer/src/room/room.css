@@ -264,7 +264,8 @@
 
 .room-composer {
   display: flex;
-  align-items: center;
+  /* The text grows upward from the bottom edge; Talk stays level with its last line. */
+  align-items: flex-end;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
   background: var(--surface);
@@ -307,6 +308,7 @@
 }
 
 .say-input {
+  display: block;
   width: 100%;
   font: inherit;
   font-size: var(--text-lg);
@@ -314,7 +316,13 @@
   color: var(--ink);
   background: transparent;
   border: 0;
-  padding: var(--space-2) 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  resize: none;
+  /* As tall as its text, up to eight lines; longer text scrolls inside, so the room keeps its shape. */
+  field-sizing: content;
+  min-height: calc(var(--leading-lg) + 2 * var(--space-2));
+  max-height: calc(8 * var(--leading-lg) + 2 * var(--space-2));
+  overflow-y: auto;
 }
 
 .say-input:focus,
@@ -324,15 +332,4 @@
 
 .say-input::placeholder {
   color: var(--muted);
-}
-
-.room-dev {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.room-dev button {
-  min-height: 24px;
-  padding: 0 var(--space-2);
-  font-size: var(--text-xs);
 }

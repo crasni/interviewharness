@@ -26,7 +26,7 @@ _Last updated: 2026-10-30_
    - The AI writes the interviewer's words; the Floor Manager still decides when (keyword rules). One check-in after a long silence.
    - Feedback (renamed from Debrief): area scores with evidence, fixed verdict table, End round confirmation (Q24).
 2. **v0.1b:** 10 original problems (Claude drafts, the owner reviews) in the new problem folder format.
-3. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open).
+3. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open). The owner wants speech transcribed once they stop talking and put in all at once, not shown live (2026-10-30).
 4. **v0.3: the code runner.** Pyodide/QuickJS in a sandboxed worker (`docs/research/09`; its owner questions wait until then).
 5. **Setup chores:** DNS, a landing page on Cloudflare Pages, Email Routing for hello@; move the repo to the `interviewharness` org; create the npm scope.
 

@@ -137,7 +137,6 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
         </span>
         <span data-testid="phase">{phaseLabels[round.phase]}</span>
         <span className="room-spacer" />
-        {import.meta.env.DEV && <PresenceControls state={presence} onChange={setPresence} />}
         {notice.text && (
           <span className="room-notice" role="status" aria-label="Notice" data-faded={notice.faded}>
             {notice.text}
@@ -321,18 +320,4 @@ const conversationMaxShare = 0.6;
 /** A dragged size, handed to the CSS as a custom property; none means the stylesheet's default. */
 function sizeVar(name: string, px: number | null) {
   return px === null ? undefined : ({ [name]: `${px}px` } as CSSProperties);
-}
-
-/** Dev-only: set the presence dot's state by hand to judge its look. */
-function PresenceControls({ state, onChange }: { state: PresenceState; onChange: (s: PresenceState) => void }) {
-  const states: PresenceState[] = ['listening', 'nodding', 'preparing', 'speaking'];
-  return (
-    <div className="room-dev" role="group" aria-label="Presence (dev)">
-      {states.map((s) => (
-        <button key={s} type="button" aria-pressed={state === s} onClick={() => onChange(s)}>
-          {s}
-        </button>
-      ))}
-    </div>
-  );
 }

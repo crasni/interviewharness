@@ -60,3 +60,25 @@ test('Space types a space in the text field', async () => {
   await expect(said()).toHaveValue('a b');
   await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
 });
+
+test('the text field grows with long text, up to a limit, then scrolls; Shift+Enter starts a new line', async () => {
+  await enter(turnReply.ack('Okay.'));
+  const height = async () => (await said().boundingBox())!.height;
+  const oneLine = await height();
+
+  await said().fill('So my plan is to walk the list once and keep a map from each value to its position. '.repeat(3));
+  const fewLines = await height();
+  await said().fill('So my plan is to walk the list once and keep a map from each value to its position. '.repeat(20));
+  const many = await height();
+
+  expect(fewLines).toBeGreaterThan(oneLine);
+  expect(many).toBeGreaterThan(fewLines);
+  expect(many).toBeLessThan(oneLine * 6); // capped, with the rest scrolling inside
+  expect(await said().evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+  await said().press('Shift+Enter');
+  expect(await said().inputValue()).toMatch(/\n$/);
+  await said().press('Enter');
+  await expect(said()).toHaveValue('');
+  expect(await height()).toBe(oneLine);
+});
