@@ -18,7 +18,10 @@ export type Signal =
    * the candidate's turn, `as` is what kind of reply the model found fitting; without one it's an acknowledgement.
    */
   | { type: 'words'; line: string; as?: TurnReplyKind }
-  /** The interviewer heard the conversation in a later phase than the round's: the candidate moved on by themselves. */
+  /**
+   * The conversation is in a later phase than the round's: the candidate moved on, or asked to and the
+   * interviewer agreed, or the interviewer began the follow-up questions. Never the interviewer's own questions.
+   */
   | { type: 'phase-reached'; phase: LaterPhase };
 
 /** The editor's contents at a moment: the code and its language. */
@@ -118,6 +121,8 @@ export interface FloorManagerOptions {
   round: Round;
   lines: LineBook;
   log: FloorLog;
+  /** A phase the round passes over right now when offering the next one (Follow-up, with no time or nothing to ask). */
+  skipsPhase?: (phase: LaterPhase) => boolean;
 }
 
 /** Timing rules, in milliseconds. Fixed defaults for now (no persona knobs, ADR 0014). */
@@ -140,8 +145,8 @@ export const floorRules = {
 };
 
 /** Decides *whether* the interviewer speaks at each moment, never *what* the substance is. */
-export function createFloorManager({ clock, round, lines, log }: FloorManagerOptions): FloorManager {
-  const phases = createPhaseGuide(round);
+export function createFloorManager({ clock, round, lines, log, skipsPhase }: FloorManagerOptions): FloorManager {
+  const phases = createPhaseGuide(round, skipsPhase);
   const openedAt = clock.now();
   let introduced = false;
   let talkingSince: number | null = null;

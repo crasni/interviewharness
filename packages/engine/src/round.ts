@@ -24,11 +24,15 @@ const minute = 60_000;
 export const codingPhaseShares: Record<CodingPhase, number> = {
   clarify: 5 * minute,
   approach: 7 * minute,
-  code: 18 * minute,
-  test: 7 * minute,
-  complexity: 5 * minute,
+  code: 16 * minute,
+  test: 6 * minute,
+  complexity: 3 * minute,
+  'follow-up': 5 * minute,
   'wrap-up': 3 * minute,
 };
+
+/** How long a coding round lasts: the sum of its phases' shares. */
+export const codingRoundMs = Object.values(codingPhaseShares).reduce((sum, share) => sum + share, 0);
 
 /** Any phase a round can move on to: every phase but the first. */
 export type LaterPhase = Exclude<CodingPhase, 'clarify'>;

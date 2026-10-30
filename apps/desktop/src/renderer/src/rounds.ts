@@ -16,5 +16,6 @@ export const phaseLabels: Record<CodingPhase, string> = {
   code: 'Code',
   test: 'Test',
   complexity: 'Complexity',
+  'follow-up': 'Follow-up',
   'wrap-up': 'Wrap-up',
 };

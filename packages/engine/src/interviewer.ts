@@ -1,4 +1,4 @@
-import { CODING_PHASES, type CodingPhase } from '@interviewharness/core';
+import { CODING_PHASES } from '@interviewharness/core';
 import {
   type CodeSnapshot,
   createFloorManager,
@@ -20,16 +20,16 @@ import {
 } from './model.ts';
 import type { HintLadder, Problem } from './problem.ts';
 import type { GradingEntry, RecordLine, RoundRecord } from './grading.ts';
-import { buildReplyPrompt } from './prompt.ts';
+import { buildReplyPrompt, type RoundSoFar } from './prompt.ts';
 import { quotesSolution } from './solution-guard.ts';
-import type { Clock, Round } from './round.ts';
+import { type Clock, codingRoundMs, type LaterPhase, nextPhase, type Round } from './round.ts';
 
 /** Timing rules for the interviewer's words, in milliseconds. */
 export const replyRules = {
   /** A reply that takes longer than this is given up on, and the fallback line is said instead. */
   timeout: 10_000,
-  /** A cap on a reply's length, so small models stay short and in role. */
-  maxOutputTokens: 200,
+  /** A cap on a reply's length, so small models stay short and in role (the words, and what the model observed). */
+  maxOutputTokens: 300,
   /** Words beyond this are cut at the last whole sentence: an interviewer never lectures. */
   maxWords: 60,
 };
@@ -40,10 +40,12 @@ export type HintLevel = (typeof hintLevels)[number];
 const rungs: (keyof HintLadder)[] = ['nudge', 'question', 'concrete'];
 
 /** Why an attempt at a reply's words was thrown away and written again. */
-export type Rejection = 'hint-unasked' | 'hint-skipped-rung' | 'hint-too-concrete' | 'solution-leak';
+export type Rejection = 'hint-unasked' | 'mistake-unasked' | 'hint-skipped-rung' | 'hint-too-concrete' | 'solution-leak';
 
 const corrections: Record<Rejection, string> = {
   'hint-unasked': "it gave a hint the candidate didn't ask for. Answer only what they asked, with no hint.",
+  'mistake-unasked':
+    "it said what or where their mistake is, which they didn't ask for. Ask them to trace a small input instead, and let them find it.",
   'hint-skipped-rung': 'it gave more help than the next rung of the hint ladder. Give only that rung.',
   'hint-too-concrete': "it gave the concrete hint when they hadn't asked for help. Give a smaller insight, or none.",
   'solution-leak': 'it quoted the reference solution. Never quote or describe its code.',
@@ -59,6 +61,7 @@ export const candidateTurns = [
   'clarifying-question',
   'seeking-affirmation',
   'asking-for-help',
+  'asking-to-move-on',
   'stuck',
   'explaining',
   'done',
@@ -76,21 +79,37 @@ const turnKinds = {
   'offer-next-phase': 'offer',
   backchannel: 'backchannel',
   'stay-quiet': 'quiet',
+  goodbye: 'ack',
 } as const satisfies Record<string, TurnReplyKind>;
 type TurnKindName = keyof typeof turnKinds;
 
+/** What the interviewer's words ask the candidate to do, so the round knows who started a test or a follow-up. */
+export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'other'] as const;
+export type InterviewerAsk = (typeof interviewerAsks)[number];
+
+/** Where the candidate's own words take the round: a later phase, or nowhere. */
+type Move = 'stays' | LaterPhase;
+const moves: readonly Move[] = ['stays', ...(CODING_PHASES.slice(1) as LaterPhase[])];
+
 /**
- * A reply to the candidate's turn, structured so code can act on what the model understood: what the
- * candidate was doing, what kind of reply fits, how much help it gives (checked before it's said), and
- * the phase the conversation is really in.
+ * A reply to the candidate's turn, structured so code can keep the round's state (ADR 0018). First what the
+ * model observed about the turn, then its reply and what that reply does: the help it gives and what it asks.
+ * The model only reports; the app moves phases, counts help and records tests from these fields.
  */
 interface TurnWords {
   heard: CandidateTurn;
+  movesTo: Move;
+  tracedExample: boolean;
+  foundOwnMistake: boolean;
   kind: TurnKindName;
   words: string;
   hintLevel: HintLevel;
-  phase: CodingPhase;
+  pointsOutMistake: boolean;
+  asks: InterviewerAsk;
 }
+
+/** What the model observed about a turn, and what its reply does: the app keeps the round's books from these. */
+type Observed = Pick<TurnWords, 'movesTo' | 'tracedExample' | 'foundOwnMistake' | 'pointsOutMistake' | 'asks'>;
 
 const oneOf = <T extends string>(values: readonly T[], value: unknown): value is T => values.includes(value as T);
 
@@ -100,32 +119,40 @@ const turnSchema: ObjectSchema<TurnWords> = {
     type: 'object',
     properties: {
       heard: { type: 'string', enum: [...candidateTurns], description: 'What the candidate is doing with this turn.' },
+      movesTo: {
+        type: 'string',
+        enum: [...moves],
+        description: 'The later phase the candidate started, or asked to move to, with this turn (saying yes to your offer counts); "stays" otherwise. Only their own words count, never your questions.',
+      },
+      tracedExample: { type: 'boolean', description: 'Whether the candidate walked a concrete input through their code in this turn.' },
+      foundOwnMistake: { type: 'boolean', description: 'Whether the candidate spotted a mistake in their own code or approach in this turn, without you pointing it out.' },
       kind: { type: 'string', enum: Object.keys(turnKinds), description: 'The kind of reply that fits.' },
       words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
       hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
-      phase: {
-        type: 'string',
-        enum: [...CODING_PHASES],
-        description: "The phase the conversation is in now, by what the candidate is actually doing: it may be ahead of the round's.",
-      },
+      pointsOutMistake: { type: 'boolean', description: 'Whether your words say what or where a mistake in their code or approach is.' },
+      asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do.' },
     },
-    required: ['heard', 'kind', 'words', 'hintLevel', 'phase'],
+    required: ['heard', 'movesTo', 'tracedExample', 'foundOwnMistake', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
     additionalProperties: false,
   },
   parse(value) {
-    const { heard, kind, words, hintLevel, phase } = (value ?? {}) as Record<string, unknown>;
+    const { heard, movesTo, tracedExample, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
     if (
       !oneOf(candidateTurns, heard) ||
+      !oneOf(moves, movesTo) ||
+      typeof tracedExample !== 'boolean' ||
+      typeof foundOwnMistake !== 'boolean' ||
       !oneOf(Object.keys(turnKinds) as TurnKindName[], kind) ||
       typeof words !== 'string' ||
       !oneOf(hintLevels, hintLevel) ||
-      !oneOf(CODING_PHASES, phase)
+      typeof pointsOutMistake !== 'boolean' ||
+      !oneOf(interviewerAsks, asks)
     ) {
       throw new Error(
-        `Expected heard (${candidateTurns.join(', ')}), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}) and phase (${CODING_PHASES.join(', ')})`,
+        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), tracedExample and foundOwnMistake (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
       );
     }
-    return { heard, kind, words, hintLevel, phase };
+    return { heard, movesTo, tracedExample, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks };
   },
 };
 
@@ -176,8 +203,8 @@ export interface ModelCallEntry {
     hint?: { askedForHelp: boolean; level: HintLevel };
     /** Attempts thrown away before the words were said (or replaced), and why. */
     rejected?: Rejection[];
-    /** For a reply to the candidate: the phase it heard the conversation in. The round follows it forward. */
-    phase?: CodingPhase;
+    /** For a reply to a turn: what the model observed and what its words do, which the app keeps the round's state from. */
+    observed?: Observed;
   };
 }
 
@@ -224,7 +251,15 @@ interface Call {
   reply: Reply;
   startedAt: number;
   controller: AbortController;
+  /** The candidate's line it replies to, if any. */
+  about: string | null;
 }
+
+/** When the round may still turn to the follow-up questions. */
+export const followUpRules = {
+  /** Time a follow-up needs: with less left in the round, it goes straight to Wrap-up. */
+  minTimeLeft: 5 * 60_000,
+};
 
 /**
  * The interviewer: the Floor Manager decides whether and when to speak, and what kind of reply to give;
@@ -232,10 +267,23 @@ interface Call {
  */
 export function createInterviewer(options: InterviewerOptions) {
   const { clock, round, lines, log, model, onEvent } = options;
-  const floor = createFloorManager({ clock, round, lines, log });
+  const followUpsOpen = () =>
+    asked.filter((a) => a.asks === 'follow-up').length < options.problem.followUps.length &&
+    codingRoundMs - round.snapshot().elapsedMs >= followUpRules.minTimeLeft;
+  const skipsPhase = (phase: LaterPhase) => phase === 'follow-up' && !followUpsOpen();
+  const floor = createFloorManager({ clock, round, lines, log, skipsPhase });
+  // The round's books (ADR 0018): kept here from what the model reports, never left to the model to remember.
   const transcript: RecordLine[] = [];
   const phases: RoundRecord['phases'] = [{ phase: round.snapshot().phase, atMs: 0 }];
   const hints: RoundRecord['hints'] = [];
+  const traces: RoundRecord['traces'] = [];
+  const mistakes: RoundRecord['mistakes'] = [];
+  const asked: RoundRecord['asked'] = [];
+  // The phase offered and not yet answered; what the interviewer's last spoken reply asked, and whether it named a mistake.
+  let offered: LaterPhase | null = null;
+  let lastAsk: InterviewerAsk = 'nothing';
+  let lastPointedOut = false;
+  let saidGoodbye = false;
   const line = (who: RecordLine['who'], text: string) =>
     transcript.push({ id: `t${transcript.length + 1}`, who, text, atMs: round.snapshot().elapsedMs });
   // The call whose words the interviewer is waiting on. Any other call that finishes is too late.
@@ -275,6 +323,8 @@ export function createInterviewer(options: InterviewerOptions) {
     if (decision.kind === 'stop-preparing') abandon('aborted');
     if ('speakingMs' in decision) line('interviewer', decision.line);
     if (decision.kind === 'phase-moved') phases.push({ phase: decision.phase, atMs: round.snapshot().elapsedMs });
+    if (decision.kind === 'suggest-phase') offered = decision.next;
+    if (decision.kind === 'suggestion-withdrawn' || decision.kind === 'phase-moved') offered = null;
     onEvent(decision);
     if (decision.kind === 'preparing') requestWords(decision.reply);
   }
@@ -291,6 +341,26 @@ export function createInterviewer(options: InterviewerOptions) {
   /** The rung the interviewer may give next if asked, or null when all three are given. */
   const nextHint = () => rungs[hintsGiven] ?? null;
 
+  /** The round so far, as the model is told it every time. */
+  function soFar(): RoundSoFar {
+    const { phase, elapsedMs } = round.snapshot();
+    let next = nextPhase(phase);
+    while (next && skipsPhase(next)) next = nextPhase(next);
+    return {
+      elapsedMs,
+      roundMs: codingRoundMs,
+      phases,
+      offered,
+      nextPhase: next,
+      hints,
+      nextHint: nextHint(),
+      mistakesPointedOut: mistakes.filter((m) => m.foundBy === 'interviewer').length,
+      traces: { own: traces.filter((t) => t.by === 'candidate').length, asked: traces.filter((t) => t.by === 'interviewer').length },
+      followUps: { asked: asked.filter((a) => a.asks === 'follow-up').length, open: followUpsOpen() },
+      saidGoodbye,
+    };
+  }
+
   /** One attempt at a reply's words. An answer comes back structured, with the help it gave. */
   async function attempt(call: Call, correction: string | undefined) {
     const { phase, phaseElapsedMs } = round.snapshot();
@@ -302,19 +372,20 @@ export function createInterviewer(options: InterviewerOptions) {
       toneGuide: options.toneGuide,
       transcript,
       code,
-      nextHint: nextHint(),
+      soFar: soFar(),
       correction,
     });
     const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
       const askedForHelp = object.heard === 'asking-for-help';
+      const { movesTo, tracedExample, foundOwnMistake, pointsOutMistake, asks } = object;
       return {
         words: object.words.trim(),
         usage,
         heard: object.heard,
         kind: object.kind,
-        phase: object.phase,
+        observed: { movesTo, tracedExample, foundOwnMistake, pointsOutMistake, asks },
         hint: { askedForHelp, level: object.hintLevel },
         // Help comes only when asked for, or, a little at a time, when they're stuck: never the answer.
         mayHint: askedForHelp ? 'any' : object.heard === 'stuck' ? 'small' : 'none',
@@ -332,9 +403,11 @@ export function createInterviewer(options: InterviewerOptions) {
 
   /**
    * What's wrong with an attempt's words, if anything: help that wasn't asked for (or, when they're stuck,
-   * more than a small insight), help that skips a rung, or a leak of the solution.
+   * more than a small insight), a mistake named unasked, help that skips a rung, or a leak of the solution.
    */
   function rejection(written: Awaited<ReturnType<typeof attempt>>): Rejection | null {
+    // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
+    if ('observed' in written && written.observed?.pointsOutMistake && written.mayHint !== 'any') return 'mistake-unasked';
     const level = 'hint' in written && written.hint ? written.hint.level : 'none';
     if (level !== 'none') {
       if (written.mayHint === 'none') return 'hint-unasked';
@@ -361,11 +434,38 @@ export function createInterviewer(options: InterviewerOptions) {
     return { written: null, rejected };
   }
 
+  /**
+   * Keeps the books for a reply to a turn, from what the model observed: the examples the candidate traced
+   * and who started them, mistakes and who found them, and the phase their own words moved the round to.
+   * Returns the phase to move to, if any; the move comes before the words, so an accepted offer is settled first.
+   */
+  function noteTurn(about: string | null, observed: Observed): LaterPhase | null {
+    if (about && observed.tracedExample) {
+      traces.push({ lineId: about, by: lastAsk === 'trace-example' || lastAsk === 'edge-case' ? 'interviewer' : 'candidate' });
+    }
+    if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: 'candidate' });
+    // The round moves on the candidate's words, or when the interviewer begins the follow-ups; never on its other questions.
+    const to = observed.movesTo !== 'stays' ? observed.movesTo : observed.asks === 'follow-up' ? 'follow-up' : null;
+    return to === 'follow-up' && !followUpsOpen() ? null : to;
+  }
+
+  /** Keeps the books for what the interviewer just said: what it asked, a mistake it named, a goodbye. */
+  function noteSaid(words: string, kind: TurnKindName | undefined, observed: Observed | undefined) {
+    const said = transcript.at(-1);
+    if (!said || said.who !== 'interviewer' || said.text !== words) return; // quiet, a backchannel, or dropped
+    lastAsk = observed?.asks ?? 'nothing';
+    lastPointedOut = observed?.pointsOutMistake ?? false;
+    if (observed && observed.asks !== 'nothing') asked.push({ lineId: said.id, asks: observed.asks });
+    if (observed?.pointsOutMistake) mistakes.push({ lineId: said.id, foundBy: 'interviewer' });
+    if (kind === 'goodbye') saidGoodbye = true;
+  }
+
   function requestWords(reply: Reply) {
     abandon('aborted'); // a newer reply replaces one still being prepared
     if (!model) return say(lines.next(fallbackSituation(reply)));
 
-    const call: Call = { id: ++calls, reply, startedAt: clock.now(), controller: new AbortController() };
+    const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
+    const call: Call = { id: ++calls, reply, startedAt: clock.now(), controller: new AbortController(), about };
     pending = call;
     compose(call).then(
       ({ written, rejected }) => {
@@ -385,13 +485,15 @@ export function createInterviewer(options: InterviewerOptions) {
           ...('heard' in written && written.heard ? { heard: written.heard } : {}),
           ...('kind' in written && written.kind ? { turnReply: written.kind } : {}),
           ...(written.hint ? { hint: written.hint } : {}),
-          ...(written.phase ? { phase: written.phase } : {}),
+          ...('observed' in written && written.observed ? { observed: written.observed } : {}),
           ...extra,
         });
-        // The round follows the conversation forward (never back), as the interviewer heard it; first, so an
-        // offer the candidate just accepted, or one for the phase after, starts from where they really are.
-        if (written.phase && written.phase !== 'clarify') handle(floor.onSignal({ type: 'phase-reached', phase: written.phase }));
-        say(written.words, written.kind && turnKinds[written.kind]);
+        const observed = 'observed' in written ? written.observed : undefined;
+        const kind = 'kind' in written ? written.kind : undefined;
+        const to = observed ? noteTurn(call.about, observed) : null;
+        if (to) handle(floor.onSignal({ type: 'phase-reached', phase: to }));
+        say(written.words, kind && turnKinds[kind]);
+        noteSaid(written.words, kind, observed);
       },
       (error: unknown) => {
         if (pending !== call) return; // aborted or timed out already, and logged then
@@ -421,7 +523,16 @@ export function createInterviewer(options: InterviewerOptions) {
 
     /** What the round leaves for grading. */
     record(): RoundRecord {
-      return { elapsedMs: round.snapshot().elapsedMs, transcript: [...transcript], phases: [...phases], hints: [...hints], code };
+      return {
+        elapsedMs: round.snapshot().elapsedMs,
+        transcript: [...transcript],
+        phases: [...phases],
+        hints: [...hints],
+        traces: [...traces],
+        mistakes: [...mistakes],
+        asked: [...asked],
+        code,
+      };
     },
   };
 }

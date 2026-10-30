@@ -26,8 +26,9 @@ export interface PhaseState {
 /**
  * Leads the round through its phases: offers to move on when a phase runs long or the candidate
  * seems done, waits for their answer, and backs off after "not yet". Never moves on by itself.
+ * `skips` names a phase the round passes over right now (Follow-up, with no time or nothing to ask).
  */
-export function createPhaseGuide(round: Round) {
+export function createPhaseGuide(round: Round, skips: (phase: LaterPhase) => boolean = () => false) {
   let suggested: LaterPhase | null = null;
   let suggestedAt = 0;
   let notYets = 0;
@@ -41,7 +42,8 @@ export function createPhaseGuide(round: Round) {
     /** The phase to offer now, or null. Saying "I'm done" outright skips the back-off wait. */
     toOffer(now: number, cue: MoveOnCue): LaterPhase | null {
       const { phase, phaseElapsedMs } = round.snapshot();
-      const next = nextPhase(phase);
+      let next = nextPhase(phase);
+      while (next && skips(next)) next = nextPhase(next);
       if (!next || suggested) return null;
       if (cue === 'candidate-said-done') return next;
       if (now < suggestAllowedAt) return null;
@@ -83,8 +85,8 @@ export function createPhaseGuide(round: Round) {
     /** Moves to the suggested phase. Returns it, or null if nothing was suggested. */
     accept(): LaterPhase | null {
       if (!suggested) return null;
-      round.advancePhase();
       const phase = suggested;
+      while (round.snapshot().phase !== phase) round.advancePhase();
       suggested = null;
       notYets = 0;
       suggestAllowedAt = -Infinity;

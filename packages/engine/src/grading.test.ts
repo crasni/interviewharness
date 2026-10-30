@@ -30,6 +30,9 @@ function record(overrides: Partial<RoundRecord> = {}): RoundRecord {
       { phase: 'test', atMs: 1_400_000 },
     ],
     hints: [],
+    traces: [],
+    mistakes: [],
+    asked: [],
     code: { language: 'python', text: 'def two_sum(nums, target):\n    ...' },
     ...overrides,
   };
@@ -113,6 +116,23 @@ describe('grading a round', () => {
     expect(feedback.areas.testing.score).toBe(2);
   });
 
+  it('caps testing when the only traces were ones the interviewer asked for, and tells the grader who started each', async () => {
+    const model = scriptedModel({ grading: [sample([4, 4, 4, 4]), sample([4, 4, 4, 4]), sample([4, 4, 4, 4])], 'feedback-prose': [prose] });
+    const askedOnly = record({
+      traces: [{ lineId: 't4', by: 'interviewer' }],
+      mistakes: [{ lineId: 't3', foundBy: 'interviewer' }],
+      asked: [{ lineId: 't1', asks: 'trace-example' }],
+    });
+
+    const feedback = await gradeRound({ model: model.model, problem, record: askedOnly, rough: false });
+
+    expect(feedback.areas.testing.score).toBe(2);
+    const graded = model.requests.find((r) => r.purpose === 'grading')!.messages.at(-1)!.text;
+    expect(graded).toContain('Checked their code on their own: no.');
+    expect(graded).toContain('Examples traced through the code: when the interviewer asked t4.');
+    expect(graded).toContain('Mistakes found in their code or approach: pointed out by the interviewer t3.');
+  });
+
   it('writes why, what went well and what to fix, each point at the time of its evidence', async () => {
     const model = scriptedModel({ grading: [sample([4, 3, 3, 4]), sample([4, 3, 3, 4]), sample([4, 3, 3, 4])], 'feedback-prose': [prose] });
 
@@ -145,6 +165,7 @@ describe('the facts of a round', () => {
       hints: ['nudge'],
       deepestHint: 'nudge',
       tested: true,
+      testedOnOwn: true,
     });
   });
 });

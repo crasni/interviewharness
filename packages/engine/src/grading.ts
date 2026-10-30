@@ -1,6 +1,6 @@
 import { AREAS, type Area, type AreaScore, type AreaScores, type CodingPhase, type Verdict, verdictFor } from '@interviewharness/core';
 import type { CodeSnapshot } from './floor-manager.ts';
-import type { HintLevel } from './interviewer.ts';
+import type { HintLevel, InterviewerAsk } from './interviewer.ts';
 import type { Model, ModelIdentity, ObjectSchema } from './model.ts';
 import type { Problem } from './problem.ts';
 
@@ -19,6 +19,12 @@ export interface RoundRecord {
   phases: { phase: CodingPhase; atMs: number }[];
   /** Each hint rung given, in order. */
   hints: Exclude<HintLevel, 'none'>[];
+  /** Each example the candidate walked through their code, and who started it: they did, or the interviewer asked. */
+  traces: { lineId: string; by: 'candidate' | 'interviewer' }[];
+  /** Each mistake in the candidate's code or approach that was found, and who found it. */
+  mistakes: { lineId: string; foundBy: 'candidate' | 'interviewer' }[];
+  /** What the interviewer's lines asked the candidate to do, when they asked anything. */
+  asked: { lineId: string; asks: Exclude<InterviewerAsk, 'nothing'> }[];
   code: CodeSnapshot | null;
 }
 
@@ -30,6 +36,8 @@ export interface RoundFacts {
   deepestHint: HintLevel;
   /** Reached the Test phase, or walked an example through the code. */
   tested: boolean;
+  /** Walked an example through the code on their own initiative, not because the interviewer asked. */
+  testedOnOwn: boolean;
 }
 
 export interface FeedbackPoint {
@@ -56,8 +64,12 @@ const hintOrder: HintLevel[] = ['none', 'nudge', 'question', 'concrete'];
 
 /** The highest problem-solving score left after each hint rung: every rung asked for costs more. */
 const problemSolvingCap: Record<HintLevel, AreaScore> = { none: 4, nudge: 3, question: 2, concrete: 1 };
-/** The highest testing score for a round that never reached Test. */
-const untestedCap: AreaScore = 2;
+/**
+ * The highest testing score when the candidate never checked their code on their own: they didn't test, or
+ * traced only what the interviewer asked for. Interviewers expect the candidate to start the checking
+ * (docs/research/11-testing-expectations.md).
+ */
+const notSelfTestedCap: AreaScore = 2;
 /** How many times the round is graded; the median per area stands in for a low temperature, which some plans reject. */
 const gradingSamples = 3;
 
@@ -71,12 +83,16 @@ export function roundFacts(record: RoundRecord): RoundFacts {
     timeInPhaseMs[phase] = (timeInPhaseMs[phase] ?? 0) + (end - atMs);
   });
   const phasesReached = record.phases.map((p) => p.phase);
+  const askedFor = new Set(record.traces.filter((t) => t.by === 'interviewer').map((t) => t.lineId));
+  const candidateTraces = record.transcript.filter((line) => line.who === 'candidate' && tracesAnExample(line.text));
   return {
     phasesReached,
     timeInPhaseMs,
     hints: record.hints,
     deepestHint: record.hints.reduce<HintLevel>((deepest, hint) => (hintOrder.indexOf(hint) > hintOrder.indexOf(deepest) ? hint : deepest), 'none'),
-    tested: phasesReached.includes('test') || record.transcript.some((line) => line.who === 'candidate' && tracesAnExample(line.text)),
+    tested: phasesReached.includes('test') || record.traces.length > 0 || candidateTraces.length > 0,
+    // The interviewer's book says who started each trace; a trace in words it missed counts as their own.
+    testedOnOwn: record.traces.some((t) => t.by === 'candidate') || candidateTraces.some((line) => !askedFor.has(line.id)),
   };
 }
 
@@ -162,6 +178,14 @@ const proseSchema: ObjectSchema<Prose> = {
   },
 };
 
+/** Lines from the round's books, grouped by what they were: "on their own t15; when the interviewer asked t13". */
+function lineList<T extends { lineId: string }>(entries: T[], group: (entry: T) => string) {
+  if (!entries.length) return 'none';
+  const groups = new Map<string, string[]>();
+  for (const entry of entries) groups.set(group(entry), [...(groups.get(group(entry)) ?? []), entry.lineId]);
+  return [...groups].map(([name, ids]) => `${name} ${ids.join(', ')}`).join('; ');
+}
+
 const clock = (ms: number) => {
   const seconds = Math.floor(ms / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -178,7 +202,10 @@ function roundForPrompt(problem: Problem, record: RoundRecord, facts: RoundFacts
       `Length: ${minutes(record.elapsedMs)}.`,
       `Phases reached: ${facts.phasesReached.map((p) => `${p} (${minutes(facts.timeInPhaseMs[p])})`).join(', ')}.`,
       `Hints the candidate asked for: ${facts.hints.length ? facts.hints.join(', ') : 'none'}.`,
-      `Reached Test: ${facts.tested ? 'yes' : 'no'}.`,
+      `Reached Test: ${facts.tested ? 'yes' : 'no'}. Checked their code on their own: ${facts.testedOnOwn ? 'yes' : 'no'}.`,
+      `Examples traced through the code: ${lineList(record.traces, (t) => t.by === 'candidate' ? 'on their own' : 'when the interviewer asked')}.`,
+      `Mistakes found in their code or approach: ${lineList(record.mistakes, (m) => m.foundBy === 'candidate' ? 'by the candidate' : 'pointed out by the interviewer')}.`,
+      `The interviewer asked for: ${lineList(record.asked, (a) => a.asks)}.`,
     ].join('\n'),
     `# The conversation (id, time, who: words)\n\n${record.transcript.map((l) => `${l.id} ${clock(l.atMs)} ${l.who}: ${l.text}`).join('\n') || '(nothing was said)'}`,
     `# The candidate's final code\n\n${record.code?.text.trim() ? `\`\`\`${record.code.language}\n${record.code.text.trimEnd()}\n\`\`\`` : '(empty)'}`,
@@ -186,17 +213,21 @@ function roundForPrompt(problem: Problem, record: RoundRecord, facts: RoundFacts
 }
 
 const graderRules = `You grade a mock coding interview the way a fair, experienced interviewer would. Score each area on a four-step scale: 1 weak, 2 mixed, 3 solid, 4 strong.
-- Problem solving: understanding the problem, finding and justifying an approach.
+- Problem solving: understanding the problem, finding and justifying an approach, and answering any follow-up questions.
 - Coding: correct, clear code that matches the approach.
-- Testing: checking the code with examples and edge cases, finding their own bugs.
+- Testing: checking the code with examples and edge cases they choose themselves, and finding their own bugs. A trace the interviewer asked for counts for little; a bug the interviewer had to point out counts against it.
 - Communication: explaining their thinking, asking good questions, taking input.
+The candidate types their words for now: ignore typos, spelling and terse phrasing. Lines about the mock itself ("who are you?", "can I start?") aren't graded.
+The facts say who started each trace and who found each mistake: credit the candidate only for what they started.
 Cite as evidence the ids of the conversation lines that show each score. Cite only ids that appear in the conversation.`;
 
 const writerRules = `You write the feedback a candidate reads after a mock coding interview: honest, specific and kind, in plain words, addressed to them as "you".
 - "why" is two or three sentences explaining the verdict.
 - Two to four points of what went well and two to four of what to fix, each one sentence, each resting on one conversation line, cited by its id.
 - Never mention scores, numbers or a scale.
-- If they asked for hints, say so in words where it matters, without counting them.`;
+- If they asked for hints, say so in words where it matters, without counting them.
+- Never credit them for a test or a find the interviewer started; the facts say who started each.
+- Typos, spelling and lines about the mock itself are not feedback.`;
 
 /**
  * Grades a finished round: three structured grading samples, unknown evidence dropped, a score with no
@@ -253,7 +284,7 @@ export async function gradeRound({
 /** One sample made trustworthy: evidence that names no line dropped, a score left without evidence lowered, caps applied. */
 function checked(sample: Graded, ids: Set<string>, facts: RoundFacts): Graded {
   const caps: Partial<Record<Area, AreaScore>> = { problemSolving: problemSolvingCap[facts.deepestHint] };
-  if (!facts.tested) caps.testing = untestedCap;
+  if (!facts.testedOnOwn) caps.testing = notSelfTestedCap;
   return Object.fromEntries(
     AREAS.map((area) => {
       const evidence = sample[area].evidence.filter((id) => ids.has(id));

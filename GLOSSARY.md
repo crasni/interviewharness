@@ -11,7 +11,7 @@ One complete mock interview with an interviewer, from start to verdict, of one k
 _Avoid_: Session, interview, mode
 
 **Phase**:
-One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Wrap-up. Feedback comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
+One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Follow-up, Wrap-up. Follow-up (the problem's follow-up questions) happens only when the candidate finishes early. Feedback comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
 _Avoid_: Step, stage, section
 
 **Interviewer**:

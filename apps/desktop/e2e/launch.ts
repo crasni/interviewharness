@@ -103,11 +103,11 @@ async function saveTraceIfFailed(app: ElectronApplication) {
 
 /** Scripted replies to a candidate's turn, as the model gives them: an answer, an acknowledgement or an offer to move on. */
 export const turnReply = {
-  answer: (words: string) => ({ object: { words, heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', phase: 'clarify' } }),
-  ack: (words: string) => ({ object: { words, heard: 'explaining', kind: 'acknowledgement', hintLevel: 'none', phase: 'clarify' } }),
-  offer: (words: string) => ({ object: { words, heard: 'done', kind: 'offer-next-phase', hintLevel: 'none', phase: 'clarify' } }),
-  /** The candidate agreed to move on: the model hears the conversation in `phase`. */
-  agreed: (words: string, phase: string) => ({ object: { words, heard: 'agreeing', kind: 'acknowledgement', hintLevel: 'none', phase } }),
+  answer: (words: string) => ({ object: { words, heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', movesTo: 'stays', tracedExample: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' } }),
+  ack: (words: string) => ({ object: { words, heard: 'explaining', kind: 'acknowledgement', hintLevel: 'none', movesTo: 'stays', tracedExample: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' } }),
+  offer: (words: string) => ({ object: { words, heard: 'done', kind: 'offer-next-phase', hintLevel: 'none', movesTo: 'stays', tracedExample: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' } }),
+  /** The candidate agreed to move on: their words moved the round to `phase`. */
+  agreed: (words: string, phase: string) => ({ object: { words, heard: 'agreeing', kind: 'acknowledgement', hintLevel: 'none', movesTo: phase, tracedExample: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' } }),
 };
 
 /** An intro long enough to talk over, as launchIntoRoom does. */

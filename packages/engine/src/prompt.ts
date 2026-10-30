@@ -1,13 +1,41 @@
 import type { CodingPhase } from '@interviewharness/core';
 import type { CodeSnapshot, Reply } from './floor-manager.ts';
+import type { HintLevel } from './interviewer.ts';
 import type { ModelMessage } from './model.ts';
 import type { Problem } from './problem.ts';
+import type { LaterPhase } from './round.ts';
 
 /** One line of the conversation, timed from the start of the round. */
 export interface TranscriptLine {
   who: 'candidate' | 'interviewer';
   text: string;
   atMs: number;
+}
+
+/**
+ * What the app knows about the round so far, kept in code and handed to the model every turn, so the model
+ * never has to keep track of the round from a few recent lines (ADR 0018).
+ */
+export interface RoundSoFar {
+  elapsedMs: number;
+  roundMs: number;
+  /** When each phase began, in order; the last is the one the round is in. */
+  phases: { phase: CodingPhase; atMs: number }[];
+  /** The phase the interviewer offered to move on to and is waiting on, if any. */
+  offered: LaterPhase | null;
+  /** The phase to offer when the candidate is done with this one, or null at the last. */
+  nextPhase: LaterPhase | null;
+  /** Each hint rung given, in order. */
+  hints: Exclude<HintLevel, 'none'>[];
+  /** The hint rung the interviewer may give next if asked, or null when all three are given. */
+  nextHint: keyof Problem['hintLadder'] | null;
+  /** How many times the interviewer said what or where a mistake was. */
+  mistakesPointedOut: number;
+  /** Examples the candidate walked through their code: on their own, and when the interviewer asked. */
+  traces: { own: number; asked: number };
+  /** Follow-up questions asked, and whether another may be asked now (one is left and there's time). */
+  followUps: { asked: number; open: boolean };
+  saidGoodbye: boolean;
 }
 
 export interface ReplyPromptInput {
@@ -20,23 +48,23 @@ export interface ReplyPromptInput {
   transcript: readonly TranscriptLine[];
   /** The candidate's code as of their latest words, if they've written any. */
   code: CodeSnapshot | null;
-  /** The hint rung the interviewer may give next if asked, or null when all three are given. */
-  nextHint: keyof Problem['hintLadder'] | null;
+  soFar: RoundSoFar;
   /** Why the last attempt at these words was rejected, so this one avoids it. */
   correction?: string;
 }
 
-/** How much of the conversation each prompt carries; older lines are left out to keep prompts small. */
+/** How much of the conversation each prompt carries; older lines are left out, and the round so far covers them. */
 const recentLines = 12;
 
-const rules = `You are the interviewer in a live mock coding interview. The candidate is practising, and you play one good, human interviewer.
+const rules = `You are the interviewer in a live mock coding interview. The candidate is practising, and you play one good, human interviewer who mostly listens.
 
 Rules:
-- You decide only the words. When to speak and what kind of reply to give have already been decided; give exactly that kind of reply.
 - Speak as a person talks: one to three short sentences, plain words, no markdown, no lists, no code.
-- Never give the answer, the approach or any part of the solution. Help only when the candidate asks for it, or, a small insight at a time, when they're stuck.
-- Comment on the candidate's code only when they say they're done, or ask you about it directly.
-- Don't praise or judge the candidate's ideas while the round is going on.
+- The candidate drives the round. Don't lead them through it: testing, edge cases and complexity are theirs to bring up. How far they get on their own is what's judged.
+- Never give the answer, the approach or any part of the solution. Never say what or where a mistake is unless they ask you for help.
+- Comment on their code only when they say they're done, or ask you about it directly.
+- Don't grade ideas while the round is going on: no "great", "correct" or "that's wrong". A neutral "okay" or "sounds reasonable" is fine.
+- Never ask a question you've already asked. "The round so far" is kept for you: trust it over the conversation lines.
 - Stay in role all round: you are the interviewer, not an assistant.`;
 
 const phaseNames: Record<CodingPhase, string> = {
@@ -45,27 +73,44 @@ const phaseNames: Record<CodingPhase, string> = {
   code: 'Code (the candidate writes the solution)',
   test: 'Test (the candidate checks the code with examples)',
   complexity: 'Complexity (time and space)',
+  'follow-up': 'Follow-up (you ask the follow-up questions, one at a time)',
   'wrap-up': 'Wrap-up (the candidate may ask you questions)',
 };
 
-const nextPhaseOffers: Record<Exclude<CodingPhase, 'clarify'>, string> = {
-  approach: 'talk through their approach',
-  code: 'start coding',
-  test: 'test their code',
-  complexity: 'talk about time and space complexity',
-  'wrap-up': 'wrap up',
-};
+const minutes = (ms: number) => Math.floor(ms / 60_000);
 
-function instruction(reply: Reply, phase: CodingPhase, nextHint: ReplyPromptInput['nextHint']): string {
+/** The round so far, as the model reads it. */
+function soFarBlock(soFar: RoundSoFar, phaseElapsedMs: number): string {
+  const current = soFar.phases.at(-1)!.phase;
+  const earlier = soFar.phases.slice(0, -1).map(({ phase, atMs }, i) => `${phase} ${minutes(soFar.phases[i + 1]!.atMs - atMs)} min`);
+  const count = (n: number, one: string) => (n === 0 ? 'none' : n === 1 ? `one ${one}` : `${n} ${one}s`);
+  const traces = soFar.traces.own + soFar.traces.asked
+    ? `${soFar.traces.own} on their own, ${soFar.traces.asked} when you asked`
+    : 'none yet';
+  return [
+    '# The round so far (kept by the app)',
+    `- Time: ${minutes(soFar.elapsedMs)} of ${minutes(soFar.roundMs)} minutes.`,
+    `- Phase: ${phaseNames[current]}, ${minutes(phaseElapsedMs)} min in.${earlier.length ? ` Before: ${earlier.join(', ')}.` : ''}`,
+    `- Waiting on: ${soFar.offered ? `their answer to your offer to move on to ${soFar.offered}` : 'nothing'}.`,
+    `- Hints given: ${soFar.hints.length ? soFar.hints.join(', ') : 'none'}. ${soFar.nextHint ? `Next rung, if they ask: ${soFar.nextHint}.` : 'Every rung is given.'}`,
+    `- Mistakes you pointed out: ${count(soFar.mistakesPointedOut, 'time')}.`,
+    `- Examples they traced through their code: ${traces}.`,
+    `- Follow-up questions asked: ${count(soFar.followUps.asked, 'question')}${soFar.followUps.open ? '; another may be asked' : ''}.`,
+    `- You've said goodbye: ${soFar.saidGoodbye ? 'yes' : 'no'}.`,
+  ].join('\n');
+}
+
+function instruction(input: ReplyPromptInput): string {
+  const { reply, soFar } = input;
   switch (reply.kind) {
     case 'intro':
       return 'Open the round: greet the candidate briefly, say this is a 45-minute coding round, and invite them to read the problem and ask any clarifying questions.';
     case 'turn':
-      return turnInstruction(phase, nextHint);
+      return turnInstruction(input);
     case 'check-in':
       return reply.nth === 1
         ? 'The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint. hintLevel "none".'
-        : `The candidate is still quiet and idle after you checked in. If the conversation shows they're stuck, you may offer the smallest next insight from the hint ladder (${nextHint && nextHint !== 'concrete' ? `rung ${nextHint}, in your own words, with hintLevel "${nextHint}"` : 'none is left that small: just check in'}); never the concrete rung, never the answer. If they seem to be working, just check in gently with hintLevel "none".`;
+        : `The candidate is still quiet and idle after you checked in. If the conversation shows they're stuck, you may offer the smallest next insight from the hint ladder (${soFar.nextHint && soFar.nextHint !== 'concrete' ? `rung ${soFar.nextHint}, in your own words, with hintLevel "${soFar.nextHint}"` : 'none is left that small: just check in'}); never the concrete rung, never the answer. If they seem to be working, just check in gently with hintLevel "none".`;
   }
 }
 
@@ -73,32 +118,51 @@ function instruction(reply: Reply, phase: CodingPhase, nextHint: ReplyPromptInpu
 const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-quiet, or a backchannel like "mm-hm". Never interrupt their thinking.
 - murmur (a filler, a stray word, a typo, noise): stay-quiet.
 - clarifying-question (about the problem): answer briefly and factually from the problem and your notes. Only what they asked.
-- seeking-affirmation ("does that sound right?"): don't grade mid-round. If the direction is sound, a short "sounds reasonable, go ahead". If it isn't, ask one probing question (say, a case to try), never the fix.
-- asking-for-help (a hint, what to do next): give only the next rung of the hint ladder, in your own words.
-- stuck (unsure how to go on, circling, "I don't know"): offer the smallest insight that might help, the next rung at most and never the concrete one, or a question that helps them think. Never the answer.
-- explaining (their plan, approach or code): a short acknowledgement, or one follow-up question if something important is missing (complexity, an edge case).
-- done (finished a phase or the code, in any words): if it's their code, read it against the reference. If it looks wrong, ask them to walk a small example through it. If it looks right, say so briefly and offer the next phase.
-- answering-interviewer (answering your question): acknowledge it, or one follow-up if it's incomplete.
-- agreeing (to your offer or suggestion): a short line that hands the floor back, in the new phase.
+- seeking-affirmation ("does that sound right?"): if the direction is sound, only a short "sounds reasonable" that hands the floor back, with no question added. If it isn't, ask one probing question (say, an input to try), never the fix.
+- asking-for-help (a hint; they don't know how to go on): the next rung of the hint ladder, in your own words.
+- asking-to-move-on ("can I start coding?", "should I test it now?"): a short yes. If they'd skip something that matters (coding with no approach discussed), ask them to cover it first.
+- stuck (unsure how to go on, circling, "I don't know"): the smallest insight that might help, the next rung at most and never the concrete one, or a question that helps them think. Never the answer.
+- explaining (their plan, approach or code): a short acknowledgement. Ask something only if you can't follow what they mean.
+- done (finished a phase or the code, in any words): see "When they're done" below.
+- answering-interviewer (answering your question): acknowledge it. Ask again only if their answer left your question unanswered.
+- agreeing (to your offer or suggestion): a short line that hands the floor back.
 - declining or carrying on: a short acknowledgement; they keep going.
-- small-talk (logistics, "can you see my code?", thanks): a brief, natural reply.`;
+- small-talk (logistics, "who are you?", "can you see my code?", thanks): a brief, natural reply.`;
+
+/** What to do when the candidate is done with the phase the round is in. */
+function whenDone({ phase, soFar }: ReplyPromptInput): string {
+  const offer = soFar.nextPhase === 'follow-up'
+    ? 'ask the first follow-up question (kind "answer", asks "follow-up") instead of offering anything'
+    : soFar.nextPhase
+      ? `offer to move on to ${soFar.nextPhase} (kind "offer-next-phase")`
+      : 'acknowledge it';
+  switch (phase) {
+    case 'code':
+      return `Read their code against the reference. If it looks wrong, ask them to trace one small input that would show the problem (asks "trace-example"); never say what or where the mistake is. If it looks right, a brief "okay" and ${offer}.`;
+    case 'follow-up':
+      return soFar.followUps.open
+        ? 'When they\'ve answered a follow-up, ask the next one (kind "answer", asks "follow-up").'
+        : `No follow-up is left, or time is short: ${offer}.`;
+    case 'wrap-up':
+      return soFar.saidGoodbye
+        ? 'You have said goodbye already: never again. If they say thanks or bye, stay-quiet. Answer only a real question.'
+        : 'Ask once whether they have questions for you, and answer them briefly. When they have nothing more, say goodbye once (kind "goodbye").';
+    default:
+      return `When they're done with this phase, ${offer}.`;
+  }
+}
 
 /**
- * The candidate finished a turn. What they meant is the model's to understand, however they put it: the
- * kind of turn, the reply that fits, the help it gives and the phase the conversation is in all come back with the words.
+ * The candidate finished a turn. What they meant is the model's to understand, however they put it; what the
+ * round does about it (the phase, the help counted, the tests recorded) is the app's.
  */
-function turnInstruction(phase: CodingPhase, nextHint: ReplyPromptInput['nextHint']) {
-  const next = nextHint ? `The next rung is ${nextHint}.` : 'Every rung is given already: if they ask again, repeat the concrete rung in other words.';
-  const offers = Object.entries(nextPhaseOffers)
-    .map(([later, offer]) => `${later}: ${offer}`)
-    .join('; ');
+function turnInstruction(input: ReplyPromptInput) {
   return [
     "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would.",
-    "First decide what they're doing (heard), then reply in the kind that fits (kind: answer, acknowledgement, offer-next-phase, backchannel or stay-quiet):",
-    replyByTurn,
-    `You never push them through the round: they drive it, and how far they get in 45 minutes is part of what's judged. Offer the next phase only when they say they're done (the phase after the one the conversation is in: ${offers}).`,
-    `Hints: only when they ask for help, or a small insight when they're stuck. ${next} Set hintLevel to the rung your words give, or "none".`,
-    `Report the phase the conversation is in now (the round says ${phase}), by what they're actually doing. If they agreed to move on, or asked to and you agree, report that phase. If they moved ahead by themselves, usually go along; if they skipped something that matters (say, coding with no approach discussed), briefly ask them to cover it, and report that earlier phase.`,
+    'First report what you observed about their turn (heard, movesTo, tracedExample, foundOwnMistake), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
+    `# Each kind of turn, and how to reply\n\n${replyByTurn}`,
+    `# When they're done\n\n${whenDone(input)}`,
+    `# Hints\n\nOnly when they ask for help, or a small insight when they're stuck. Set hintLevel to the rung your words give, or "none".`,
   ].join('\n\n');
 }
 
@@ -109,6 +173,15 @@ function hintLadder({ hintLadder: ladder }: Problem) {
     `1. Nudge: ${ladder.nudge}`,
     `2. Question: ${ladder.question}`,
     `3. Concrete: ${ladder.concrete}`,
+  ].join('\n');
+}
+
+function followUps({ followUps: questions }: Problem) {
+  if (!questions.length) return null;
+  return [
+    '# Follow-up questions',
+    'Only in the Follow-up phase, in this order, one at a time, in your own words.',
+    ...questions.map((question, i) => `${i + 1}. ${question}`),
   ].join('\n');
 }
 
@@ -127,9 +200,12 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     `# The problem (the candidate sees this too)\n\n${input.problem.statement.trim()}`,
     `# Your notes on the problem (never shown to the candidate)\n\n${input.problem.notes}`,
     hintLadder(input.problem),
+    followUps(input.problem),
     `# The reference solution\n\nNEVER reveal, quote or paraphrase this code, or describe its approach. It is only for you to judge the candidate's code against.\n\n\`\`\`${input.problem.reference.language}\n${input.problem.reference.code.trim()}\n\`\`\``,
     `# How you sound\n\nExamples of an interviewer's lines. Match their tone and length; don't repeat them word for word.\n\n${input.toneGuide.trim()}`,
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   const conversation = input.transcript
     .slice(-recentLines)
@@ -141,10 +217,10 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     : "The candidate's code right now: (empty)";
 
   const user = [
-    `Phase: ${phaseNames[input.phase]}, ${Math.floor(input.phaseElapsedMs / 60_000)} min in.`,
+    soFarBlock(input.soFar, input.phaseElapsedMs),
     `Recent conversation:\n${conversation || '(nothing said yet)'}`,
     code,
-    `What to say now: ${instruction(input.reply, input.phase, input.nextHint)}`,
+    `What to say now: ${instruction(input)}`,
     input.correction ? `Your last attempt was rejected: ${input.correction} Write it again.` : null,
     'Reply with only the words you say aloud.',
   ]

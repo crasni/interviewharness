@@ -1,5 +1,7 @@
 # The model understands each turn; the interviewer never pushes the round
 
+_Amended by ADR 0018: the model no longer reports the phase. It reports what the candidate's own words did, and the app keeps the round's state._
+
 Playing real rounds showed the keyword rules planned for v0.1 (a question needs a "?", "that's it" means done, "yes" accepts) misread typed, casual speech, and that time-based offers to move on interrupt candidates mid-thought, for example 15 seconds into tracing an example they'd just been asked to trace. So the Floor Manager keeps only *when* the interviewer may speak (the beat after a turn, barge-in, silence), and what the candidate meant is the model's to understand.
 
 Every reply to a turn comes back structured: what the candidate was doing (a **candidate turn**), the kind of reply that fits, its words, the hint rung it gives and the phase the conversation is really in. Code then checks the help and the solution guard before anything is said, and the round follows the reported phase forward.

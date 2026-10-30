@@ -48,21 +48,40 @@ function setup({ script = {}, withModel = true }: { script?: ModelScript; withMo
   return { clock, log, model, events, interviewer, wait, kinds, spoken, modelCalls };
 }
 
-/** A reply to a turn as the model gives it: what it heard the candidate doing, the reply's kind and words, its help and the phase. */
-const reply = (
-  kind: string,
-  words: string,
-  { heard = 'explaining', hintLevel = 'none', phase = 'clarify' }: { heard?: string; hintLevel?: string; phase?: string } = {},
-) => ({ object: { heard, kind, words, hintLevel, phase } });
+interface Observed {
+  heard?: string;
+  movesTo?: string;
+  tracedExample?: boolean;
+  foundOwnMistake?: boolean;
+  hintLevel?: string;
+  pointsOutMistake?: boolean;
+  asks?: string;
+}
+
+/** A reply to a turn as the model gives it: what it observed about the turn, then the reply's kind, words, help and ask. */
+const reply = (kind: string, words: string, observed: Observed = {}) => ({
+  object: {
+    heard: 'explaining',
+    movesTo: 'stays',
+    tracedExample: false,
+    foundOwnMistake: false,
+    hintLevel: 'none',
+    pointsOutMistake: false,
+    asks: 'nothing',
+    ...observed,
+    kind,
+    words,
+  },
+});
 
 /** An answer to a question (or, with `heard: 'asking-for-help'`, a hint). */
-const answer = (words: string, options: { heard?: string; hintLevel?: string; phase?: string } = {}) =>
-  reply('answer', words, { heard: 'clarifying-question', ...options });
+const answer = (words: string, observed: Observed = {}) => reply('answer', words, { heard: 'clarifying-question', ...observed });
 
-const ack = (words: string, phase = 'clarify') => reply('acknowledgement', words, { phase });
+/** An acknowledgement; `movesTo` is the phase the candidate's own words moved to. */
+const ack = (words: string, movesTo = 'stays') => reply('acknowledgement', words, { movesTo });
 
 /** A reply that heard the candidate as done with the phase, and offers to move on. */
-const offer = (words: string, phase = 'clarify') => reply('offer-next-phase', words, { heard: 'done', phase });
+const offer = (words: string) => reply('offer-next-phase', words, { heard: 'done' });
 
 /** A help request, as the model hears it. */
 const help = { heard: 'asking-for-help' };
@@ -247,7 +266,7 @@ describe('the interviewer', () => {
         heard: 'clarifying-question',
         turnReply: 'answer',
         hint: { askedForHelp: false, level: 'none' },
-        phase: 'clarify',
+        observed: { movesTo: 'stays', tracedExample: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' },
       },
     ]);
     expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.', as: 'answer' } }));
@@ -435,7 +454,7 @@ describe('the conversation sets the phase', () => {
   });
 
   it('moves on when the candidate asks to and the interviewer agrees', async () => {
-    const helpers = await afterIntro([answer('Yes, go ahead and code it.', { phase: 'code' })]);
+    const helpers = await afterIntro([answer('Yes, go ahead and code it.', { heard: 'asking-to-move-on', movesTo: 'code' })]);
 
     helpers.interviewer.onSignal({ type: 'said', text: 'should i start coding it' });
     helpers.wait(1_000);
@@ -460,7 +479,7 @@ describe('the conversation sets the phase', () => {
   });
 
   it('offers the phase after the one the candidate is really in', async () => {
-    const helpers = await afterIntro([ack('Okay.', 'code'), offer('Looks right. Want to test it with an example?', 'code')]);
+    const helpers = await afterIntro([ack('Okay.', 'code'), offer('Looks right. Want to test it with an example?')]);
     const { interviewer, wait, events } = helpers;
     interviewer.onSignal({ type: 'said', text: 'Here is my code.' }); // jumped ahead to coding
     wait(1_000);
@@ -474,14 +493,144 @@ describe('the conversation sets the phase', () => {
     expect(events.filter((e) => e.kind === 'suggest-phase')).toEqual([expect.objectContaining({ next: 'test' })]);
   });
 
-  it('logs the phase each reply heard the conversation in', async () => {
+  it('logs what each reply observed, which the round follows', async () => {
     const { interviewer, wait, modelCalls } = await afterIntro([ack('Okay.', 'approach')]);
 
     interviewer.onSignal({ type: 'said', text: 'I would loop over every pair.' });
     wait(1_000);
     await settle();
 
-    expect(modelCalls()).toMatchObject([{ reply: 'turn', turnReply: 'acknowledgement', phase: 'approach' }]);
+    expect(modelCalls()).toMatchObject([{ reply: 'turn', turnReply: 'acknowledgement', observed: { movesTo: 'approach' } }]);
+  });
+
+  it("never moves on because of the interviewer's own question", async () => {
+    const helpers = await afterIntro([ack('Okay.', 'test'), reply('acknowledgement', 'Okay. What is the time complexity?', { heard: 'answering-interviewer', asks: 'complexity' })]);
+    const { interviewer, wait } = helpers;
+    interviewer.onSignal({ type: 'said', text: 'let me test it' });
+    wait(1_000);
+    await settle();
+    wait(5_000);
+
+    interviewer.onSignal({ type: 'said', text: 'for [2, 7] and 9 it returns [0, 1]' });
+    wait(1_000);
+    await settle();
+
+    expect(phase(helpers)).toBe('test');
+    expect(interviewer.record().asked).toEqual([{ lineId: 't5', asks: 'complexity' }]);
+  });
+
+  /** Walks the round into `to` on the candidate's word, then lets them say they're done. */
+  async function doneIn(to: string, script: ReturnType<typeof reply>[]) {
+    const helpers = await afterIntro([ack('Okay.', to), ...script]);
+    helpers.interviewer.onSignal({ type: 'said', text: `on to ${to}` });
+    helpers.wait(1_000);
+    await settle();
+    helpers.wait(5_000);
+    helpers.interviewer.onSignal({ type: 'said', text: "that's it" });
+    helpers.wait(1_000);
+    await settle();
+    return helpers;
+  }
+
+  it('turns to the follow-up questions when they finish complexity with time left', async () => {
+    const helpers = await doneIn('complexity', [reply('answer', 'What if the list were sorted?', { heard: 'done', asks: 'follow-up' })]);
+
+    expect(phase(helpers)).toBe('follow-up');
+    expect(helpers.model.requests.at(-1)!.system).toContain('# Follow-up questions');
+    expect(helpers.model.requests.at(-1)!.messages[0]!.text).toContain('ask the first follow-up question');
+  });
+
+  it('offers to wrap up instead when the follow-ups are asked or time is short', async () => {
+    const helpers = await afterIntro([ack('Okay.', 'complexity'), offer('Okay. Shall we wrap up?')]);
+    helpers.interviewer.onSignal({ type: 'said', text: 'on to complexity' });
+    helpers.wait(1_000);
+    await settle();
+    helpers.clock.advance(41 * 60_000); // four minutes left: no time for a follow-up
+    helpers.interviewer.onSignal({ type: 'said', text: "that's it" });
+    helpers.wait(1_000);
+    await settle();
+
+    expect(helpers.events.filter((e) => e.kind === 'suggest-phase')).toEqual([expect.objectContaining({ next: 'wrap-up' })]);
+    expect(helpers.model.requests.at(-1)!.messages[0]!.text).toContain('offer to move on to wrap-up');
+  });
+
+  it('says goodbye once, and is told so after', async () => {
+    const helpers = await doneIn('wrap-up', [reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }), reply('stay-quiet', '', { heard: 'small-talk' })]);
+    helpers.wait(5_000);
+    helpers.interviewer.onSignal({ type: 'said', text: 'thanks' });
+    helpers.wait(1_000);
+    await settle();
+
+    expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.']);
+    expect(helpers.model.requests.at(-1)!.messages[0]!.text).toContain("You've said goodbye: yes.");
+  });
+});
+
+describe('the round so far, kept by the app', () => {
+  it('is told to the model every turn', async () => {
+    const { interviewer, wait, model } = await afterIntro([answer('Think about what you have already seen.', { ...help, hintLevel: 'nudge' }), ack('Okay.')]);
+    interviewer.onSignal({ type: 'said', text: 'Can I get a hint?' });
+    wait(1_000);
+    await settle();
+    wait(5_000);
+    interviewer.onSignal({ type: 'said', text: 'ok' });
+    wait(1_000);
+
+    const prompt = model.requests.at(-1)!.messages[0]!.text;
+    expect(prompt).toContain('# The round so far (kept by the app)');
+    expect(prompt).toContain('Hints given: nudge. Next rung, if they ask: question.');
+  });
+
+  it('records who started each trace and who found each mistake', async () => {
+    const { interviewer, wait, model } = await afterIntro([
+      reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', asks: 'trace-example' }),
+      reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', tracedExample: true, foundOwnMistake: true }),
+      reply('acknowledgement', 'Okay.', { tracedExample: true }),
+    ]);
+    for (const text of ['done coding', 'seen[5] = 0, then 5 is in seen: oh, I return the value, not i', 'and [-2, 1] with -1 gives [0, 1]']) {
+      interviewer.onSignal({ type: 'said', text });
+      wait(1_000);
+      await settle();
+      wait(5_000);
+    }
+
+    const record = interviewer.record();
+    expect(record.traces).toEqual([
+      { lineId: 't4', by: 'interviewer' },
+      { lineId: 't6', by: 'candidate' },
+    ]);
+    expect(record.mistakes).toEqual([{ lineId: 't4', foundBy: 'candidate' }]);
+    expect(model.requests.at(-1)!.messages[0]!.text).toContain('Examples they traced through their code: 0 on their own, 1 when you asked.');
+  });
+});
+
+describe('a mistake is the candidate’s to find', () => {
+  it('is never named unasked: such a reply is written again', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro([
+      reply('answer', 'The return value uses the number rather than its index.', { heard: 'done', pointsOutMistake: true }),
+      reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', asks: 'trace-example' }),
+    ]);
+
+    interviewer.onSignal({ type: 'said', text: 'done coding' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Could you trace [5, 1, 5] with target 10?']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'spoken', rejected: ['mistake-unasked'] }]);
+    expect(interviewer.record().mistakes).toEqual([]);
+  });
+
+  it('may be named when they ask for help, and is recorded as the interviewer’s find', async () => {
+    const { interviewer, wait, spoken } = await afterIntro([
+      reply('answer', 'Look at what you return: positions or values?', { ...help, hintLevel: 'nudge', pointsOutMistake: true }),
+    ]);
+
+    interviewer.onSignal({ type: 'said', text: "it's wrong and I can't see why, help?" });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Look at what you return: positions or values?']);
+    expect(interviewer.record().mistakes).toEqual([{ lineId: 't3', foundBy: 'interviewer' }]);
   });
 });
 
