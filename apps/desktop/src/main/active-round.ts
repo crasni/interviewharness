@@ -1,6 +1,7 @@
 import type { RoundKind } from '@interviewharness/core';
 import {
   type Clock,
+  type CodeSnapshot,
   createInterviewer,
   type InterviewerEvent,
   type LineBook,
@@ -33,10 +34,13 @@ export function runRound(options: {
   return {
     snapshot: () => round.snapshot(),
     signal,
-    stop() {
+    /** Ends the round, with the code as the candidate left it. */
+    stop(code?: CodeSnapshot) {
       clearInterval(ticker);
-      interviewer.onSignal({ type: 'round-end' });
+      interviewer.onSignal({ type: 'round-end', ...(code ? { code } : {}) });
     },
+    /** What the round leaves for grading. */
+    record: () => interviewer.record(),
   };
 }
 

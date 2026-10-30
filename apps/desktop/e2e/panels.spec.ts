@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Locator, type Page, test } from '@playwright/test';
-import { closeApp, launchIntoRoom } from './launch.ts';
+import { closeApp, endRound, launchIntoRoom } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -63,7 +63,7 @@ test('panel sizes are remembered for the next round', async () => {
   const problemWidth = await width(problem());
   const transcriptHeight = await height(transcript());
 
-  await window.getByRole('button', { name: 'End round' }).click();
+  await endRound(window);
   await window.getByRole('button', { name: 'Back to start' }).click();
   await window.getByRole('button', { name: 'Start coding round' }).click();
 

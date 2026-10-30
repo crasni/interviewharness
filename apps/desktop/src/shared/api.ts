@@ -1,5 +1,6 @@
 import type { RoundKind } from '@interviewharness/core';
-import type { InterviewerEvent, RoundSnapshot, Signal } from '@interviewharness/engine';
+import type { CodeSnapshot, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
+import type { Verdict } from '@interviewharness/core';
 import type { ModelChoice, Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
@@ -23,8 +24,15 @@ export type { InterviewerEvent };
 export interface HarnessApi {
   startRound(kind: RoundKind): Promise<RoundSnapshot>;
   roundSnapshot(): Promise<RoundSnapshot | null>;
-  /** Ends the round in progress and returns how it ended. */
-  endRound(): Promise<RoundSnapshot | null>;
+  /** Ends the round in progress, with the code as it was left, and returns how it ended. Grading starts at once. */
+  endRound(code?: CodeSnapshot): Promise<RoundSnapshot | null>;
+  /** The Feedback on the round that just ended. */
+  feedback: {
+    /** Resolves once it's written (or has failed). */
+    result(): Promise<FeedbackResult>;
+    /** Writes it again after a failure; the round's record is kept, so nothing else is needed. */
+    retry(): Promise<FeedbackResult>;
+  };
   signal(signal: CandidateSignal): void;
   /** Subscribes to the interviewer's decisions and notices; returns an unsubscribe function. */
   onDecision(listener: (event: InterviewerEvent) => void): () => void;
@@ -66,6 +74,11 @@ export interface ProviderStatus {
   models: { id: string; name: string; local: boolean }[];
 }
 
+/** The Feedback as the candidate sees it: words and moments, no scores (those stay in the round's feedback.json). */
+export type FeedbackResult =
+  | { ok: true; verdict: Verdict; why: string; wentWell: FeedbackPoint[]; toFix: FeedbackPoint[]; rough: boolean }
+  | { ok: false; error: ModelErrorKind | 'no-model' | 'no-round' };
+
 export type LoginResult =
   /** `unencryptedNote`: say once that the login isn't encrypted on this machine (Linux with no keyring). */
   | { ok: true; unencryptedNote: boolean }
@@ -75,6 +88,8 @@ export const channels = {
   startRound: 'round:start',
   roundSnapshot: 'round:snapshot',
   endRound: 'round:end',
+  feedbackResult: 'feedback:result',
+  feedbackRetry: 'feedback:retry',
   signal: 'floor:signal',
   decision: 'floor:decision',
   setTheme: 'window:theme',
@@ -102,7 +117,7 @@ export function isCandidateSignal(value: unknown): value is CandidateSignal {
 }
 
 /** A code snapshot as the renderer sends it: a language and the code, capped so a paste can't flood the log. */
-function isCodeSnapshot(value: unknown) {
+export function isCodeSnapshot(value: unknown): value is CodeSnapshot {
   if (typeof value !== 'object' || value === null) return false;
   const { language, text } = value as { language?: unknown; text?: unknown };
   return typeof language === 'string' && language.length <= 20 && typeof text === 'string' && text.length <= 100_000;

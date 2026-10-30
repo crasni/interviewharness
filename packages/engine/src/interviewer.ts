@@ -17,7 +17,8 @@ import {
   type ObjectSchema,
 } from './model.ts';
 import type { HintLadder, Problem } from './problem.ts';
-import { buildReplyPrompt, type TranscriptLine } from './prompt.ts';
+import type { RecordLine, RoundRecord } from './grading.ts';
+import { buildReplyPrompt } from './prompt.ts';
 import { quotesSolution } from './solution-guard.ts';
 import type { Clock, Round } from './round.ts';
 
@@ -156,7 +157,11 @@ interface Call {
 export function createInterviewer(options: InterviewerOptions) {
   const { clock, round, lines, log, model, onEvent } = options;
   const floor = createFloorManager({ clock, round, lines, log });
-  const transcript: TranscriptLine[] = [];
+  const transcript: RecordLine[] = [];
+  const phases: RoundRecord['phases'] = [{ phase: round.snapshot().phase, atMs: 0 }];
+  const hints: RoundRecord['hints'] = [];
+  const line = (who: RecordLine['who'], text: string) =>
+    transcript.push({ id: `t${transcript.length + 1}`, who, text, atMs: round.snapshot().elapsedMs });
   // The call whose words the interviewer is waiting on. Any other call that finishes is too late.
   let pending: Call | null = null;
   let calls = 0;
@@ -192,8 +197,9 @@ export function createInterviewer(options: InterviewerOptions) {
   function handle(decision: Decision) {
     if (decision.kind === 'silent') return;
     if (decision.kind === 'stop-preparing') abandon('aborted');
-    if ('speakingMs' in decision) {
-      transcript.push({ who: 'interviewer', text: decision.line, atMs: round.snapshot().elapsedMs });
+    if ('speakingMs' in decision) line('interviewer', decision.line);
+    if (decision.kind === 'preparing' && decision.reply.kind === 'move-on') {
+      phases.push({ phase: decision.reply.phase, atMs: round.snapshot().elapsedMs });
     }
     onEvent(decision);
     if (decision.kind === 'preparing') requestWords(decision.reply);
@@ -272,7 +278,10 @@ export function createInterviewer(options: InterviewerOptions) {
           logCall(call, 'replaced', extra);
           return say(lines.next(fallbackSituation(reply)));
         }
-        if (written.hint && written.hint.level !== 'none') hintsGiven = Math.max(hintsGiven, rungs.indexOf(written.hint.level) + 1);
+        if (written.hint && written.hint.level !== 'none') {
+          hints.push(written.hint.level);
+          hintsGiven = Math.max(hintsGiven, rungs.indexOf(written.hint.level) + 1);
+        }
         logCall(call, 'spoken', { usage: written.usage, ...(written.hint ? { hint: written.hint } : {}), ...extra });
         say(written.words);
       },
@@ -289,9 +298,10 @@ export function createInterviewer(options: InterviewerOptions) {
   return {
     onSignal(signal: Signal) {
       if (signal.type === 'said' && signal.text.trim()) {
-        transcript.push({ who: 'candidate', text: signal.text.trim(), atMs: round.snapshot().elapsedMs });
+        line('candidate', signal.text.trim());
         if (signal.code) code = signal.code;
       }
+      if (signal.type === 'round-end' && signal.code) code = signal.code;
       if (signal.type === 'round-end') abandon('aborted');
       handle(floor.onSignal(signal));
       if (signal.type === 'tick' && pending && clock.now() - pending.startedAt >= replyRules.timeout) {
@@ -299,6 +309,11 @@ export function createInterviewer(options: InterviewerOptions) {
         abandon('failed', 'timeout');
         fallBack(reply, 'timeout');
       }
+    },
+
+    /** What the round leaves for grading. */
+    record(): RoundRecord {
+      return { elapsedMs: round.snapshot().elapsedMs, transcript: [...transcript], phases: [...phases], hints: [...hints], code };
     },
   };
 }

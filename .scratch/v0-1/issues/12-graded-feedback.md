@@ -4,15 +4,17 @@
 
 **Blocked by:** 01, 10
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] End round asks for confirmation
-- [ ] The verdict table is a pure function in core with tests for its edges
-- [ ] Grading drops unknown evidence ids, applies hint and testing caps, and takes the median of three samples (engine tests with the scripted fake model)
-- [ ] The Feedback screen shows verdict, reason, area scores and timed points from the real round, replacing the sample
-- [ ] Small-model Feedback is marked rough
-- [ ] A grading failure shows a plain error and Try again, which works without restarting the round
-- [ ] A Feedback file is saved in the round's folder with no credentials
-- [ ] End-to-end tests cover confirmation, a graded Feedback screen and the retry path
+**Owner's call (2026-10-30):** area scores are kept internally (they make the verdict, and are saved in the round's feedback.json) but are not shown on the Feedback screen.
+
+- [x] End round asks for confirmation
+- [x] The verdict table is a pure function in core with tests for its edges
+- [x] Grading drops unknown evidence ids, applies hint and testing caps, and takes the median of three samples (engine tests with the scripted fake model)
+- [x] The Feedback screen shows verdict, reason and timed points from the real round, replacing the sample (no area scores, by the owner's call)
+- [x] Small-model Feedback is marked rough
+- [x] A grading failure shows a plain error and Try again, which works without restarting the round
+- [x] A Feedback file is saved in the round's folder with no credentials
+- [x] End-to-end tests cover confirmation, a graded Feedback screen and the retry path
 
 Spec: `.scratch/v0-1/spec.md`.

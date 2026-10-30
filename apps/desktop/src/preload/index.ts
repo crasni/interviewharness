@@ -5,7 +5,11 @@ import type { Settings } from '../shared/settings.ts';
 const api: HarnessApi = {
   startRound: (kind) => ipcRenderer.invoke(channels.startRound, kind),
   roundSnapshot: () => ipcRenderer.invoke(channels.roundSnapshot),
-  endRound: () => ipcRenderer.invoke(channels.endRound),
+  endRound: (code) => ipcRenderer.invoke(channels.endRound, code),
+  feedback: {
+    result: () => ipcRenderer.invoke(channels.feedbackResult),
+    retry: () => ipcRenderer.invoke(channels.feedbackRetry),
+  },
   signal: (signal) => ipcRenderer.send(channels.signal, signal),
   onDecision(listener) {
     const handler = (_event: IpcRendererEvent, decision: InterviewerEvent) => listener(decision);

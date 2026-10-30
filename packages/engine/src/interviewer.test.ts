@@ -370,3 +370,38 @@ it('checks in, in words the model wrote, after a long silence', async () => {
   expect(spoken()).toEqual(['Want to walk me through where you are so far?']);
   expect(modelCalls()).toMatchObject([{ reply: 'check-in', outcome: 'spoken' }]);
 });
+
+it('keeps a record of the round for grading: lines with ids and times, phases, hints and the final code', async () => {
+  const { interviewer, wait, clock } = await afterIntro([
+    answer('Think about what you have already seen.', { askedForHelp: true, hintLevel: 'nudge' }),
+    'Sure, go ahead.',
+  ]);
+  interviewer.onSignal({ type: 'said', text: 'Can I get a hint?' });
+  wait(1_000);
+  await settle();
+  wait(5_000);
+  interviewer.onSignal({ type: 'said', text: "I think that's it." }); // done: offers to move on
+  wait(1_000);
+  await settle();
+  wait(5_000);
+  interviewer.onSignal({ type: 'phase-answer', accept: true });
+  await settle();
+  clock.advance(60_000);
+  interviewer.onSignal({ type: 'round-end', code: { language: 'python', text: 'def two_sum(nums, target): ...' } });
+
+  const record = interviewer.record();
+
+  expect(record.transcript.map(({ id, who }) => [id, who])).toEqual([
+    ['t1', 'interviewer'],
+    ['t2', 'candidate'],
+    ['t3', 'interviewer'],
+    ['t4', 'candidate'],
+    ['t5', 'interviewer'],
+    ['t6', 'interviewer'],
+  ]);
+  expect(record.transcript[1]).toMatchObject({ text: 'Can I get a hint?', atMs: expect.any(Number) });
+  expect(record.phases.map((p) => p.phase)).toEqual(['clarify', 'approach']);
+  expect(record.hints).toEqual(['nudge']);
+  expect(record.code).toEqual({ language: 'python', text: 'def two_sum(nums, target): ...' });
+  expect(record.elapsedMs).toBeGreaterThan(record.transcript.at(-1)!.atMs);
+});

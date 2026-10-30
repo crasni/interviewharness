@@ -3,7 +3,7 @@ import { scriptedModel } from '@interviewharness/engine/test';
 import { createProviders, defaultChatGPTModel } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
 import type { LoginResult, ProviderStatus } from '../shared/api.ts';
-import { type Settings, settingsAfterLogout } from '../shared/settings.ts';
+import { feedbackModel, modelKey, type Settings, settingsAfterLogout } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
 
 /** The only page a login may open: OpenAI's sign-in. Anything else is refused, never handed to the browser. */
@@ -52,6 +52,18 @@ export function setUpModels({
       const choice = settings.values().interviewerModel;
       if (!choice) throw new Error('Pick a model before starting a round');
       return providers.model(choice);
+    },
+
+    /**
+     * The model that writes the Feedback (the Feedback model, else the interviewer's), and whether it
+     * counts as small, so the Feedback is marked rough. Null when there's no model to write it.
+     */
+    feedbackModel(): { model: Model; rough: boolean } | null {
+      if (fake !== undefined) return fake && { model: fake, rough: false };
+      const choice = feedbackModel(settings.values());
+      if (!choice) return null;
+      // Local models under the size threshold count as small too, once there are local providers (Ollama).
+      return { model: providers.model(choice), rough: settings.values().smallModels.includes(modelKey(choice)) };
     },
 
     async continueWithChatGPT(): Promise<LoginResult> {

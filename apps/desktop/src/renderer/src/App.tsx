@@ -32,7 +32,7 @@ function Screens() {
         <Room
           initial={screen.round}
           // Main only lacks a round if it already ended; the room's last known state is the best we have.
-          onEnd={async () => setScreen({ name: 'feedback', round: (await window.harness.endRound()) ?? screen.round })}
+          onEnd={async (code) => setScreen({ name: 'feedback', round: (await window.harness.endRound(code)) ?? screen.round })}
         />
       );
     case 'feedback':

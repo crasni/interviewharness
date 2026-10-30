@@ -1,10 +1,11 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { createLineBook } from '@interviewharness/engine';
+import { createLineBook, gradeRound, modelErrorKind, type RoundRecord } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
+import { channels, type FeedbackResult, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
+import { writeFileAtomically } from './atomic-write.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
 import { setUpModels } from './model-setup.ts';
@@ -33,41 +34,79 @@ function changeSettings(changes: Parameters<typeof settings.change>[0]) {
 const problem = loadProblems().get('two-sum')!;
 
 let window: BrowserWindow | null = null;
-let round: ActiveRound | null = null;
+let round: (ActiveRound & { dir: string }) | null = null;
+// The round that ended last, and its Feedback as it's being written.
+let ended: { record: RoundRecord; dir: string; feedback: Promise<FeedbackResult> } | null = null;
 
 const models = setUpModels({ dataDir: dataDir(), settings: { values: settings.values, change: changeSettings }, window: () => window });
 
 // Only coding rounds exist so far; the start screen shows the others as disabled.
 const availableKinds: readonly RoundKind[] = ['coding'];
 
-/** Stops the round in progress, if any, and returns how it ended. */
-function endCurrentRound() {
-  const ended = round?.snapshot() ?? null;
-  round?.stop();
+/** Stops the round in progress, if any, and returns it as it ended. Nothing is graded: see End round. */
+function endCurrentRound(code?: unknown) {
+  if (!round) return null;
+  const stopped = round;
   round = null;
-  return ended;
+  stopped.stop(isCodeSnapshot(code) ? code : undefined);
+  return stopped;
+}
+
+/**
+ * Grades a round and saves the Feedback, whole (scores included, no credentials), as feedback.json in its
+ * folder. The renderer gets the words only. Never rejects: a failure comes back as one, for Try again.
+ */
+async function writeFeedback(record: RoundRecord, dir: string): Promise<FeedbackResult> {
+  const grader = models.feedbackModel();
+  if (!grader) return { ok: false, error: 'no-model' };
+  try {
+    const feedback = await gradeRound({ model: grader.model, problem, record, rough: grader.rough });
+    await writeFileAtomically(join(dir, 'feedback.json'), `${JSON.stringify(feedback, null, 2)}\n`);
+    const { verdict, why, wentWell, toFix, rough } = feedback;
+    return { ok: true, verdict, why, wentWell, toFix, rough };
+  } catch (error) {
+    console.error('Could not write the Feedback:', error);
+    return { ok: false, error: modelErrorKind(error) };
+  }
 }
 
 ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
   if (!availableKinds.includes(kind)) throw new Error(`Round kind not available yet: ${kind}`);
   endCurrentRound();
   const model = models.interviewerModel();
-  round = runRound({
+  const log = createEventsLog(dataDir(), new Date());
+  const running = runRound({
     kind,
     clock: systemClock,
     lines: createLineBook(linesFile),
-    log: createEventsLog(dataDir(), new Date()),
+    log,
     model,
     problem,
     toneGuide: linesFile,
     onEvent: (event) => window?.webContents.send(channels.decision, event),
   });
+  round = { ...running, dir: log.dir };
   return round.snapshot();
 });
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
 
-ipcMain.handle(channels.endRound, endCurrentRound);
+// The candidate ended the round: its Feedback starts being written at once.
+ipcMain.handle(channels.endRound, (_event, code: unknown) => {
+  const stopped = endCurrentRound(code);
+  if (!stopped) return null;
+  const record = stopped.record();
+  ended = { record, dir: stopped.dir, feedback: writeFeedback(record, stopped.dir) };
+  return stopped.snapshot();
+});
+
+ipcMain.handle(channels.feedbackResult, (): Promise<FeedbackResult> => ended?.feedback ?? Promise.resolve({ ok: false, error: 'no-round' }));
+
+ipcMain.handle(channels.feedbackRetry, (): Promise<FeedbackResult> => {
+  if (!ended) return Promise.resolve({ ok: false, error: 'no-round' });
+  ended.feedback = writeFeedback(ended.record, ended.dir);
+  return ended.feedback;
+});
 
 ipcMain.on(channels.signal, (_event, signal: unknown) => {
   if (isCandidateSignal(signal)) round?.signal(signal);

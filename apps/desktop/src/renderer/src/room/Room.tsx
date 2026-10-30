@@ -1,4 +1,4 @@
-import type { LaterPhase, ModelErrorKind, RoundSnapshot } from '@interviewharness/engine';
+import type { CodeSnapshot, LaterPhase, ModelErrorKind, RoundSnapshot } from '@interviewharness/engine';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
@@ -17,7 +17,7 @@ import { useTalking } from './useTalking.ts';
 import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
 
-export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => void }) {
+export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code: CodeSnapshot) => void }) {
   const { settings, change, setPanelOpen } = useSettings();
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
@@ -28,6 +28,8 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
   const room = useRef<HTMLDivElement>(null);
   const work = useRef<HTMLDivElement>(null);
   const [ending, setEnding] = useState(false);
+  // Ending asks first: the round's Feedback depends on it, and a stray click shouldn't cost that.
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
   // A backchannel's words ("Mm-hm.") stay on the tile a moment longer than the nod itself.
   const [backchannelLine, setBackchannelLine] = useState<string | null>(null);
   const backchannelTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -156,16 +158,35 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: () => 
           icon={<SettingsIcon {...iconProps} />}
           onClick={() => setPanelOpen(true)}
         />
-        <button
-          type="button"
-          disabled={ending}
-          onClick={() => {
-            setEnding(true); // once only: a second click would end a round that is already over
-            onEnd();
-          }}
-        >
-          End round
-        </button>
+        {confirmingEnd ? (
+          <span
+            className="room-confirm"
+            role="group"
+            aria-label="End the round?"
+            onKeyDown={(event) => event.key === 'Escape' && setConfirmingEnd(false)}
+          >
+            <span>End the round?</span>
+            <button
+              type="button"
+              className="primary"
+              disabled={ending}
+              onClick={() => {
+                setEnding(true); // once only: a second click would end a round that is already over
+                onEnd({ language: settings.language, text: editor.current?.text() ?? '' });
+              }}
+            >
+              End round
+            </button>
+            {/* Focused first, so Enter right after the first click keeps the round going. */}
+            <button type="button" autoFocus onClick={() => setConfirmingEnd(false)}>
+              Keep going
+            </button>
+          </span>
+        ) : (
+          <button type="button" onClick={() => setConfirmingEnd(true)}>
+            End round
+          </button>
+        )}
       </header>
 
       <div

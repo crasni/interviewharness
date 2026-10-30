@@ -51,7 +51,7 @@ Help the interviewer gives toward the next step, only when the candidate asks an
 _Avoid_: Clue, help, hints left
 
 **Feedback**:
-The interviewer's written assessment after a round: a verdict, a score per area, what went well and what to fix, each point tied to a moment in the round.
+The interviewer's written assessment after a round: a verdict, what went well and what to fix, each point tied to a moment in the round. Each area is scored inside the app to reach the verdict, but the candidate never sees a score.
 _Avoid_: Debrief, report, scorecard, results, stats
 
 **Verdict**:

@@ -13,8 +13,8 @@ export type Signal =
   /** The candidate is typing in the code editor. Sent at most about once a second. */
   | { type: 'editor-activity' }
   | { type: 'tick' }
-  /** The round is over. Logged so a replay can tell an ended round from a crash; nothing is said after it. */
-  | { type: 'round-end' }
+  /** The round is over, with the code as it was left. Logged so a replay can tell an ended round from a crash; nothing is said after it. */
+  | { type: 'round-end'; code?: CodeSnapshot }
   /** The words for the reply being prepared have arrived (from the model, or a fallback line). */
   | { type: 'words'; line: string };
 

@@ -44,9 +44,15 @@ export async function launchApp({
   return { app, window, dataDir };
 }
 
+/** Ends the round: End round, then the confirmation's End round. */
+export async function endRound(window: Page) {
+  await window.getByRole('button', { name: 'End round' }).click();
+  await window.getByRole('group', { name: 'End the round?' }).getByRole('button', { name: 'End round' }).click();
+}
+
 /** Launches the app and starts a coding round, stopping at the interviewer's intro. */
-export async function launchAtIntro() {
-  const launched = await launchApp();
+export async function launchAtIntro(options: Parameters<typeof launchApp>[0] = {}) {
+  const launched = await launchApp(options);
   await launched.window.getByRole('button', { name: 'Start coding round' }).click();
   await expect(talkButton(launched.window)).toBeVisible();
   return launched;
@@ -56,8 +62,8 @@ export async function launchAtIntro() {
  * Launches the app, starts a coding round, and talks over the intro so the room is quiet.
  * (The intro takes ~10 s to say; a quick Talk / Stop talking is a barge-in that stops it.)
  */
-export async function launchIntoRoom() {
-  const launched = await launchAtIntro();
+export async function launchIntoRoom(options: Parameters<typeof launchApp>[0] = {}) {
+  const launched = await launchAtIntro(options);
   const { window } = launched;
   const interviewer = window.getByRole('status', { name: 'Interviewer' });
   await expect(interviewer).toHaveAttribute('data-state', 'speaking');
