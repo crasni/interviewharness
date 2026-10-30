@@ -94,6 +94,10 @@ ipcMain.handle(channels.continueWithChatGPT, () => models.continueWithChatGPT())
 
 ipcMain.on(channels.cancelLogin, () => models.cancelLogin());
 
+ipcMain.handle(channels.providers, () => models.providers());
+
+ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
+
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
 

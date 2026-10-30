@@ -211,6 +211,13 @@ describe('Continue with ChatGPT', () => {
     expect(await listening(pages[0]!)).toBe(false);
   });
 
+  it('lists the models ChatGPT offers, including the default', () => {
+    const listed = createProviders({ credentials: memoryStore(), appVersion: '0.1.0' }).listModels('chatgpt');
+
+    expect(listed.map((m) => m.id)).toContain('gpt-5-mini');
+    expect(listed.every((m) => !m.local)).toBe(true);
+  });
+
   it('logs out by forgetting the login', async () => {
     const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0' });
 

@@ -20,8 +20,22 @@ export interface ModelChoice {
   model: string;
 }
 
-/** The ChatGPT model the interviewer uses until the candidate picks another (in Settings → Model, later). */
+/** The ChatGPT model the interviewer uses until the candidate picks another in Settings → Model. */
 export const defaultChatGPTModel = 'gpt-5-mini';
+
+/**
+ * The small-model rule: a model counts as small, and the Feedback it writes is marked rough, when it runs
+ * on this computer with fewer than this many parameters, or when the candidate marks it so. Small local
+ * models follow the interviewer's rules less reliably and grade less consistently.
+ */
+export const smallModelParameters = 14e9;
+
+export interface ModelListing {
+  id: string;
+  name: string;
+  /** Runs on this computer (Ollama and other local servers). None do yet. */
+  local: boolean;
+}
 
 /** Our provider names, and the pi-ai provider each one runs on. */
 const piProviderIds: Record<ProviderName, string> = { chatgpt: 'openai' };
@@ -113,6 +127,15 @@ export function createProviders({ credentials, appVersion, fetch: fetchFn, signI
     /** Whether a provider has a saved login. */
     async isLoggedIn(provider: ProviderName) {
       return (await credentials.read(piProviderIds[provider])) !== undefined;
+    },
+
+    /** The models a provider offers, newest first. */
+    listModels(provider: ProviderName): ModelListing[] {
+      return models
+        .getModels(piProviderIds[provider])
+        .filter((model) => !/realtime/.test(model.id))
+        .map((model) => ({ id: model.id, name: model.name, local: false }))
+        .reverse();
     },
 
     /** A model the engine can use. Fails at request time, with a typed error, if it can't be reached. */

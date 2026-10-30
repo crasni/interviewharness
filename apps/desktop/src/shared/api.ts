@@ -1,6 +1,6 @@
 import type { RoundKind } from '@interviewharness/core';
 import type { InterviewerEvent, RoundSnapshot, Signal } from '@interviewharness/engine';
-import type { Settings } from './settings.ts';
+import type { ModelChoice, Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
 export const candidateSignalTypes = [
@@ -51,7 +51,19 @@ export interface HarnessApi {
     continueWithChatGPT(): Promise<LoginResult>;
     /** Gives up on a login that is waiting for the browser. */
     cancelLogin(): void;
+    /** Each provider, whether it's logged in, and its models. Never a credential. */
+    providers(): Promise<ProviderStatus[]>;
+    /** Forgets a provider's login, and unpicks its models (announced through settings.onChange). */
+    logout(provider: ModelChoice['provider']): Promise<void>;
   };
+}
+
+export interface ProviderStatus {
+  provider: ModelChoice['provider'];
+  /** The provider's name as the candidate knows it. */
+  name: string;
+  loggedIn: boolean;
+  models: { id: string; name: string; local: boolean }[];
 }
 
 export type LoginResult =
@@ -71,6 +83,8 @@ export const channels = {
   settingsChanged: 'settings:changed',
   continueWithChatGPT: 'models:chatgpt-login',
   cancelLogin: 'models:cancel-login',
+  providers: 'models:providers',
+  logout: 'models:logout',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

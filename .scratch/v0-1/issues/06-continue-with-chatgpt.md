@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-human (built and tested against fakes; the owner verifies one real ChatGPT login)
+**Status:** done (the owner signed in with a real ChatGPT plan on 2026-10-30)
 
 - [x] The providers package exists, depends on engine (not desktop), and the layering test proves it
 - [x] With no model set, Start is blocked and the first-run step shows; after login a round can start
@@ -12,6 +12,6 @@
 - [x] Credentials are encrypted with async safeStorage; the basic_text path saves with owner-only permissions and shows its note once
 - [x] No environment variable or other tool's credential is ever read; no key or token reaches the renderer, a log or a round folder
 - [x] Adapter tests run the login and chat streaming against a fake loopback server; credential store tests use a temp folder
-- [ ] Manually verified once against a real ChatGPT plan
+- [x] Manually verified once against a real ChatGPT plan
 
 Spec: `.scratch/v0-1/spec.md`.

@@ -1,26 +1,11 @@
-import { useEffect, useState } from 'react';
-
-type Step = { name: 'idle' } | { name: 'waiting' } | { name: 'failed'; error: string };
+import { useChatGPTLogin } from '../models/useChatGPTLogin.ts';
 
 /**
  * The one step before a first round: pick the model the interviewer talks with. For now that's the
  * candidate's ChatGPT plan; Ollama and API keys join here later.
  */
 export function ModelStep({ onUnencrypted }: { onUnencrypted: () => void }) {
-  const [step, setStep] = useState<Step>({ name: 'idle' });
-
-  // Leaving the screen mid-login (e.g. the window closing) shouldn't leave the browser's listener waiting.
-  useEffect(() => () => window.harness.models.cancelLogin(), []);
-
-  async function continueWithChatGPT() {
-    setStep({ name: 'waiting' });
-    const result = await window.harness.models.continueWithChatGPT();
-    if (result.ok) {
-      if (result.unencryptedNote) onUnencrypted();
-      return; // settings now hold the model, and the Start screen moves on by itself
-    }
-    setStep(result.cancelled ? { name: 'idle' } : { name: 'failed', error: result.error });
-  }
+  const { step, start, cancel } = useChatGPTLogin({ onUnencrypted });
 
   return (
     <section className="model-step" aria-labelledby="model-step-title">
@@ -33,13 +18,13 @@ export function ModelStep({ onUnencrypted }: { onUnencrypted: () => void }) {
           <p className="model-step-status" role="status">
             Finish signing in in your browser…
           </p>
-          <button type="button" onClick={() => window.harness.models.cancelLogin()}>
+          <button type="button" onClick={cancel}>
             Cancel
           </button>
         </div>
       ) : (
         <div className="model-step-actions">
-          <button type="button" className="primary" onClick={() => void continueWithChatGPT()}>
+          <button type="button" className="primary" onClick={() => void start()}>
             Continue with ChatGPT
           </button>
           <p className="model-step-note">Signs in through your browser, and uses your ChatGPT plan.</p>

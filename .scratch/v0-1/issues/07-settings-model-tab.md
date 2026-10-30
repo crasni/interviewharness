@@ -4,12 +4,12 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The Model tab shows the current interviewer model and provider
-- [ ] Changing the model or logging out works, and logging out removes the stored credential
-- [ ] The Feedback model can be left as "same as interviewer" or set separately
-- [ ] The small-model rule is documented beside the slots and settable per model
-- [ ] End-to-end tests cover the tab with the fake model switched in
+- [x] The Model tab shows the current interviewer model and provider
+- [x] Changing the model or logging out works, and logging out removes the stored credential
+- [x] The Feedback model can be left as "same as interviewer" or set separately
+- [x] The small-model rule is documented beside the slots and settable per model
+- [x] End-to-end tests cover the tab with the fake model switched in
 
 Spec: `.scratch/v0-1/spec.md`.

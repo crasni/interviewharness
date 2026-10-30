@@ -31,9 +31,9 @@ async function startRound() {
   await expect(editor()).toBeVisible();
 }
 
-test('settings are sorted into Appearance, Interview and Editor', async () => {
+test('settings are sorted into Appearance, Interview, Editor and Model', async () => {
   await openSettings();
-  await expect(settings().getByRole('tab')).toHaveText(['Appearance', 'Interview', 'Editor']);
+  await expect(settings().getByRole('tab')).toHaveText(['Appearance', 'Interview', 'Editor', 'Model']);
   await expect(settings().getByRole('tab', { name: 'Appearance' })).toHaveAttribute('aria-selected', 'true');
   await expect(settings().getByRole('tabpanel')).toContainText('Text size');
   await showCategory('Editor');

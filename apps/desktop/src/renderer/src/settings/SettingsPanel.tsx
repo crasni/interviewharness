@@ -2,6 +2,7 @@ import { RotateCcw, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { type CodeLanguage, type Settings, type TextSize, type Theme, useSettings } from './settings.tsx';
+import { ModelPage } from './ModelPage.tsx';
 import './settings.css';
 
 export const languageLabels: Record<CodeLanguage, string> = {
@@ -13,12 +14,13 @@ export const languageLabels: Record<CodeLanguage, string> = {
   go: 'Go',
 };
 
-type Category = 'appearance' | 'interview' | 'editor';
+type Category = 'appearance' | 'interview' | 'editor' | 'model';
 
 const categories: [Category, string][] = [
   ['appearance', 'Appearance'],
   ['interview', 'Interview'],
   ['editor', 'Editor'],
+  ['model', 'Model'],
 ];
 
 /**
@@ -104,6 +106,7 @@ export function SettingsPanel() {
         />
       </>
     ),
+    model: <ModelPage />,
   };
 
   return (
@@ -142,7 +145,7 @@ export function SettingsPanel() {
           </section>
         </div>
 
-        <p className="settings-note label">Saved on this computer. Nothing here changes how you are judged.</p>
+        <p className="settings-note label">Saved on this computer.</p>
       </div>
     </dialog>
   );

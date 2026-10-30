@@ -2,8 +2,8 @@ import type { Model } from '@interviewharness/engine';
 import { scriptedModel } from '@interviewharness/engine/test';
 import { createProviders, defaultChatGPTModel } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
-import type { LoginResult } from '../shared/api.ts';
-import type { Settings } from '../shared/settings.ts';
+import type { LoginResult, ProviderStatus } from '../shared/api.ts';
+import { type Settings, settingsAfterLogout } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
 
 /** The only page a login may open: OpenAI's sign-in. Anything else is refused, never handed to the browser. */
@@ -86,6 +86,16 @@ export function setUpModels({
 
     cancelLogin() {
       login?.abort();
+    },
+
+    async providers(): Promise<ProviderStatus[]> {
+      return [{ provider: 'chatgpt', name: 'ChatGPT', loggedIn: await providers.isLoggedIn('chatgpt'), models: providers.listModels('chatgpt') }];
+    },
+
+    async logout(provider: unknown) {
+      if (provider !== 'chatgpt') return; // the renderer is not trusted to name a provider that exists
+      await providers.logout(provider);
+      settings.change(settingsAfterLogout(settings.values(), provider));
     },
   };
 }

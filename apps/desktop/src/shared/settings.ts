@@ -26,6 +26,10 @@ export type Settings = {
   conversationHeight: number | null;
   /** The model that writes the interviewer's words. A round can't start without one. Logins live in the credential store. */
   interviewerModel: ModelChoice | null;
+  /** The model that writes the Feedback, if not the interviewer's (a stronger one, say). */
+  feedbackModel: ModelChoice | null;
+  /** Models the candidate marked as small (see `modelKey`): their Feedback is marked rough. */
+  smallModels: string[];
   /** Whether the candidate has been told their login isn't encrypted on this machine (Linux with no keyring). */
   unencryptedLoginNoted: boolean;
 };
@@ -41,6 +45,8 @@ export const defaultSettings: Settings = {
   problemWidth: null,
   conversationHeight: null,
   interviewerModel: null,
+  feedbackModel: null,
+  smallModels: [],
   unencryptedLoginNoted: false,
 };
 
@@ -60,6 +66,9 @@ const isModelChoice = (value: unknown): value is ModelChoice | null => {
   return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && !Object.keys(rest).length;
 };
 
+const isModelKeys = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((key) => typeof key === 'string' && key.includes('/'));
+
 const validators: { [K in keyof Settings]: (value: unknown) => value is Settings[K] } = {
   textSize: oneOf(textSizes),
   theme: isTheme,
@@ -71,6 +80,8 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   problemWidth: isSize,
   conversationHeight: isSize,
   interviewerModel: isModelChoice,
+  feedbackModel: isModelChoice,
+  smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
 };
 
@@ -86,4 +97,18 @@ export function validSettings(raw: unknown): Partial<Settings> {
     if (Object.hasOwn(validators, key) && validate?.(value)) valid[key as keyof Settings] = value;
   }
   return valid as Partial<Settings>;
+}
+
+/** A model's name as one string, e.g. "chatgpt/gpt-5-mini". */
+export const modelKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`;
+
+/** The model that writes the Feedback: the one picked for it, else the interviewer's. */
+export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;
+
+/** What logging out of a provider changes: models from it are no longer picked. */
+export function settingsAfterLogout(settings: Settings, provider: ModelChoice['provider']): Partial<Settings> {
+  const changes: Partial<Settings> = {};
+  if (settings.interviewerModel?.provider === provider) changes.interviewerModel = null;
+  if (settings.feedbackModel?.provider === provider) changes.feedbackModel = null;
+  return changes;
 }
