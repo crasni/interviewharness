@@ -97,12 +97,12 @@ describe('the Floor Manager', () => {
 
     expect(log.entries).toEqual([
       { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
-      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 2_000, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
       {
         at: 22_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, idleMs: 2_800, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, idleMs: 800, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
       },
     ]);
   });
@@ -486,6 +486,15 @@ describe('the check-in', () => {
     }
 
     expect(checkIns(decisions)).toHaveLength(0);
+  });
+
+  it('counts the silence from when the candidate stops talking, not from when they started', () => {
+    const { floor, wait } = setup();
+    floor.onSignal({ type: 'talk-start' });
+    wait(floorRules.checkInAfterIdle + 30_000); // a long spoken turn, with nothing typed or said
+    floor.onSignal({ type: 'talk-end' });
+
+    expect(checkIns(wait(10_000))).toHaveLength(0);
   });
 
   it('never checks in while the candidate is talking', () => {

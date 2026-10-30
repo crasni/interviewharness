@@ -20,10 +20,11 @@ export type {
   TextResult,
 } from './model.ts';
 export { buildReplyPrompt } from './prompt.ts';
+export { quotesSolution } from './solution-guard.ts';
 export type { ReplyPromptInput, TranscriptLine } from './prompt.ts';
 export { createPhaseGuide, phaseRules } from './phases.ts';
 export type { MoveOnCue, PhaseGuide, PhaseState } from './phases.ts';
 export { checkProblemNames, readProblem } from './problem.ts';
 export type { HintLadder, Problem, ProblemDetails, ProblemTests } from './problem.ts';
 export { gradeRound, roundFacts } from './grading.ts';
-export type { FeedbackPoint, GradedFeedback, RecordLine, RoundFacts, RoundRecord } from './grading.ts';
+export type { FeedbackPoint, Graded, GradedFeedback, GradingEntry, RecordLine, RoundFacts, RoundRecord } from './grading.ts';

@@ -78,7 +78,7 @@ test('the Feedback is written from the round: a verdict, why, and points at thei
   await expect(feedbackScreen().getByText('Sample feedback')).toHaveCount(0);
 });
 
-test("the Feedback is saved in the round's folder, scores included, and the log ends with the round", async () => {
+test("the Feedback is saved in the round's folder, scores included, and how it was reached is in the log", async () => {
   await playRound([solid, solid, solid]);
   await endRound(window);
   await expect(feedbackScreen().getByRole('region', { name: 'Why' })).toBeVisible();
@@ -91,7 +91,11 @@ test("the Feedback is saved in the round's folder, scores included, and the log 
     model: { provider: 'scripted' },
   });
   expect(JSON.stringify(saved)).not.toMatch(/token|apiKey|secret/i);
-  expect(readRoundLog(dataDir).at(-1)).toMatchObject({ signal: { type: 'round-end', code: { language: 'python' } } });
+  const log = readRoundLog(dataDir);
+  expect(log.find((entry) => entry.signal?.type === 'round-end')).toMatchObject({ signal: { code: { language: 'python' } } });
+  // How the verdict was reached is in the log too: every sample, as given and as checked.
+  expect(log.at(-1)).toMatchObject({ grading: { outcome: 'written', verdict: 'Lean hire', model: { provider: 'scripted' } } });
+  expect(log.at(-1).grading.samples).toHaveLength(3);
 });
 
 test('a failed grading shows a plain error, and Try again works without the round again', async () => {

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { createLineBook, gradeRound, modelErrorKind, type RoundRecord } from '@interviewharness/engine';
+import { createLineBook, gradeRound, type GradingEntry, modelErrorKind, type RoundLog, type RoundRecord } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 import { channels, type FeedbackResult, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
@@ -34,9 +34,12 @@ function changeSettings(changes: Parameters<typeof settings.change>[0]) {
 const problem = loadProblems().get('two-sum')!;
 
 let window: BrowserWindow | null = null;
-let round: (ActiveRound & { dir: string }) | null = null;
+/** A round's folder: its events.jsonl, and later its feedback.json. */
+type RoundFolder = { dir: string; log: RoundLog };
+
+let round: (ActiveRound & RoundFolder) | null = null;
 // The round that ended last, and its Feedback as it's being written.
-let ended: { record: RoundRecord; dir: string; feedback: Promise<FeedbackResult> } | null = null;
+let ended: (RoundFolder & { record: RoundRecord; feedback: Promise<FeedbackResult> }) | null = null;
 
 const models = setUpModels({ dataDir: dataDir(), settings: { values: settings.values, change: changeSettings }, window: () => window });
 
@@ -56,15 +59,21 @@ function endCurrentRound(code?: unknown) {
  * Grades a round and saves the Feedback, whole (scores included, no credentials), as feedback.json in its
  * folder. The renderer gets the words only. Never rejects: a failure comes back as one, for Try again.
  */
-async function writeFeedback(record: RoundRecord, dir: string): Promise<FeedbackResult> {
+async function writeFeedback(record: RoundRecord, { dir, log }: RoundFolder): Promise<FeedbackResult> {
   const grader = models.feedbackModel();
   if (!grader) return { ok: false, error: 'no-model' };
+  const startedAt = systemClock.now();
+  // How the verdict was reached (or why it wasn't) goes in the round's log, so it can be replayed and checked.
+  const logGrading = (grading: Omit<GradingEntry['grading'], 'model' | 'ms'>) =>
+    log.write({ at: systemClock.now(), grading: { model: grader.model.identity, ms: systemClock.now() - startedAt, ...grading } });
   try {
     const feedback = await gradeRound({ model: grader.model, problem, record, rough: grader.rough });
+    logGrading({ outcome: 'written', verdict: feedback.verdict, samples: feedback.samples });
     await writeFileAtomically(join(dir, 'feedback.json'), `${JSON.stringify(feedback, null, 2)}\n`);
     const { verdict, why, wentWell, toFix, rough } = feedback;
     return { ok: true, verdict, why, wentWell, toFix, rough };
   } catch (error) {
+    logGrading({ outcome: 'failed', error: modelErrorKind(error) });
     console.error('Could not write the Feedback:', error);
     return { ok: false, error: modelErrorKind(error) };
   }
@@ -85,7 +94,7 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
     toneGuide: linesFile,
     onEvent: (event) => window?.webContents.send(channels.decision, event),
   });
-  round = { ...running, dir: log.dir };
+  round = { ...running, dir: log.dir, log };
   return round.snapshot();
 });
 
@@ -96,7 +105,7 @@ ipcMain.handle(channels.endRound, (_event, code: unknown) => {
   const stopped = endCurrentRound(code);
   if (!stopped) return null;
   const record = stopped.record();
-  ended = { record, dir: stopped.dir, feedback: writeFeedback(record, stopped.dir) };
+  ended = { record, dir: stopped.dir, log: stopped.log, feedback: writeFeedback(record, stopped) };
   return stopped.snapshot();
 });
 
@@ -104,7 +113,7 @@ ipcMain.handle(channels.feedbackResult, (): Promise<FeedbackResult> => ended?.fe
 
 ipcMain.handle(channels.feedbackRetry, (): Promise<FeedbackResult> => {
   if (!ended) return Promise.resolve({ ok: false, error: 'no-round' });
-  ended.feedback = writeFeedback(ended.record, ended.dir);
+  ended.feedback = writeFeedback(ended.record, ended);
   return ended.feedback;
 });
 

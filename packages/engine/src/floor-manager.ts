@@ -259,7 +259,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   /** Returns the decision, and whether it is worth logging. */
   function decide(signal: Signal, now: number): [Decision, boolean] {
     if (ended) return [silent, false];
-    if (signal.type === 'talk-start' || signal.type === 'said' || signal.type === 'editor-activity' || signal.type === 'phase-answer') {
+    if (signal.type === 'talk-start' || signal.type === 'talk-end' || signal.type === 'said' || signal.type === 'editor-activity' || signal.type === 'phase-answer') {
       active(now);
     }
     switch (signal.type) {

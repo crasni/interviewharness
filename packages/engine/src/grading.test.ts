@@ -80,6 +80,12 @@ describe('grading a round', () => {
 
     expect(feedback.areas.coding).toEqual({ score: 3, evidence: [] });
     expect(feedback.areas.testing).toEqual({ score: 4, evidence: ['t4'] });
+    // Kept for replay: each sample as the grader gave it, and as it was checked.
+    expect(feedback.samples).toHaveLength(3);
+    expect(feedback.samples[0]).toMatchObject({
+      given: { coding: { score: 4, evidence: ['t42'] } },
+      checked: { coding: { score: 3, evidence: [] } },
+    });
   });
 
   it('caps problem solving by the deepest hint asked for, more for each rung', async () => {
@@ -94,9 +100,13 @@ describe('grading a round', () => {
     expect(await grade(['nudge', 'question', 'concrete'])).toBe(1);
   });
 
-  it('caps testing when the round never reached Test', async () => {
+  it('caps testing when the round never reached Test or traced an example', async () => {
     const model = scriptedModel({ grading: [sample([4, 4, 4, 4]), sample([4, 4, 4, 4]), sample([4, 4, 4, 4])], 'feedback-prose': [prose] });
-    const untested = record({ phases: [{ phase: 'clarify', atMs: 0 }, { phase: 'approach', atMs: 120_000 }, { phase: 'code', atMs: 400_000 }] });
+    // Never reached Test, and never traced an example (t4 is left out).
+    const untested = record({
+      phases: [{ phase: 'clarify', atMs: 0 }, { phase: 'approach', atMs: 120_000 }, { phase: 'code', atMs: 400_000 }],
+      transcript: record().transcript.slice(0, 3),
+    });
 
     const feedback = await gradeRound({ model: model.model, problem, record: untested, rough: false });
 
@@ -137,4 +147,12 @@ describe('the facts of a round', () => {
       tested: true,
     });
   });
+});
+
+it('counts walking an example through the code as testing, even without reaching Test', () => {
+  const traced = record({ phases: [{ phase: 'clarify', atMs: 0 }, { phase: 'code', atMs: 400_000 }] }); // t4 traces [5, 1, 5]
+  const untraced = record({ phases: traced.phases, transcript: traced.transcript.slice(0, 3) });
+
+  expect(roundFacts(traced).tested).toBe(true);
+  expect(roundFacts(untraced).tested).toBe(false);
 });

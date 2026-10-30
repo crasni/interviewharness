@@ -1,7 +1,7 @@
 import { VERDICTS } from '@interviewharness/core';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
 import type { FeedbackPoint, RoundSnapshot } from '@interviewharness/engine';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FeedbackResult } from '../../../shared/api.ts';
 import { roundLabel } from '../rounds.ts';
 import { iconProps } from '../ui/IconButton.tsx';
@@ -27,17 +27,20 @@ const failures: Record<Failure, string> = {
 export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack: () => void }) {
   // Writing starts in main the moment the round ends; this waits for it.
   const [result, setResult] = useState<FeedbackResult | null>(null);
+  // Results that arrive after the screen is gone (Back to start mid-write) are ignored.
+  const shown = useRef(true);
   useEffect(() => {
-    let current = true;
-    void window.harness.feedback.result().then((written) => current && setResult(written));
+    shown.current = true;
+    void window.harness.feedback.result().then((written) => shown.current && setResult(written));
     return () => {
-      current = false;
+      shown.current = false;
     };
   }, []);
 
   async function tryAgain() {
     setResult(null);
-    setResult(await window.harness.feedback.retry());
+    const written = await window.harness.feedback.retry();
+    if (shown.current) setResult(written);
   }
 
   const feedback = result?.ok ? result : null;

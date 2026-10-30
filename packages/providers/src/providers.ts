@@ -154,9 +154,14 @@ function piModel(models: Models, choice: ModelChoice, fetchFn: typeof fetch | un
   const identity = { provider: choice.provider, model: choice.model };
 
   /** One request, streamed to its end. Resolves with the finished message; fails with a typed error. */
-  async function run(request: ModelRequest, messages: Message[], extra: { tools?: Tool[]; toolChoice?: unknown }, onText?: (delta: string) => void) {
+  function find() {
     const model = models.getModel(piProviderIds[choice.provider], choice.model);
     if (!model) throw new ModelError('other', `Unknown model ${choice.model}`);
+    return model;
+  }
+
+  async function run(request: ModelRequest, messages: Message[], extra: { tools?: Tool[]; toolChoice?: unknown }, onText?: (delta: string) => void) {
+    const model = find();
     // Resolving auth may refresh the login's token, which can fail for being offline as much as for a revoked login.
     const auth = await models.getAuth(model).catch((error: unknown) => {
       throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
@@ -193,7 +198,7 @@ function piModel(models: Models, choice: ModelChoice, fetchFn: typeof fetch | un
     identity,
 
     async streamText(request, onText) {
-      const message = await run(request, toPiMessages(request), {}, onText);
+      const message = await run(request, toPiMessages(request, find()), {}, onText);
       const text = message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('');
       return { text, usage: usageOf(message) };
     },
@@ -210,7 +215,8 @@ function piModel(models: Models, choice: ModelChoice, fetchFn: typeof fetch | un
         parameters: Type.Unsafe(schema.jsonSchema),
         constrainedSampling: { type: 'json_schema', strict: 'prefer' },
       };
-      const messages = toPiMessages(request);
+      const messages = toPiMessages(request, find());
+      // The shape that forces one named tool on OpenAI's Responses API (the only API so far; others differ).
       for (let tries = 0; ; tries++) {
         const message = await run(request, messages, { tools: [tool], toolChoice: { type: 'function', name: tool.name } });
         const call = message.content.find((part): part is ToolCall => part.type === 'toolCall' && part.name === tool.name);
@@ -231,12 +237,12 @@ function piModel(models: Models, choice: ModelChoice, fetchFn: typeof fetch | un
   };
 }
 
-/** Our messages as pi-ai's. Earlier assistant turns carry no model metadata, as they're only context. */
-function toPiMessages(request: ModelRequest): Message[] {
+/** Our messages as pi-ai's. Earlier assistant turns are labelled as the model's own, as they're only context. */
+function toPiMessages(request: ModelRequest, model: { api: string; provider: string; id: string }): Message[] {
   return request.messages.map((m) =>
     m.role === 'user'
       ? { role: 'user', content: m.text, timestamp: Date.now() }
-      : { role: 'assistant', content: [{ type: 'text', text: m.text }], api: 'openai-responses', provider: 'openai', model: '', usage: emptyUsage, stopReason: 'stop', timestamp: Date.now() },
+      : { role: 'assistant', content: [{ type: 'text', text: m.text }], api: model.api, provider: model.provider, model: model.id, usage: emptyUsage, stopReason: 'stop', timestamp: Date.now() },
   );
 }
 

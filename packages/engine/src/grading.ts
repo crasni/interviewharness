@@ -28,7 +28,7 @@ export interface RoundFacts {
   timeInPhaseMs: Partial<Record<CodingPhase, number>>;
   hints: Exclude<HintLevel, 'none'>[];
   deepestHint: HintLevel;
-  /** Reached the Test phase. */
+  /** Reached the Test phase, or walked an example through the code. */
   tested: boolean;
 }
 
@@ -45,6 +45,8 @@ export interface GradedFeedback {
   wentWell: FeedbackPoint[];
   toFix: FeedbackPoint[];
   areas: Record<Area, { score: AreaScore; evidence: string[] }>;
+  /** Each grading sample as the grader gave it, and after unknown evidence was dropped and caps applied. For replay. */
+  samples: { given: Graded; checked: Graded }[];
   /** Written by a small model, so to be taken roughly. */
   rough: boolean;
   model: ModelIdentity;
@@ -59,6 +61,9 @@ const untestedCap: AreaScore = 2;
 /** How many times the round is graded; the median per area stands in for a low temperature, which some plans reject. */
 const gradingSamples = 3;
 
+/** Words that walk a concrete example through the code: "let me trace [5, 1, 5]", "walking through with target 10". */
+const tracesAnExample = (text: string) => /\b(trac(e|ing)|walk(ing)? (it |this |that )?through|dry.?run|step(ping)? through)\b/i.test(text) && /\d|\[/.test(text);
+
 export function roundFacts(record: RoundRecord): RoundFacts {
   const timeInPhaseMs: RoundFacts['timeInPhaseMs'] = {};
   record.phases.forEach(({ phase, atMs }, i) => {
@@ -71,11 +76,24 @@ export function roundFacts(record: RoundRecord): RoundFacts {
     timeInPhaseMs,
     hints: record.hints,
     deepestHint: record.hints.reduce<HintLevel>((deepest, hint) => (hintOrder.indexOf(hint) > hintOrder.indexOf(deepest) ? hint : deepest), 'none'),
-    tested: phasesReached.includes('test'),
+    tested: phasesReached.includes('test') || record.transcript.some((line) => line.who === 'candidate' && tracesAnExample(line.text)),
   };
 }
 
-type Graded = Record<Area, { score: AreaScore; evidence: string[] }>;
+export type Graded = Record<Area, { score: AreaScore; evidence: string[] }>;
+
+/** A grading, as events.jsonl records it: how the verdict was reached, or why it wasn't. Never a credential. */
+export interface GradingEntry {
+  at: number;
+  grading: {
+    model: ModelIdentity;
+    ms: number;
+    outcome: 'written' | 'failed';
+    error?: string;
+    verdict?: Verdict;
+    samples?: GradedFeedback['samples'];
+  };
+}
 
 const scoreSchema = {
   type: 'object',
@@ -206,12 +224,12 @@ export async function gradeRound({
     Array.from({ length: gradingSamples }, () =>
       model
         .generateObject({ purpose: 'grading', system: graderRules, messages: [{ role: 'user', text: `${round}\n\nGrade the round.` }], schema: gradingSchema, signal })
-        .then(({ object }) => checked(object, ids, facts)),
+        .then(({ object }) => ({ given: object, checked: checked(object, ids, facts) })),
     ),
   );
   const areas = Object.fromEntries(
     AREAS.map((area) => {
-      const scores = samples.map((s) => s[area]).sort((a, b) => a.score - b.score);
+      const scores = samples.map((s) => s.checked[area]).sort((a, b) => a.score - b.score);
       return [area, scores[Math.floor(scores.length / 2)]!];
     }),
   ) as Graded;
@@ -229,7 +247,7 @@ export async function gradeRound({
   const timed = (points: Prose['wentWell']) =>
     points.flatMap(({ text, evidence }) => (atMs.has(evidence) ? [{ text, atMs: atMs.get(evidence)! }] : []));
 
-  return { verdict, why: prose.why, wentWell: timed(prose.wentWell), toFix: timed(prose.toFix), areas, rough, model: model.identity };
+  return { verdict, why: prose.why, wentWell: timed(prose.wentWell), toFix: timed(prose.toFix), areas, samples, rough, model: model.identity };
 }
 
 /** One sample made trustworthy: evidence that names no line dropped, a score left without evidence lowered, caps applied. */

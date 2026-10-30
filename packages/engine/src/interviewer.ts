@@ -17,7 +17,7 @@ import {
   type ObjectSchema,
 } from './model.ts';
 import type { HintLadder, Problem } from './problem.ts';
-import type { RecordLine, RoundRecord } from './grading.ts';
+import type { GradingEntry, RecordLine, RoundRecord } from './grading.ts';
 import { buildReplyPrompt } from './prompt.ts';
 import { quotesSolution } from './solution-guard.ts';
 import type { Clock, Round } from './round.ts';
@@ -101,7 +101,7 @@ export interface ModelCallEntry {
 }
 
 /** Everything the round's log records: the Floor Manager's decisions and the model calls behind its words. */
-export type RoundLogEntry = FloorLogEntry | ModelCallEntry;
+export type RoundLogEntry = FloorLogEntry | ModelCallEntry | GradingEntry;
 
 export interface RoundLog {
   write(entry: RoundLogEntry): void;
@@ -254,6 +254,8 @@ export function createInterviewer(options: InterviewerOptions) {
   async function compose(call: Call) {
     const rejected: Rejection[] = [];
     for (let tries = 0; tries < 2; tries++) {
+      // A barge-in or the time limit may have ended this reply while the last attempt was checked.
+      if (call.controller.signal.aborted) throw new ModelError('aborted');
       const written = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
       if (!written.words) throw new ModelError('bad-output', 'The reply was empty');
       const problem = rejection(written);
