@@ -155,6 +155,34 @@ describe('the Floor Manager', () => {
       ]);
     });
 
+    it.each([
+      'can u see',
+      'what u think',
+      'should i start coding it',
+      'is that fine',
+      'does this look right',
+      'ok so what do you think about a hash map',
+      'Any constraints on the size',
+      'how big can the list get?',
+    ])('takes "%s" as a question, question mark or not', (text) => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text });
+
+      expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'answer' });
+    });
+
+    it.each(['I think a hash map works here.', 'ok given a list of integers I would loop twice', 'so it can be empty'])(
+      'takes "%s" as a statement',
+      (text) => {
+        const { floor, wait } = setup();
+
+        floor.onSignal({ type: 'said', text });
+
+        expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'ack' });
+      },
+    );
+
     it('never starts speaking while the candidate is talking again', () => {
       const { floor, wait } = setup();
 

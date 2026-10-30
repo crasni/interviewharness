@@ -16,7 +16,9 @@ export type Signal =
   /** The round is over, with the code as it was left. Logged so a replay can tell an ended round from a crash; nothing is said after it. */
   | { type: 'round-end'; code?: CodeSnapshot }
   /** The words for the reply being prepared have arrived (from the model, or a fallback line). */
-  | { type: 'words'; line: string };
+  | { type: 'words'; line: string }
+  /** The interviewer heard the conversation in a later phase than the round's: the candidate moved on by themselves. */
+  | { type: 'phase-reached'; phase: LaterPhase };
 
 /** The editor's contents at a moment: the code and its language. */
 export interface CodeSnapshot {
@@ -65,7 +67,9 @@ export type Decision =
   /** The interviewer finished its line and hands the floor back. */
   | { kind: 'done-speaking' }
   /** A suggestion to move on is off the table: the candidate carried on, or never answered. */
-  | { kind: 'suggestion-withdrawn' };
+  | { kind: 'suggestion-withdrawn' }
+  /** The round followed the conversation into `phase`; any pending suggestion is gone with it. */
+  | { kind: 'phase-moved'; phase: LaterPhase };
 
 /** What the Floor Manager knew when it decided. */
 export interface FloorState extends PhaseState {
@@ -135,6 +139,16 @@ export const floorRules = {
 
 /** Words that mean the candidate is done with the current phase. */
 const donePhrases = /\b(that'?s it|that'?s all|i'?m done|let'?s move on|ready to move on)\b/i;
+/** Words a question opens with, once leading fillers ("ok so", "um") are set aside. Typed questions often lack a "?". */
+const questionStart =
+  /^(?:(?:ok(?:ay)?|so|um+|uh+|and|also|well|hmm+|actually|then|but)[,\s]+)*(?:can|could|would|should|will|shall|is|are|am|was|were|do|does|did|have|has|may|what|why|how|when|where|which|who|whose|any)\b/i;
+/** Phrases that ask for the interviewer's view anywhere in a turn. */
+const questionPhrase = /\b(what (do |d')?(you|u) think|(does|is) (this|that|it) (look |seem |sound )?(right|ok(ay)?|fine|correct|good))\b/i;
+
+function isQuestion(text: string) {
+  return text.endsWith('?') || questionStart.test(text) || questionPhrase.test(text);
+}
+
 /** Words that accept a pending suggestion to move on, said at the start of the candidate's turn. */
 const acceptPhrases = /^(yes|yeah|yep|sure|ok(ay)?|sounds good|go ahead|let'?s (do it|go|move on))\b/i;
 
@@ -297,7 +311,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
           return [moveOn(), true];
         }
         carryOn(now);
-        lastSaid = donePhrases.test(text) ? 'done' : text.endsWith('?') ? 'question' : 'statement';
+        lastSaid = donePhrases.test(text) ? 'done' : isQuestion(text) ? 'question' : 'statement';
         silentSince = null; // their turn is over: no backchannel for this pause
         responseDueAt = now + floorRules.respondAfter;
         return [bargeIn(now), true];
@@ -317,6 +331,11 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
 
       case 'words':
         return [speak(now, signal.line), true];
+
+      case 'phase-reached':
+        if (!phases.reach(signal.phase)) return [silent, true];
+        turnClosedAt = null; // a new phase starts fresh: quiet now is not "done" with it
+        return [{ kind: 'phase-moved', phase: signal.phase }, true];
 
       case 'tick':
         return onTick(now);

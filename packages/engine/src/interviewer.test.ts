@@ -49,9 +49,15 @@ function setup({ script = {}, withModel = true }: { script?: ModelScript; withMo
 }
 
 /** A structured reply to a question, as the model gives it: its words, and whether (and how much) it hinted. */
-const answer = (words: string, { askedForHelp = false, hintLevel = 'none' }: { askedForHelp?: boolean; hintLevel?: string } = {}) => ({
-  object: { words, askedForHelp, hintLevel },
+const answer = (
+  words: string,
+  { askedForHelp = false, hintLevel = 'none', phase = 'clarify' }: { askedForHelp?: boolean; hintLevel?: string; phase?: string } = {},
+) => ({
+  object: { words, askedForHelp, hintLevel, phase },
 });
+
+/** A structured acknowledgement: its words, and the phase the model hears the conversation in. */
+const ack = (words: string, phase = 'clarify') => ({ object: { words, phase } });
 
 /** Lets the model's promise settle: its words arrive between ticks, as they would from the network. */
 const settle = () => new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
@@ -100,7 +106,7 @@ describe('the interviewer', () => {
   });
 
   it('gives every spoken decision model-written words: acknowledgements and phase moves too', async () => {
-    const { interviewer, wait, spoken } = await afterIntro(['Okay, go on.', 'Ready to talk through your approach?']);
+    const { interviewer, wait, spoken } = await afterIntro([ack('Okay, go on.'), 'Ready to talk through your approach?']);
 
     interviewer.onSignal({ type: 'said', text: 'So the values are integers.' });
     wait(1_000);
@@ -231,6 +237,7 @@ describe('the interviewer', () => {
         outcome: 'spoken',
         usage: { inputTokens: 0, outputTokens: 0 },
         hint: { askedForHelp: false, level: 'none' },
+        phase: 'clarify',
       },
     ]);
     expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.' } }));
@@ -404,4 +411,68 @@ it('keeps a record of the round for grading: lines with ids and times, phases, h
   expect(record.hints).toEqual(['nudge']);
   expect(record.code).toEqual({ language: 'python', text: 'def two_sum(nums, target): ...' });
   expect(record.elapsedMs).toBeGreaterThan(record.transcript.at(-1)!.atMs);
+});
+
+describe('the conversation sets the phase', () => {
+  const phase = (helpers: { interviewer: ReturnType<typeof createInterviewer> }) => helpers.interviewer.record().phases.at(-1)!.phase;
+
+  it('moves the round forward when the candidate has moved on by themselves', async () => {
+    const helpers = await afterIntro([ack('Okay, I see you have started coding.', 'code')]);
+    const { interviewer, wait, kinds } = helpers;
+
+    interviewer.onSignal({ type: 'said', text: 'I just wrote the brute force.', code: { language: 'python', text: 'for i in range(len(nums)): ...' } });
+    wait(1_000);
+    await settle();
+
+    expect(phase(helpers)).toBe('code');
+    expect(kinds()).toEqual(['preparing', 'ack', 'phase-moved']);
+  });
+
+  it('moves on when the candidate asks to and the interviewer agrees', async () => {
+    const helpers = await afterIntro([answer('Yes, go ahead and code it.', { phase: 'code' })]);
+
+    helpers.interviewer.onSignal({ type: 'said', text: 'should i start coding it' });
+    helpers.wait(1_000);
+    await settle();
+
+    expect(phase(helpers)).toBe('code');
+  });
+
+  it('never moves back: asking to cover a skipped phase leaves the round where it is', async () => {
+    const helpers = await afterIntro([ack('Okay.', 'code'), ack('Before testing, can you walk me through the approach?', 'approach')]);
+    const { interviewer, wait } = helpers;
+    interviewer.onSignal({ type: 'said', text: 'Here is my code.' });
+    wait(1_000);
+    await settle();
+    wait(3_000);
+
+    interviewer.onSignal({ type: 'said', text: 'I will test now.' });
+    wait(1_000);
+    await settle();
+
+    expect(phase(helpers)).toBe('code');
+  });
+
+  it('offers the phase after the one the candidate is really in', async () => {
+    const helpers = await afterIntro([ack('Okay.', 'code'), 'Want to test it with an example?']);
+    const { interviewer, wait, events } = helpers;
+    interviewer.onSignal({ type: 'said', text: 'Here is my code.' });
+    wait(1_000);
+    await settle();
+
+    wait(20_000); // the quiet after an acknowledged turn reads as done with this phase
+    await settle();
+
+    expect(events.filter((e) => e.kind === 'suggest-phase')).toEqual([expect.objectContaining({ next: 'test' })]);
+  });
+
+  it('logs the phase each reply heard the conversation in', async () => {
+    const { interviewer, wait, modelCalls } = await afterIntro([ack('Okay.', 'approach')]);
+
+    interviewer.onSignal({ type: 'said', text: 'I would loop over every pair.' });
+    wait(1_000);
+    await settle();
+
+    expect(modelCalls()).toMatchObject([{ reply: 'ack', phase: 'approach' }]);
+  });
 });

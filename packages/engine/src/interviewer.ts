@@ -1,3 +1,4 @@
+import { CODING_PHASES, type CodingPhase } from '@interviewharness/core';
 import {
   type CodeSnapshot,
   createFloorManager,
@@ -46,13 +47,44 @@ const corrections: Record<Rejection, string> = {
   'solution-leak': 'it quoted the reference solution. Never quote or describe its code.',
 };
 
-interface AnswerWords {
+/** A reply to something the candidate said: its words, and the phase the conversation is really in now. */
+interface TurnWords {
   words: string;
+  phase: CodingPhase;
+}
+
+/** An answer also says how much help it gave, so code can check it before it's said. */
+interface AnswerWords extends TurnWords {
   askedForHelp: boolean;
   hintLevel: HintLevel;
 }
 
-/** An answer comes back structured, so code can check how much help it gave before it's said. */
+const phaseProperty = {
+  type: 'string',
+  enum: [...CODING_PHASES],
+  description: "The phase the conversation is in now, by what the candidate is actually doing: it may be ahead of the round's.",
+};
+
+function parseTurn(value: unknown): TurnWords {
+  const { words, phase } = (value ?? {}) as Record<string, unknown>;
+  if (typeof words !== 'string' || !CODING_PHASES.includes(phase as CodingPhase)) {
+    throw new Error(`Expected words (a string) and phase (one of ${CODING_PHASES.join(', ')})`);
+  }
+  return { words, phase: phase as CodingPhase };
+}
+
+/** An acknowledgement comes back structured, so the round can follow the conversation's phase. */
+const ackSchema: ObjectSchema<TurnWords> = {
+  name: 'say',
+  jsonSchema: {
+    type: 'object',
+    properties: { words: { type: 'string', description: 'What you say aloud.' }, phase: phaseProperty },
+    required: ['words', 'phase'],
+    additionalProperties: false,
+  },
+  parse: parseTurn,
+};
+
 const answerSchema: ObjectSchema<AnswerWords> = {
   name: 'say',
   jsonSchema: {
@@ -61,16 +93,18 @@ const answerSchema: ObjectSchema<AnswerWords> = {
       words: { type: 'string', description: 'What you say aloud.' },
       askedForHelp: { type: 'boolean', description: 'Whether the candidate asked for help, a hint or what to do next.' },
       hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
+      phase: phaseProperty,
     },
-    required: ['words', 'askedForHelp', 'hintLevel'],
+    required: ['words', 'askedForHelp', 'hintLevel', 'phase'],
     additionalProperties: false,
   },
   parse(value) {
-    const { words, askedForHelp, hintLevel } = (value ?? {}) as Record<string, unknown>;
-    if (typeof words !== 'string' || typeof askedForHelp !== 'boolean' || !hintLevels.includes(hintLevel as HintLevel)) {
-      throw new Error('Expected { words: string, askedForHelp: boolean, hintLevel: none|nudge|question|concrete }');
+    const turn = parseTurn(value);
+    const { askedForHelp, hintLevel } = (value ?? {}) as Record<string, unknown>;
+    if (typeof askedForHelp !== 'boolean' || !hintLevels.includes(hintLevel as HintLevel)) {
+      throw new Error('Expected askedForHelp (true or false) and hintLevel (none, nudge, question or concrete)');
     }
-    return { words, askedForHelp, hintLevel: hintLevel as HintLevel };
+    return { ...turn, askedForHelp, hintLevel: hintLevel as HintLevel };
   },
 };
 
@@ -97,6 +131,8 @@ export interface ModelCallEntry {
     hint?: { askedForHelp: boolean; level: HintLevel };
     /** Attempts thrown away before the words were said (or replaced), and why. */
     rejected?: Rejection[];
+    /** For a reply to the candidate: the phase it heard the conversation in. The round follows it forward. */
+    phase?: CodingPhase;
   };
 }
 
@@ -201,6 +237,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (decision.kind === 'preparing' && decision.reply.kind === 'move-on') {
       phases.push({ phase: decision.reply.phase, atMs: round.snapshot().elapsedMs });
     }
+    if (decision.kind === 'phase-moved') phases.push({ phase: decision.phase, atMs: round.snapshot().elapsedMs });
     onEvent(decision);
     if (decision.kind === 'preparing') requestWords(decision.reply);
   }
@@ -232,12 +269,16 @@ export function createInterviewer(options: InterviewerOptions) {
       correction,
     });
     const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
-    if (call.reply.kind !== 'answer') {
-      const { text, usage } = await model!.streamText(request);
-      return { words: text.trim(), usage };
+    if (call.reply.kind === 'answer') {
+      const { object, usage } = await model!.generateObject({ ...request, schema: answerSchema });
+      return { words: object.words.trim(), usage, phase: object.phase, hint: { askedForHelp: object.askedForHelp, level: object.hintLevel } };
     }
-    const { object, usage } = await model!.generateObject({ ...request, schema: answerSchema });
-    return { words: object.words.trim(), usage, hint: { askedForHelp: object.askedForHelp, level: object.hintLevel } };
+    if (call.reply.kind === 'ack') {
+      const { object, usage } = await model!.generateObject({ ...request, schema: ackSchema });
+      return { words: object.words.trim(), usage, phase: object.phase };
+    }
+    const { text, usage } = await model!.streamText(request);
+    return { words: text.trim(), usage };
   }
 
   /** What's wrong with an attempt's words, if anything: help that wasn't asked for or skips a rung, or a leak. */
@@ -284,8 +325,15 @@ export function createInterviewer(options: InterviewerOptions) {
           hints.push(written.hint.level);
           hintsGiven = Math.max(hintsGiven, rungs.indexOf(written.hint.level) + 1);
         }
-        logCall(call, 'spoken', { usage: written.usage, ...(written.hint ? { hint: written.hint } : {}), ...extra });
+        logCall(call, 'spoken', {
+          usage: written.usage,
+          ...(written.hint ? { hint: written.hint } : {}),
+          ...(written.phase ? { phase: written.phase } : {}),
+          ...extra,
+        });
         say(written.words);
+        // The round follows the conversation forward (never back), as the interviewer heard it.
+        if (written.phase && written.phase !== 'clarify') handle(floor.onSignal({ type: 'phase-reached', phase: written.phase }));
       },
       (error: unknown) => {
         if (pending !== call) return; // aborted or timed out already, and logged then

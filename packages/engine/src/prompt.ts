@@ -56,6 +56,13 @@ const nextPhaseOffers: Record<Exclude<CodingPhase, 'clarify'>, string> = {
   'wrap-up': 'wrap up',
 };
 
+/** Every reply to the candidate also says where the conversation really is; the round follows it forward. */
+const phaseCheck = [
+  "Also report the phase the conversation is in now, by what the candidate is actually doing, even if it's ahead of the round's phase.",
+  'If they asked to move on (e.g. "should I start coding?") and you agree, report that phase.',
+  'If they moved ahead by themselves, judge it as a real interviewer would: usually go along with it, but if they skipped something that matters (say, coding with no approach discussed), briefly ask them to cover it first, and report that earlier phase.',
+].join(' ');
+
 function instruction(reply: Reply, nextHint: ReplyPromptInput['nextHint']): string {
   switch (reply.kind) {
     case 'intro':
@@ -69,10 +76,11 @@ function instruction(reply: Reply, nextHint: ReplyPromptInput['nextHint']): stri
         "If they asked about their code, read it against the reference solution: point them to a case to try, or ask them to walk an example through it, but never name the fix.",
         help,
         'Otherwise give no hint at all: hintLevel "none". Set askedForHelp only if they asked for help, a hint or what to do next.',
+        phaseCheck,
       ].join(' ');
     }
     case 'ack':
-      return 'Acknowledge what the candidate just said in a few words, then hand the floor back. Add nothing and judge nothing.';
+      return `Acknowledge what the candidate just said in a few words, then hand the floor back. Add nothing and judge nothing. ${phaseCheck}`;
     case 'suggest-phase': {
       const offer = `Ask the candidate whether they're ready to ${nextPhaseOffers[reply.next]}. It's an offer; they may say not yet.`;
       if (!reply.afterDone) return offer;

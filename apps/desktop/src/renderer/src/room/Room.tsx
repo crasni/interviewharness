@@ -78,6 +78,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
             break;
           case 'move-on':
           case 'suggestion-withdrawn':
+          case 'phase-moved': // the conversation moved the round on: an offer to move is moot
             setSuggestion(null);
             break;
           case 'done-speaking':

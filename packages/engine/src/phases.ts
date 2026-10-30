@@ -1,4 +1,4 @@
-import type { CodingPhase } from '@interviewharness/core';
+import { CODING_PHASES, type CodingPhase } from '@interviewharness/core';
 import { codingPhaseShares, type LaterPhase, nextPhase, type Round } from './round.ts';
 
 /** Timing rules for moving between phases, in milliseconds. Fixed defaults (ADR 0014). */
@@ -63,6 +63,21 @@ export function createPhaseGuide(round: Round) {
       suggested = null;
       notYets += 1;
       suggestAllowedAt = now + phaseRules.suggestAgainAfter * 2 ** (notYets - 1);
+    },
+
+    /**
+     * The conversation is already in `phase` (the candidate moved on by themselves, and the interviewer went
+     * along). Moves the round forward to it, dropping any pending suggestion; never moves back. Returns
+     * whether it moved.
+     */
+    reach(phase: LaterPhase): boolean {
+      const order = (p: CodingPhase) => CODING_PHASES.indexOf(p);
+      if (order(phase) <= order(round.snapshot().phase)) return false;
+      while (round.snapshot().phase !== phase) round.advancePhase();
+      suggested = null;
+      notYets = 0;
+      suggestAllowedAt = -Infinity;
+      return true;
     },
 
     /** Moves to the suggested phase. Returns it, or null if nothing was suggested. */
