@@ -37,7 +37,7 @@ const prose = {
 async function playRound(grading: NonNullable<ModelScript['grading']>) {
   ({ app, window, dataDir } = await launchApp({
     model: {
-      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'Yes, values can repeat.', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }],
+      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'Yes, values can repeat.', kind: 'answer', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }],
       grading,
       'feedback-prose': [prose],
     },
@@ -138,4 +138,15 @@ test('in a short window the Feedback screen still fits: only the feedback scroll
   expect(await onScreen(feedbackScreen().getByRole('heading', { name: 'Feedback' }))).toBe(true);
   expect(await onScreen(feedbackScreen().getByRole('list', { name: 'Verdict' }))).toBe(true);
   expect(await onScreen(window.getByRole('button', { name: 'Back to start' }))).toBe(true);
+});
+
+test('a round with nothing said in it gets no grade, just a plain note', async () => {
+  ({ app, window, dataDir } = await launchApp({ model: { 'interviewer-reply': ['Hi, take a look at the problem.'] } }));
+  await window.getByRole('button', { name: 'Start coding round' }).click();
+
+  await endRound(window);
+
+  await expect(feedbackScreen().getByRole('alert')).toContainText('nothing was said');
+  await expect(feedbackScreen().getByRole('list', { name: 'Verdict' })).toHaveCount(0);
+  await expect(feedbackScreen().getByRole('button', { name: 'Try again' })).toHaveCount(0);
 });

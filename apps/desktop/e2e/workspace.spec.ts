@@ -42,7 +42,7 @@ test('the transcript is shown by default with the whole conversation, and hides 
 
   await expect(transcript).toContainText('Hi, thanks for joining.');
   await expect(transcript).toContainText('Can the numbers be negative?');
-  await expect(transcript).toContainText('Good question. You can assume the input fits in memory.');
+  await expect(transcript).toContainText('Okay, that makes sense.'); // with no model, a turn gets an example acknowledgement
 
   await window.getByRole('banner', { name: 'Round status' }).click(); // leave the text field so Ctrl+T reaches the room
   await window.keyboard.press('ControlOrMeta+t');

@@ -60,6 +60,8 @@ function endCurrentRound(code?: unknown) {
  * folder. The renderer gets the words only. Never rejects: a failure comes back as one, for Try again.
  */
 async function writeFeedback(record: RoundRecord, { dir, log }: RoundFolder): Promise<FeedbackResult> {
+  // A round where the candidate said nothing has nothing to grade, however long it ran.
+  if (!record.transcript.some((line) => line.who === 'candidate')) return { ok: false, error: 'nothing-said' };
   const grader = models.feedbackModel();
   if (!grader) return { ok: false, error: 'no-model' };
   const startedAt = systemClock.now();

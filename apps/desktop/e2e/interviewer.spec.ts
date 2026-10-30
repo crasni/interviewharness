@@ -28,7 +28,7 @@ async function say(text: string) {
 test("the model writes the interviewer's words: the intro, and the answer to a question", async () => {
   await startWith([
     'Hi, I am your interviewer today.',
-    { object: { words: 'Yes, the list can be empty; return an empty list then.', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } },
+    { object: { words: 'Yes, the list can be empty; return an empty list then.', kind: 'answer', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } },
   ]);
   const line = window.getByRole('log', { name: 'Transcript' }); // shown by default
   await expect(line.getByText('Hi, I am your interviewer today.')).toBeVisible();
@@ -39,7 +39,7 @@ test("the model writes the interviewer's words: the intro, and the answer to a q
   const calls = readRoundLog(dataDir).filter((entry) => entry.modelCall);
   expect(calls.map((entry) => [entry.modelCall.reply, entry.modelCall.outcome])).toEqual([
     ['intro', 'spoken'],
-    ['answer', 'spoken'],
+    ['turn', 'spoken'],
   ]);
   expect(calls[0].modelCall.model).toEqual({ provider: 'scripted', model: 'scripted-fake' });
 });
@@ -74,7 +74,7 @@ test('a failing model gives a stock line and a small notice, and the round carri
 });
 
 test('what the candidate says carries their code, into the round log', async () => {
-  await startWith(['Hi, I am your interviewer today.', { object: { words: 'Looks reasonable so far.', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }]);
+  await startWith(['Hi, I am your interviewer today.', { object: { words: 'Looks reasonable so far.', kind: 'answer', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }]);
   await expect(window.getByRole('log', { name: 'Transcript' }).getByText('Hi, I am your interviewer today.')).toBeVisible();
   await window.getByRole('textbox', { name: 'Code editor' }).click();
   await window.keyboard.type('def two_sum(nums, target):');
@@ -84,11 +84,11 @@ test('what the candidate says carries their code, into the round log', async () 
   await expect(window.getByRole('log', { name: 'Transcript' }).getByText('Looks reasonable so far.')).toBeVisible();
   const said = readRoundLog(dataDir).find((entry) => entry.signal?.type === 'said');
   expect(said.signal.code).toEqual({ language: 'python', text: 'def two_sum(nums, target):' });
-  expect(readRoundLog(dataDir).find((entry) => entry.modelCall?.reply === 'answer').modelCall.hint).toEqual({ askedForHelp: false, level: 'none' });
+  expect(readRoundLog(dataDir).find((entry) => entry.modelCall?.reply === 'turn').modelCall.hint).toEqual({ askedForHelp: false, level: 'none' });
 });
 
 test('when the candidate has moved on by themselves, the round follows', async () => {
-  await startWith(['Hi, I am your interviewer today.', { object: { words: 'Okay, I see the code. Go on.', phase: 'code' } }]);
+  await startWith(['Hi, I am your interviewer today.', { object: { words: 'Okay, I see the code. Go on.', kind: 'acknowledgement', askedForHelp: false, hintLevel: 'none', phase: 'code' } }]);
   await expect(window.getByRole('log', { name: 'Transcript' }).getByText('Hi, I am your interviewer today.')).toBeVisible();
   await expect(window.getByTestId('phase')).toHaveText('Clarify');
 

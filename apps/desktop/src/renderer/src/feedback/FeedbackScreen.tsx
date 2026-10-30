@@ -21,7 +21,11 @@ const failures: Record<Failure, string> = {
   other: 'Something went wrong writing your Feedback.',
   'no-model': 'There is no model to write your Feedback. Pick one in Settings → Model, then try again.',
   'no-round': 'There is no round to write Feedback for.',
+  'nothing-said': 'There was no Feedback to write: nothing was said in this round.',
 };
+
+/** Failures that trying again can't fix. */
+const final: Failure[] = ['no-round', 'nothing-said'];
 
 /** The interviewer's written feedback after a round: a verdict, then what went well and what to fix. Words, never scores. */
 export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack: () => void }) {
@@ -84,7 +88,7 @@ export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack
         {result && !result.ok && (
           <div className="feedback-status" role="alert">
             <p>{failures[result.error]}</p>
-            <p className="feedback-status-note">Your round is kept, so trying again needs nothing else.</p>
+            {!final.includes(result.error) && <p className="feedback-status-note">Your round is kept, so trying again needs nothing else.</p>}
           </div>
         )}
         {feedback && (
@@ -100,7 +104,7 @@ export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack
       </div>
 
       <footer className="feedback-foot">
-        {result && !result.ok && result.error !== 'no-round' && (
+        {result && !result.ok && !final.includes(result.error) && (
           <button type="button" className="primary with-icon" onClick={() => void tryAgain()}>
             <RotateCcw {...iconProps} size={16} />
             Try again

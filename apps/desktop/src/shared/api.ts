@@ -77,7 +77,7 @@ export interface ProviderStatus {
 /** The Feedback as the candidate sees it: words and moments, no scores (those stay in the round's feedback.json). */
 export type FeedbackResult =
   | { ok: true; verdict: Verdict; why: string; wentWell: FeedbackPoint[]; toFix: FeedbackPoint[]; rough: boolean }
-  | { ok: false; error: ModelErrorKind | 'no-model' | 'no-round' };
+  | { ok: false; error: ModelErrorKind | 'no-model' | 'no-round' | 'nothing-said' };
 
 export type LoginResult =
   /** `unencryptedNote`: say once that the login isn't encrypted on this machine (Linux with no keyring). */

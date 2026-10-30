@@ -15,8 +15,11 @@ export type Signal =
   | { type: 'tick' }
   /** The round is over, with the code as it was left. Logged so a replay can tell an ended round from a crash; nothing is said after it. */
   | { type: 'round-end'; code?: CodeSnapshot }
-  /** The words for the reply being prepared have arrived (from the model, or a fallback line). */
-  | { type: 'words'; line: string }
+  /**
+   * The words for the reply being prepared have arrived (from the model, or a fallback line). For a reply to
+   * the candidate's turn, `as` is what kind of reply the model found fitting; without one it's an acknowledgement.
+   */
+  | { type: 'words'; line: string; as?: TurnReplyKind }
   /** The interviewer heard the conversation in a later phase than the round's: the candidate moved on by themselves. */
   | { type: 'phase-reached'; phase: LaterPhase };
 
@@ -30,15 +33,22 @@ export interface CodeSnapshot {
 export type Spoken<K extends string> = { kind: K; line: string; speakingMs: number };
 
 /**
- * A reply the Floor Manager has decided to give, before its words exist. The kind and the moment are
- * the Floor Manager's; the words come after, from the model.
+ * How the interviewer replies to a candidate's turn. The model decides, from what they said and did:
+ * answer a question (however it's worded), acknowledge, or offer to move on because they're done.
+ */
+export type TurnReplyKind = 'answer' | 'ack' | 'offer';
+
+/**
+ * A reply the Floor Manager has decided to give, before its words exist. The moment is the Floor
+ * Manager's; the words, and for a turn what kind of reply fits, come after, from the model.
  */
 export type Reply =
+  /** A reply to the candidate's finished turn. */
+  | { kind: 'turn' }
+  /** A short acknowledgement of "Not yet". */
   | { kind: 'ack' }
-  | { kind: 'answer' }
   | { kind: 'intro' }
-  /** `afterDone`: the candidate said they're done, so the words react to their work first. */
-  | { kind: 'suggest-phase'; next: LaterPhase; afterDone: boolean }
+  | { kind: 'suggest-phase'; next: LaterPhase }
   | { kind: 'move-on'; phase: LaterPhase }
   /** One neutral line after a long stretch with nothing from the candidate. Never a hint. */
   | { kind: 'check-in' };
@@ -84,8 +94,6 @@ export interface FloorState extends PhaseState {
   silenceMs: number | null;
   /** Time since the last backchannel, or null if there hasn't been one. */
   sinceBackchannelMs: number | null;
-  /** What the candidate's last words were: a question, a statement, or saying they're done. Null before they say anything. */
-  lastSaid: 'question' | 'statement' | 'done' | null;
   /** Quiet since the interviewer acknowledged the candidate's finished turn, or null. Long enough reads as "done". */
   quietAfterTurnMs: number | null;
   /** Time since the candidate last talked, said something or typed, or since the interviewer last spoke. */
@@ -129,28 +137,13 @@ export const floorRules = {
   /** A moment of quiet after the round opens before the intro, so it doesn't start mid-click. */
   introAfter: 1_000,
   /**
-   * Quiet after the interviewer acknowledges a finished statement that reads as "done with this phase".
-   * Only after a statement: after answering a question, the candidate is likely still thinking.
+   * Quiet after the interviewer acknowledges a finished turn that reads as "done with this phase".
+   * Only after an acknowledgement: after an answer, the candidate is likely still thinking.
    */
   doneAfterSilence: 15_000,
   /** A stretch with no talking, saying or typing after which the interviewer checks in, once (GLOSSARY: Check-in). */
   checkInAfterIdle: 150_000,
 };
-
-/** Words that mean the candidate is done with the current phase. */
-const donePhrases = /\b(that'?s it|that'?s all|i'?m done|let'?s move on|ready to move on)\b/i;
-/** Words a question opens with, once leading fillers ("ok so", "um") are set aside. Typed questions often lack a "?". */
-const questionStart =
-  /^(?:(?:ok(?:ay)?|so|um+|uh+|and|also|well|hmm+|actually|then|but)[,\s]+)*(?:can|could|would|should|will|shall|is|are|am|was|were|do|does|did|have|has|may|what|why|how|when|where|which|who|whose|any)\b/i;
-/** Phrases that ask for the interviewer's view anywhere in a turn. */
-const questionPhrase = /\b(what (do |d')?(you|u) think|(does|is) (this|that|it) (look |seem |sound )?(right|ok(ay)?|fine|correct|good))\b/i;
-
-function isQuestion(text: string) {
-  return text.endsWith('?') || questionStart.test(text) || questionPhrase.test(text);
-}
-
-/** Words that accept a pending suggestion to move on, said at the start of the candidate's turn. */
-const acceptPhrases = /^(yes|yeah|yep|sure|ok(ay)?|sounds good|go ahead|let'?s (do it|go|move on))\b/i;
 
 /** Decides *whether* the interviewer speaks at each moment, never *what* the substance is. */
 export function createFloorManager({ clock, round, lines, log }: FloorManagerOptions): FloorManager {
@@ -166,11 +159,10 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   let lastBackchannelAt: number | null = null;
   // The candidate ended their turn and the interviewer owes them a response from this time on.
   let responseDueAt: number | null = null;
-  let lastSaid: FloorState['lastSaid'] = null;
   let speakingUntil: number | null = null;
-  // The reply whose words are on their way, and whether it acknowledges a finished statement.
-  let preparing: { reply: Reply; turnAck: boolean } | null = null;
-  // Whether the line being spoken acknowledges a finished statement; the quiet after it may mean "done".
+  // The reply whose words are on their way.
+  let preparing: Reply | null = null;
+  // Whether the line being spoken acknowledges a finished turn; the quiet after it may mean "done".
   let speakingAck = false;
   let turnClosedAt: number | null = null;
   // A suggestion was withdrawn while handling a candidate signal; the next tick tells the room.
@@ -190,7 +182,6 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       talkMs: talkingSince !== null ? now - talkingSince : talkMs,
       silenceMs: silentSince === null ? null : now - silentSince,
       sinceBackchannelMs: lastBackchannelAt === null ? null : now - lastBackchannelAt,
-      lastSaid,
       quietAfterTurnMs: turnClosedAt === null ? null : now - turnClosedAt,
       idleMs: now - activeAt,
       checkedIn,
@@ -209,29 +200,17 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     return { kind: 'stop-speaking' };
   }
 
-  /** The candidate carried on instead of answering a suggestion: that means "not yet". */
-  function carryOn(now: number) {
-    turnClosedAt = null;
-    if (!phases.suggested) return;
-    phases.notYet(now);
-    withdrawalToAnnounce = true;
-  }
-
-  function respond(now: number): Decision {
+  /** The candidate's turn is over: the interviewer replies, and the model decides what kind of reply fits. */
+  function respond(): Decision {
     responseDueAt = null;
     silentSince = null; // this silence was the end of their turn, not a pause to backchannel
-    if (lastSaid === 'done') {
-      const next = phases.toOffer(now, 'candidate-said-done');
-      if (next) return suggest(now, next, true);
-    }
-    if (lastSaid === 'question') return prepare({ kind: 'answer' });
-    return prepare({ kind: 'ack' }, { turnAck: true });
+    return prepare({ kind: 'turn' });
   }
 
-  function suggest(now: number, next: LaterPhase, afterDone = false) {
+  function suggest(now: number, next: LaterPhase) {
     phases.offer(next, now);
     turnClosedAt = null;
-    return prepare({ kind: 'suggest-phase', next, afterDone });
+    return prepare({ kind: 'suggest-phase', next });
   }
 
   function moveOn(): Decision {
@@ -242,22 +221,37 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   }
 
   /** The interviewer takes the floor now, and holds it quietly until the words arrive. */
-  function prepare(reply: Reply, { turnAck = false } = {}): Decision {
-    preparing = { reply, turnAck };
+  function prepare(reply: Reply): Decision {
+    preparing = reply;
     speakingUntil = null;
     silentSince = null; // taking the floor fills the candidate's pause: there is nothing left to backchannel
     return { kind: 'preparing', reply };
   }
 
   /** The words arrived: the interviewer says them, holding the floor for as long as they take to say. */
-  function speak(now: number, line: string): Decision {
+  function speak(now: number, line: string, as: TurnReplyKind = 'ack'): Decision {
     if (!preparing) return silent; // too late: a barge-in or the round's end already dropped this reply
-    const { reply, turnAck } = preparing;
+    const reply = preparing;
     preparing = null;
     const speakingMs = speakingTime(line);
     speakingUntil = now + speakingMs;
-    speakingAck = turnAck;
-    return { ...reply, line, speakingMs } as Decision;
+    speakingAck = false;
+    if (reply.kind !== 'turn') return { ...reply, line, speakingMs } as Decision;
+
+    // An offer to move on needs a phase to move to; with none left (or one already offered), it's an acknowledgement.
+    const next = as === 'offer' ? phases.toOffer(now, 'candidate-said-done') : null;
+    if (next) {
+      phases.offer(next, now);
+      turnClosedAt = null;
+      return { kind: 'suggest-phase', next, line, speakingMs };
+    }
+    // A reply that didn't take the candidate on to a new phase leaves a pending offer unaccepted: "not yet".
+    if (phases.suggested) {
+      phases.notYet(now);
+      withdrawalToAnnounce = true;
+    }
+    speakingAck = as !== 'answer';
+    return { kind: as === 'answer' ? 'answer' : 'ack', line, speakingMs };
   }
 
   function moveOnCue(now: number): MoveOnCue {
@@ -287,7 +281,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         return [silent, true];
 
       case 'talk-start':
-        carryOn(now);
+        turnClosedAt = null; // talking is not the quiet that reads as done
         talkingSince = now;
         silentSince = null;
         responseDueAt = null; // they kept the floor: the response they were owed no longer fits
@@ -304,14 +298,9 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         return [silent, true];
 
       case 'said': {
-        const text = signal.text.trim();
-        if (!text) return [silent, true];
-        if (phases.suggested && acceptPhrases.test(text)) {
-          bargeIn(now);
-          return [moveOn(), true];
-        }
-        carryOn(now);
-        lastSaid = donePhrases.test(text) ? 'done' : isQuestion(text) ? 'question' : 'statement';
+        if (!signal.text.trim()) return [silent, true];
+        // A pending offer to move on stays open: the reply to these words says whether they took it.
+        turnClosedAt = null;
         silentSince = null; // their turn is over: no backchannel for this pause
         responseDueAt = now + floorRules.respondAfter;
         return [bargeIn(now), true];
@@ -330,7 +319,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         return [silent, true];
 
       case 'words':
-        return [speak(now, signal.line), true];
+        return [speak(now, signal.line, signal.as), true];
 
       case 'phase-reached':
         if (!phases.reach(signal.phase)) return [silent, true];
@@ -357,7 +346,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       if (speakingAck && talkingSince === null && responseDueAt === null) turnClosedAt = now;
       return [{ kind: 'done-speaking' }, true];
     }
-    if (responseDueAt !== null && talkingSince === null && now >= responseDueAt) return [respond(now), true];
+    if (responseDueAt !== null && talkingSince === null && now >= responseDueAt) return [respond(), true];
 
     const floorIsFree = talkingSince === null && speakingUntil === null && preparing === null && responseDueAt === null;
     if (floorIsFree && phases.expired(now)) {

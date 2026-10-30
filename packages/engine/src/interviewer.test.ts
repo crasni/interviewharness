@@ -53,11 +53,16 @@ const answer = (
   words: string,
   { askedForHelp = false, hintLevel = 'none', phase = 'clarify' }: { askedForHelp?: boolean; hintLevel?: string; phase?: string } = {},
 ) => ({
-  object: { words, askedForHelp, hintLevel, phase },
+  object: { words, kind: 'answer', askedForHelp, hintLevel, phase },
 });
 
 /** A structured acknowledgement: its words, and the phase the model hears the conversation in. */
-const ack = (words: string, phase = 'clarify') => ({ object: { words, phase } });
+const ack = (words: string, phase = 'clarify') => ({ object: { words, kind: 'acknowledgement', askedForHelp: false, hintLevel: 'none', phase } });
+
+/** A reply that heard the candidate as done with the phase, and offers to move on. */
+const offer = (words: string, phase = 'clarify') => ({
+  object: { words, kind: 'offer-next-phase', askedForHelp: false, hintLevel: 'none', phase },
+});
 
 /** Lets the model's promise settle: its words arrive between ticks, as they would from the network. */
 const settle = () => new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
@@ -106,7 +111,7 @@ describe('the interviewer', () => {
   });
 
   it('gives every spoken decision model-written words: acknowledgements and phase moves too', async () => {
-    const { interviewer, wait, spoken } = await afterIntro([ack('Okay, go on.'), 'Ready to talk through your approach?']);
+    const { interviewer, wait, spoken } = await afterIntro([ack('Okay, go on.'), offer('Ready to talk through your approach?')]);
 
     interviewer.onSignal({ type: 'said', text: 'So the values are integers.' });
     wait(1_000);
@@ -185,7 +190,7 @@ describe('the interviewer', () => {
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'rate-limit' });
-      expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+      expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
       expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'rate-limit' }]);
     });
 
@@ -200,7 +205,7 @@ describe('the interviewer', () => {
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout' });
-      expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+      expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
       expect(model.waiting[0]!.request.signal!.aborted).toBe(true);
       expect(modelCalls().map((c) => [c.outcome, c.error])).toEqual([
         ['failed', 'timeout'],
@@ -216,7 +221,7 @@ describe('the interviewer', () => {
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'bad-output' });
-      expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+      expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
     });
   });
 
@@ -231,16 +236,17 @@ describe('the interviewer', () => {
       {
         id: 2,
         purpose: 'interviewer-reply',
-        reply: 'answer',
+        reply: 'turn',
         model: { provider: 'scripted', model: 'scripted-fake' },
         ms: 400, // asked 600 ms after the question; the words arrived when the test let them, after the ticks
         outcome: 'spoken',
         usage: { inputTokens: 0, outputTokens: 0 },
+        turnReply: 'answer',
         hint: { askedForHelp: false, level: 'none' },
         phase: 'clarify',
       },
     ]);
-    expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.' } }));
+    expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.', as: 'answer' } }));
     expect(JSON.stringify(log.entries)).not.toMatch(/key|token"|secret|password/i);
   });
 
@@ -316,7 +322,7 @@ describe('hints', () => {
     wait(1_000);
     await settle();
 
-    expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+    expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
     expect(modelCalls()).toMatchObject([{ outcome: 'replaced', rejected: ['hint-unasked', 'hint-unasked'] }]);
   });
 });
@@ -342,7 +348,7 @@ describe('the solution guard', () => {
     wait(1_000);
     await settle();
 
-    expect(spoken()).toEqual(['Good question. You can assume the input fits in memory.']);
+    expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
     expect(modelCalls()).toMatchObject([{ outcome: 'replaced', rejected: ['solution-leak', 'solution-leak'] }]);
   });
 
@@ -381,7 +387,7 @@ it('checks in, in words the model wrote, after a long silence', async () => {
 it('keeps a record of the round for grading: lines with ids and times, phases, hints and the final code', async () => {
   const { interviewer, wait, clock } = await afterIntro([
     answer('Think about what you have already seen.', { askedForHelp: true, hintLevel: 'nudge' }),
-    'Sure, go ahead.',
+    offer('Sounds like you have it. Ready to talk through your approach?'),
   ]);
   interviewer.onSignal({ type: 'said', text: 'Can I get a hint?' });
   wait(1_000);
@@ -425,7 +431,7 @@ describe('the conversation sets the phase', () => {
     await settle();
 
     expect(phase(helpers)).toBe('code');
-    expect(kinds()).toEqual(['preparing', 'ack', 'phase-moved']);
+    expect(kinds()).toEqual(['preparing', 'phase-moved', 'ack']);
   });
 
   it('moves on when the candidate asks to and the interviewer agrees', async () => {
@@ -473,6 +479,37 @@ describe('the conversation sets the phase', () => {
     wait(1_000);
     await settle();
 
-    expect(modelCalls()).toMatchObject([{ reply: 'ack', phase: 'approach' }]);
+    expect(modelCalls()).toMatchObject([{ reply: 'turn', turnReply: 'acknowledgement', phase: 'approach' }]);
+  });
+});
+
+describe('what the candidate meant is the model’s to understand', () => {
+  it('offers to move on when the model hears them as done, however they put it', async () => {
+    const { interviewer, wait, events } = await afterIntro([offer('Looks solid. Ready to talk through your approach?')]);
+
+    interviewer.onSignal({ type: 'said', text: 'ok i think i got all i need' });
+    wait(1_000);
+    await settle();
+
+    expect(events.filter((e) => e.kind === 'suggest-phase')).toEqual([expect.objectContaining({ next: 'approach' })]);
+  });
+
+  it('takes a reply that carries on, instead of agreeing, as "not yet" to a pending offer', async () => {
+    const { interviewer, wait, events } = await afterIntro([
+      offer('Ready to talk through your approach?'),
+      ack('Sure, take your time.'),
+    ]);
+    interviewer.onSignal({ type: 'said', text: 'that covers my questions' });
+    wait(1_000);
+    await settle();
+    wait(5_000);
+
+    interviewer.onSignal({ type: 'said', text: 'wait, one more thing about duplicates' });
+    wait(1_000);
+    await settle();
+    wait(200);
+
+    expect(events.map((e) => e.kind)).toContain('suggestion-withdrawn');
+    expect(interviewer.record().phases.map((p) => p.phase)).toEqual(['clarify']);
   });
 });

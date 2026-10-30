@@ -100,3 +100,13 @@ async function saveTraceIfFailed(app: ElectronApplication) {
     .tracing.stop(failed ? { path: info.outputPath('trace.zip') } : undefined)
     .catch(() => {}); // a crashed app has no trace to give; the failure itself is what matters
 }
+
+/** Scripted replies to a candidate's turn, as the model gives them: an answer, an acknowledgement or an offer to move on. */
+export const turnReply = {
+  answer: (words: string) => ({ object: { words, kind: 'answer', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }),
+  ack: (words: string) => ({ object: { words, kind: 'acknowledgement', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }),
+  offer: (words: string) => ({ object: { words, kind: 'offer-next-phase', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }),
+};
+
+/** An intro long enough to talk over, as launchIntoRoom does. */
+export const longIntro = "Hi, thanks for joining. This is a 45-minute coding round. Take a moment to read the problem, and ask me anything you'd like to clarify before you start.";

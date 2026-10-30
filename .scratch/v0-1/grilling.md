@@ -52,3 +52,8 @@ _Owner answers, 2026-10-30. Not yet turned into ADRs or tickets._
 
 ## Still open
 - Nothing for v0.1. The design tree is fully walked; waiting for the owner to confirm.
+
+## Round 5 (after playing real rounds, 2026-10-30)
+- **No phrase rules for meaning.** The Floor Manager decides only *when* the interviewer speaks (timing, barge-in, silence). What the candidate meant (a question, done with a phase, agreeing to move on) is the model's to understand: its reply to each turn comes back structured with its kind (answer, acknowledgement, offer to move on), the help it gave and the phase the conversation is really in. Replaces the keyword rules (question mark, "that's it", "yes") the spec planned for v0.1.
+- **Phases follow the conversation, never strictly.** If the candidate moves ahead, the round follows; if they skipped something that matters, the interviewer may ask them to cover it first. Phases never move back.
+- **Feedback shows no scores.** Area scores stay internal (they make the verdict, and are saved with the round).

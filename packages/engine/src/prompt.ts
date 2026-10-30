@@ -56,36 +56,16 @@ const nextPhaseOffers: Record<Exclude<CodingPhase, 'clarify'>, string> = {
   'wrap-up': 'wrap up',
 };
 
-/** Every reply to the candidate also says where the conversation really is; the round follows it forward. */
-const phaseCheck = [
-  "Also report the phase the conversation is in now, by what the candidate is actually doing, even if it's ahead of the round's phase.",
-  'If they asked to move on (e.g. "should I start coding?") and you agree, report that phase.',
-  'If they moved ahead by themselves, judge it as a real interviewer would: usually go along with it, but if they skipped something that matters (say, coding with no approach discussed), briefly ask them to cover it first, and report that earlier phase.',
-].join(' ');
-
-function instruction(reply: Reply, nextHint: ReplyPromptInput['nextHint']): string {
+function instruction(reply: Reply, phase: CodingPhase, nextHint: ReplyPromptInput['nextHint']): string {
   switch (reply.kind) {
     case 'intro':
       return 'Open the round: greet the candidate briefly, say this is a 45-minute coding round, and invite them to read the problem and ask any clarifying questions.';
-    case 'answer': {
-      const help = nextHint
-        ? `If they asked for help, give only the next rung of the hint ladder, ${nextHint}, in your own words, and set hintLevel to "${nextHint}".`
-        : 'If they asked for help, every rung is given already: say so kindly and repeat the concrete rung in other words, with hintLevel "concrete".';
-      return [
-        "Answer the candidate's last question, briefly and correctly, from the problem as written and your notes. Answer only what they asked.",
-        "If they asked about their code, read it against the reference solution: point them to a case to try, or ask them to walk an example through it, but never name the fix.",
-        help,
-        'Otherwise give no hint at all: hintLevel "none". Set askedForHelp only if they asked for help, a hint or what to do next.',
-        phaseCheck,
-      ].join(' ');
-    }
+    case 'turn':
+      return turnInstruction(phase, nextHint);
     case 'ack':
-      return `Acknowledge what the candidate just said in a few words, then hand the floor back. Add nothing and judge nothing. ${phaseCheck}`;
-    case 'suggest-phase': {
-      const offer = `Ask the candidate whether they're ready to ${nextPhaseOffers[reply.next]}. It's an offer; they may say not yet.`;
-      if (!reply.afterDone) return offer;
-      return `The candidate says they're done. First read their code against the reference solution: if it looks wrong, ask them to walk a small example through it (your notes suggest one) instead of pointing at the bug, and make no offer yet. If it looks right, say so in a few words, then: ${offer}`;
-    }
+      return 'The candidate said "not yet" to moving on. Acknowledge it in a few words and hand the floor back.';
+    case 'suggest-phase':
+      return `Ask the candidate whether they're ready to ${nextPhaseOffers[reply.next]}. It's an offer; they may say not yet.`;
     case 'check-in':
       return "The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint, no suggestion, nothing about the approach.";
     case 'move-on':
@@ -93,6 +73,29 @@ function instruction(reply: Reply, nextHint: ReplyPromptInput['nextHint']): stri
         ? "Time is nearly up. Say so, and ask whether they have any questions for you."
         : `The candidate agreed to ${nextPhaseOffers[reply.phase]}. Say a short line that hands it over to them.`;
   }
+}
+
+/**
+ * The candidate finished a turn. What they meant is the model's to understand, however they put it: the
+ * reply's kind, the help it gives and the phase the conversation is in all come back with the words.
+ */
+function turnInstruction(phase: CodingPhase, nextHint: ReplyPromptInput['nextHint']) {
+  const help = nextHint
+    ? `If they asked for help, give only the next rung of the hint ladder, ${nextHint}, in your own words, and set hintLevel to "${nextHint}".`
+    : 'If they asked for help, every rung is given already: say so kindly and repeat the concrete rung in other words, with hintLevel "concrete".';
+  const offers = Object.entries(nextPhaseOffers)
+    .map(([next, offer]) => `${next}: ask if they're ready to ${offer}`)
+    .join('; ');
+  return [
+    "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a real interviewer would. Choose the kind of reply:",
+    `- answer: they asked you something. Answer briefly and correctly from the problem and your notes, only what they asked. If they asked about their code, read it against the reference solution: point them to a case to try, or ask them to walk an example through it, but never name the fix. ${help}`,
+    '- acknowledgement: they told you or showed you something, or are thinking aloud. A few words, then hand the floor back. Add nothing and judge nothing.',
+    `- offer-next-phase: they're done with the ${phase} phase (whether they said so in any words, or their work shows it). If it's their code, first read it against the reference: if it looks wrong, ask them to walk a small example through it instead, and make that an acknowledgement. Otherwise say so in a few words and offer the phase after the one the conversation is in (${offers}).`,
+    'Give no hint unless they asked for help: hintLevel "none". Set askedForHelp only if they asked for help, a hint or what to do next.',
+    "Report the phase the conversation is in now, by what they're actually doing, even if it's ahead of the round's.",
+    'If you offered to move on and they agreed, or they asked to move on (e.g. "should I start coding?") and you agree, report that phase.',
+    'If they moved ahead by themselves, judge it as a real interviewer would: usually go along with it, but if they skipped something that matters (say, coding with no approach discussed), briefly ask them to cover it first, and report that earlier phase.',
+  ].join('\n');
 }
 
 function hintLadder({ hintLadder: ladder }: Problem) {
@@ -137,7 +140,7 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     `Phase: ${phaseNames[input.phase]}, ${Math.floor(input.phaseElapsedMs / 60_000)} min in.`,
     `Recent conversation:\n${conversation || '(nothing said yet)'}`,
     code,
-    `What to say now: ${instruction(input.reply, input.nextHint)}`,
+    `What to say now: ${instruction(input.reply, input.phase, input.nextHint)}`,
     input.correction ? `Your last attempt was rejected: ${input.correction} Write it again.` : null,
     'Reply with only the words you say aloud.',
   ]

@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { createFloorManager, type Decision, fallbackSituation, floorRules, type FloorLogEntry, type Signal, startRound } from './index.ts';
+import {
+  createFloorManager,
+  type Decision,
+  fallbackSituation,
+  floorRules,
+  type FloorLogEntry,
+  type LaterPhase,
+  type Signal,
+  startRound,
+  type TurnReplyKind,
+} from './index.ts';
 import { fakeClock, fakeLog, testLines } from './test/fakes.ts';
+
+/** The test's stand-in for the model's understanding of a sentence. */
+function understood(text: string): { as: TurnReplyKind; agreed: boolean } {
+  if (/^(yes|sure)\b/i.test(text)) return { as: 'ack', agreed: true };
+  if (/that'?s it|i'?m done/i.test(text)) return { as: 'offer', agreed: false };
+  return { as: text.endsWith('?') ? 'answer' : 'ack', agreed: false };
+}
 
 function setup({ skipIntro = true } = {}) {
   const clock = fakeClock(10_000);
@@ -10,11 +27,26 @@ function setup({ skipIntro = true } = {}) {
   const manager = createFloorManager({ clock, round, lines, log });
   // The words for each reply arrive at once, as the example line for it: these tests are about the
   // Floor Manager's timing, not about where the words come from (the interviewer's tests cover that).
+  // What the candidate meant is the model's to understand; here a stand-in reads the test's own sentences.
+  let lastSaid = '';
+  let offered: LaterPhase | null = null;
   const floor = {
     onSignal(signal: Signal): Decision {
+      if (signal.type === 'said') lastSaid = signal.text;
       const decision = manager.onSignal(signal);
       if (decision.kind !== 'preparing') return decision;
-      return manager.onSignal({ type: 'words', line: lines.next(fallbackSituation(decision.reply)) });
+      const line = lines.next(fallbackSituation(decision.reply));
+      let spoken: Decision;
+      if (decision.reply.kind !== 'turn') {
+        spoken = manager.onSignal({ type: 'words', line });
+      } else {
+        const { as, agreed } = understood(lastSaid);
+        // Agreeing to an offer: the model hears the conversation in the offered phase.
+        if (agreed && offered) manager.onSignal({ type: 'phase-reached', phase: offered });
+        spoken = manager.onSignal({ type: 'words', line, as });
+      }
+      if (spoken.kind === 'suggest-phase') offered = spoken.next;
+      return spoken;
     },
   };
 
@@ -96,13 +128,13 @@ describe('the Floor Manager', () => {
     wait(1_000);
 
     expect(log.entries).toEqual([
-      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
-      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
       {
         at: 22_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, idleMs: 800, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, quietAfterTurnMs: null, idleMs: 800, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
       },
     ]);
   });
@@ -151,37 +183,9 @@ describe('the Floor Manager', () => {
       const decisions = wait(1_000).filter((d) => d.kind !== 'silent');
 
       expect(decisions).toEqual([
-        { kind: 'answer', line: 'Good question. You can assume the input fits in memory.', speakingMs: expect.any(Number) },
+        { kind: 'answer', line: expect.any(String), speakingMs: expect.any(Number) },
       ]);
     });
-
-    it.each([
-      'can u see',
-      'what u think',
-      'should i start coding it',
-      'is that fine',
-      'does this look right',
-      'ok so what do you think about a hash map',
-      'Any constraints on the size',
-      'how big can the list get?',
-    ])('takes "%s" as a question, question mark or not', (text) => {
-      const { floor, wait } = setup();
-
-      floor.onSignal({ type: 'said', text });
-
-      expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'answer' });
-    });
-
-    it.each(['I think a hash map works here.', 'ok given a list of integers I would loop twice', 'so it can be empty'])(
-      'takes "%s" as a statement',
-      (text) => {
-        const { floor, wait } = setup();
-
-        floor.onSignal({ type: 'said', text });
-
-        expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'ack' });
-      },
-    );
 
     it('never starts speaking while the candidate is talking again', () => {
       const { floor, wait } = setup();
@@ -258,7 +262,7 @@ describe('the Floor Manager', () => {
       const suggestions = wait(5 * 60_000).filter((d) => d.kind === 'suggest-phase');
 
       expect(suggestions).toEqual([
-        { kind: 'suggest-phase', next: 'approach', afterDone: false, line: 'Want to talk through your approach?', speakingMs: expect.any(Number) },
+        { kind: 'suggest-phase', next: 'approach', line: 'Want to talk through your approach?', speakingMs: expect.any(Number) },
       ]);
       expect(round.snapshot().phase).toBe('clarify'); // a suggestion, not a move
     });
@@ -327,7 +331,7 @@ describe('the Floor Manager', () => {
       floor.onSignal({ type: 'said', text: "I think that's it." });
       const spokenNext = wait(1_000).find((d) => d.kind !== 'silent');
 
-      expect(spokenNext).toMatchObject({ kind: 'suggest-phase', next: 'approach', afterDone: true });
+      expect(spokenNext).toMatchObject({ kind: 'suggest-phase', next: 'approach' });
     });
 
     it('suggests moving on after a long silence once the candidate has finished their turn', () => {
@@ -433,12 +437,12 @@ describe('the Floor Manager', () => {
       expect(kinds).toContain('suggest-phase');
     });
 
-    it('tells the room when carrying on talking withdraws the suggestion', () => {
+    it('tells the room when carrying on, instead of agreeing, withdraws the suggestion', () => {
       const { floor, wait } = suggested();
 
-      floor.onSignal({ type: 'talk-start' });
+      floor.onSignal({ type: 'said', text: 'One more thing about negative numbers.' });
 
-      expect(wait(200).map((d) => d.kind)).toContain('suggestion-withdrawn');
+      expect(wait(1_000).map((d) => d.kind)).toContain('suggestion-withdrawn');
     });
   });
 
