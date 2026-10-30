@@ -78,6 +78,8 @@ function instruction(reply: Reply, nextHint: ReplyPromptInput['nextHint']): stri
       if (!reply.afterDone) return offer;
       return `The candidate says they're done. First read their code against the reference solution: if it looks wrong, ask them to walk a small example through it (your notes suggest one) instead of pointing at the bug, and make no offer yet. If it looks right, say so in a few words, then: ${offer}`;
     }
+    case 'check-in':
+      return "The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint, no suggestion, nothing about the approach.";
     case 'move-on':
       return reply.phase === 'wrap-up'
         ? "Time is nearly up. Say so, and ask whether they have any questions for you."

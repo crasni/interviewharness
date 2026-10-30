@@ -58,6 +58,9 @@ export function testLines() {
 
 ## Wrap-up
 - That's about time. Do you have any questions for me?
+
+## Check-in
+- Want to talk me through where you are?
 `);
 }
 

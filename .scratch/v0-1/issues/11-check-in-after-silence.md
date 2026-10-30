@@ -4,12 +4,12 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] After the idle threshold with a free floor, exactly one check-in is spoken
-- [ ] No second check-in until talking, said or editor activity happens
-- [ ] No check-in while the candidate talks, while the interviewer speaks, or while a phase suggestion is pending
-- [ ] The check-in is logged with its state
-- [ ] Floor Manager tests with the fake clock cover all of the above
+- [x] After the idle threshold with a free floor, exactly one check-in is spoken
+- [x] No second check-in until talking, said or editor activity happens
+- [x] No check-in while the candidate talks, while the interviewer speaks, or while a phase suggestion is pending
+- [x] The check-in is logged with its state
+- [x] Floor Manager tests with the fake clock cover all of the above
 
 Spec: `.scratch/v0-1/spec.md`.

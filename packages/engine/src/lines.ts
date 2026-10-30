@@ -11,6 +11,7 @@ export const SITUATIONS = [
   'suggest-wrap-up',
   'move-on',
   'wrap-up',
+  'check-in',
 ] as const;
 export type Situation = (typeof SITUATIONS)[number];
 

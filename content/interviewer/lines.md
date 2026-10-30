@@ -81,3 +81,11 @@ Opens the last phase.
 
 - That's about time. Do you have any questions for me?
 - We're nearly out of time. Any questions for me?
+
+## Check-in
+
+Said once after a few minutes with no talking or typing. Neutral: never a hint.
+
+- Want to talk me through where you are?
+- How's it going? Feel free to think out loud.
+- Where are you at with it?

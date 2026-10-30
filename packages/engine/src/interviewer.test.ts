@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInterviewer, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, startRound } from './index.ts';
+import { createInterviewer, floorRules as floorRulesForTest, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, startRound } from './index.ts';
 import { fakeClock, fakeLog, type ModelScript, scriptedModel, testLines } from './test/fakes.ts';
 
 const problem: Problem = {
@@ -359,4 +359,14 @@ it('keeps replies short, cutting a long one at a sentence', async () => {
   await settle();
 
   expect(spoken()).toEqual([Array(6).fill(sentence).join(' ')]);
+});
+
+it('checks in, in words the model wrote, after a long silence', async () => {
+  const { wait, spoken, modelCalls } = await afterIntro(['Want to walk me through where you are so far?']);
+
+  wait(floorRulesForTest.checkInAfterIdle);
+  await settle();
+
+  expect(spoken()).toEqual(['Want to walk me through where you are so far?']);
+  expect(modelCalls()).toMatchObject([{ reply: 'check-in', outcome: 'spoken' }]);
 });

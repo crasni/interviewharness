@@ -137,6 +137,8 @@ export function fallbackSituation(reply: Reply): Situation {
       return `suggest-${reply.next}`;
     case 'move-on':
       return reply.phase === 'wrap-up' ? 'wrap-up' : 'move-on';
+    case 'check-in':
+      return 'check-in';
   }
 }
 

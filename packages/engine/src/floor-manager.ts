@@ -37,7 +37,9 @@ export type Reply =
   | { kind: 'intro' }
   /** `afterDone`: the candidate said they're done, so the words react to their work first. */
   | { kind: 'suggest-phase'; next: LaterPhase; afterDone: boolean }
-  | { kind: 'move-on'; phase: LaterPhase };
+  | { kind: 'move-on'; phase: LaterPhase }
+  /** One neutral line after a long stretch with nothing from the candidate. Never a hint. */
+  | { kind: 'check-in' };
 
 /** What the interviewer does at this moment. */
 export type Decision =
@@ -54,6 +56,8 @@ export type Decision =
   | (Spoken<'suggest-phase'> & { next: LaterPhase })
   /** The candidate agreed; the round is now in `phase`. */
   | (Spoken<'move-on'> & { phase: LaterPhase })
+  /** A neutral line after a long silence (GLOSSARY: Check-in). */
+  | Spoken<'check-in'>
   /** Barge-in: the candidate talked or said something over the interviewer, so it stops mid-line. */
   | { kind: 'stop-speaking' }
   /** Barge-in before the words arrived: the reply being prepared is dropped, and nothing was said. */
@@ -80,6 +84,10 @@ export interface FloorState extends PhaseState {
   lastSaid: 'question' | 'statement' | 'done' | null;
   /** Quiet since the interviewer acknowledged the candidate's finished turn, or null. Long enough reads as "done". */
   quietAfterTurnMs: number | null;
+  /** Time since the candidate last talked, said something or typed, or since the interviewer last spoke. */
+  idleMs: number;
+  /** Whether the interviewer has checked in during this stretch of silence. */
+  checkedIn: boolean;
 }
 
 export interface FloorLogEntry {
@@ -121,6 +129,8 @@ export const floorRules = {
    * Only after a statement: after answering a question, the candidate is likely still thinking.
    */
   doneAfterSilence: 15_000,
+  /** A stretch with no talking, saying or typing after which the interviewer checks in, once (GLOSSARY: Check-in). */
+  checkInAfterIdle: 150_000,
 };
 
 /** Words that mean the candidate is done with the current phase. */
@@ -152,6 +162,9 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   // A suggestion was withdrawn while handling a candidate signal; the next tick tells the room.
   let withdrawalToAnnounce = false;
   let ended = false;
+  // The last time the candidate did something, or the interviewer finished speaking; and whether it checked in since.
+  let activeAt = openedAt;
+  let checkedIn = false;
 
   const isSpeaking = (now: number) => speakingUntil !== null && now < speakingUntil;
 
@@ -165,6 +178,8 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       sinceBackchannelMs: lastBackchannelAt === null ? null : now - lastBackchannelAt,
       lastSaid,
       quietAfterTurnMs: turnClosedAt === null ? null : now - turnClosedAt,
+      idleMs: now - activeAt,
+      checkedIn,
       ...phases.state(now),
     };
   }
@@ -235,9 +250,18 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     return turnClosedAt !== null && now - turnClosedAt >= floorRules.doneAfterSilence ? 'quiet-after-turn' : 'none';
   }
 
+  /** The candidate did something: the silence that would earn a check-in starts over. */
+  function active(now: number) {
+    activeAt = now;
+    checkedIn = false;
+  }
+
   /** Returns the decision, and whether it is worth logging. */
   function decide(signal: Signal, now: number): [Decision, boolean] {
     if (ended) return [silent, false];
+    if (signal.type === 'talk-start' || signal.type === 'said' || signal.type === 'editor-activity' || signal.type === 'phase-answer') {
+      active(now);
+    }
     switch (signal.type) {
       case 'round-end':
         ended = true;
@@ -310,6 +334,7 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     }
     if (speakingUntil !== null && !isSpeaking(now)) {
       speakingUntil = null;
+      activeAt = Math.max(activeAt, now); // the candidate's silence starts when the interviewer stops
       if (speakingAck && talkingSince === null && responseDueAt === null) turnClosedAt = now;
       return [{ kind: 'done-speaking' }, true];
     }
@@ -322,6 +347,10 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     }
     const next = floorIsFree ? phases.toOffer(now, moveOnCue(now)) : null;
     if (next) return [suggest(now, next), true];
+    if (floorIsFree && !phases.suggested && !checkedIn && now - activeAt >= floorRules.checkInAfterIdle) {
+      checkedIn = true;
+      return [prepare({ kind: 'check-in' }), true];
+    }
 
     // A quiet tick ten times a second would bury the decisions worth replaying,
     // so only the tick that weighs a pause is logged, whatever it decides.

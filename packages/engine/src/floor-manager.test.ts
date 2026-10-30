@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFloorManager, type Decision, fallbackSituation, type FloorLogEntry, type Signal, startRound } from './index.ts';
+import { createFloorManager, type Decision, fallbackSituation, floorRules, type FloorLogEntry, type Signal, startRound } from './index.ts';
 import { fakeClock, fakeLog, testLines } from './test/fakes.ts';
 
 function setup({ skipIntro = true } = {}) {
@@ -96,13 +96,13 @@ describe('the Floor Manager', () => {
     wait(1_000);
 
     expect(log.entries).toEqual([
-      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
-      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 0, checkedIn: false, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, idleMs: 2_000, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
       {
         at: 22_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, idleMs: 2_800, checkedIn: false, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
       },
     ]);
   });
@@ -451,5 +451,61 @@ describe('the Floor Manager', () => {
       });
       expect(wait(60 * 60_000).every((d) => d.kind === 'silent')).toBe(true);
     });
+  });
+});
+
+describe('the check-in', () => {
+  const checkIns = (decisions: Decision[]) => decisions.filter((d) => d.kind === 'check-in');
+
+  it('says one neutral line after a long stretch with no talking, saying or typing', () => {
+    const { wait } = setup();
+
+    const decisions = wait(floorRules.checkInAfterIdle + 1_000);
+
+    expect(checkIns(decisions)).toEqual([{ kind: 'check-in', line: 'Want to talk me through where you are?', speakingMs: expect.any(Number) }]);
+  });
+
+  it('checks in only once, until the candidate does something', () => {
+    const { floor, wait } = setup();
+    wait(floorRules.checkInAfterIdle + 1_000);
+
+    expect(checkIns(wait(2 * floorRules.checkInAfterIdle))).toHaveLength(0);
+
+    // Offers to move on come and go meanwhile; each restarts the silence, so allow time for one more check-in.
+    floor.onSignal({ type: 'editor-activity' });
+    expect(checkIns(wait(2 * floorRules.checkInAfterIdle))).toHaveLength(1);
+  });
+
+  it('counts typing as doing something', () => {
+    const { floor, wait } = setup();
+    const decisions = [];
+
+    for (let i = 0; i < 10; i++) {
+      decisions.push(...wait(30_000));
+      floor.onSignal({ type: 'editor-activity' });
+    }
+
+    expect(checkIns(decisions)).toHaveLength(0);
+  });
+
+  it('never checks in while the candidate is talking', () => {
+    const { floor, wait } = setup();
+    floor.onSignal({ type: 'talk-start' });
+
+    expect(checkIns(wait(3 * floorRules.checkInAfterIdle))).toHaveLength(0);
+  });
+
+  it('logs each check-in with the state behind it: a free floor, after the idle time', () => {
+    const { log, wait } = setup();
+
+    wait(30 * 60_000); // long enough for check-ins and suggestions to come and go
+
+    // The moment it decided to check in, before the words arrived.
+    const logged = log.entries.filter((e) => e.decision.kind === 'preparing' && e.decision.reply.kind === 'check-in');
+    expect(logged.length).toBeGreaterThan(0);
+    for (const entry of logged) {
+      expect(entry.state).toMatchObject({ suggestedPhase: null, talking: false, interviewerSpeaking: false });
+      expect(entry.state.idleMs).toBeGreaterThanOrEqual(floorRules.checkInAfterIdle);
+    }
   });
 });
