@@ -4,8 +4,8 @@ export { createLineBook, SITUATIONS } from './lines.ts';
 export type { LineBook, Situation } from './lines.ts';
 export { createFloorManager, floorRules } from './floor-manager.ts';
 export type { CodeSnapshot, TurnReplyKind, Decision, FloorLog, FloorLogEntry, FloorManager, FloorManagerOptions, FloorState, Reply, Signal, Spoken } from './floor-manager.ts';
-export { createInterviewer, fallbackSituation, hintLevels, replyRules } from './interviewer.ts';
-export type { HintLevel, Interviewer, InterviewerEvent, InterviewerOptions, ModelCallEntry, Rejection, RoundLog, RoundLogEntry } from './interviewer.ts';
+export { candidateTurns, createInterviewer, fallbackSituation, hintLevels, replyRules } from './interviewer.ts';
+export type { CandidateTurn, HintLevel, Interviewer, InterviewerEvent, InterviewerOptions, ModelCallEntry, Rejection, RoundLog, RoundLogEntry } from './interviewer.ts';
 export { ModelError, modelErrorKind } from './model.ts';
 export type {
   Model,

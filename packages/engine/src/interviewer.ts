@@ -40,42 +40,68 @@ export type HintLevel = (typeof hintLevels)[number];
 const rungs: (keyof HintLadder)[] = ['nudge', 'question', 'concrete'];
 
 /** Why an attempt at a reply's words was thrown away and written again. */
-export type Rejection = 'hint-unasked' | 'hint-skipped-rung' | 'solution-leak';
+export type Rejection = 'hint-unasked' | 'hint-skipped-rung' | 'hint-too-concrete' | 'solution-leak';
 
 const corrections: Record<Rejection, string> = {
   'hint-unasked': "it gave a hint the candidate didn't ask for. Answer only what they asked, with no hint.",
   'hint-skipped-rung': 'it gave more help than the next rung of the hint ladder. Give only that rung.',
+  'hint-too-concrete': "it gave the concrete hint when they hadn't asked for help. Give a smaller insight, or none.",
   'solution-leak': 'it quoted the reference solution. Never quote or describe its code.',
 };
 
+/**
+ * What the candidate is doing with a turn, as the model hears it (ADR 0017). The reply follows from it,
+ * and so does how much help may be given: a hint only when they ask for help or sound stuck.
+ */
+export const candidateTurns = [
+  'thinking-aloud',
+  'murmur',
+  'clarifying-question',
+  'seeking-affirmation',
+  'asking-for-help',
+  'stuck',
+  'explaining',
+  'done',
+  'answering-interviewer',
+  'agreeing',
+  'declining',
+  'small-talk',
+] as const;
+export type CandidateTurn = (typeof candidateTurns)[number];
+
 /** How the model labels its reply to a turn, in the words its schema uses. */
-const turnKinds = { answer: 'answer', acknowledgement: 'ack', 'offer-next-phase': 'offer' } as const satisfies Record<string, TurnReplyKind>;
+const turnKinds = {
+  answer: 'answer',
+  acknowledgement: 'ack',
+  'offer-next-phase': 'offer',
+  backchannel: 'backchannel',
+  'stay-quiet': 'quiet',
+} as const satisfies Record<string, TurnReplyKind>;
 type TurnKindName = keyof typeof turnKinds;
 
 /**
- * A reply to the candidate's turn, structured so code can act on what the model understood: what kind of
- * reply it is, how much help it gave (checked before it's said), and the phase the conversation is really in.
+ * A reply to the candidate's turn, structured so code can act on what the model understood: what the
+ * candidate was doing, what kind of reply fits, how much help it gives (checked before it's said), and
+ * the phase the conversation is really in.
  */
 interface TurnWords {
-  words: string;
+  heard: CandidateTurn;
   kind: TurnKindName;
-  askedForHelp: boolean;
+  words: string;
   hintLevel: HintLevel;
   phase: CodingPhase;
 }
+
+const oneOf = <T extends string>(values: readonly T[], value: unknown): value is T => values.includes(value as T);
 
 const turnSchema: ObjectSchema<TurnWords> = {
   name: 'say',
   jsonSchema: {
     type: 'object',
     properties: {
-      words: { type: 'string', description: 'What you say aloud.' },
-      kind: {
-        type: 'string',
-        enum: Object.keys(turnKinds),
-        description: 'answer: they asked you something. acknowledgement: they told or showed you something. offer-next-phase: they are done with this phase.',
-      },
-      askedForHelp: { type: 'boolean', description: 'Whether the candidate asked for help, a hint or what to do next.' },
+      heard: { type: 'string', enum: [...candidateTurns], description: 'What the candidate is doing with this turn.' },
+      kind: { type: 'string', enum: Object.keys(turnKinds), description: 'The kind of reply that fits.' },
+      words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
       hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
       phase: {
         type: 'string',
@@ -83,23 +109,44 @@ const turnSchema: ObjectSchema<TurnWords> = {
         description: "The phase the conversation is in now, by what the candidate is actually doing: it may be ahead of the round's.",
       },
     },
-    required: ['words', 'kind', 'askedForHelp', 'hintLevel', 'phase'],
+    required: ['heard', 'kind', 'words', 'hintLevel', 'phase'],
     additionalProperties: false,
   },
   parse(value) {
-    const { words, kind, askedForHelp, hintLevel, phase } = (value ?? {}) as Record<string, unknown>;
+    const { heard, kind, words, hintLevel, phase } = (value ?? {}) as Record<string, unknown>;
     if (
+      !oneOf(candidateTurns, heard) ||
+      !oneOf(Object.keys(turnKinds) as TurnKindName[], kind) ||
       typeof words !== 'string' ||
-      !Object.hasOwn(turnKinds, kind as string) ||
-      typeof askedForHelp !== 'boolean' ||
-      !hintLevels.includes(hintLevel as HintLevel) ||
-      !CODING_PHASES.includes(phase as CodingPhase)
+      !oneOf(hintLevels, hintLevel) ||
+      !oneOf(CODING_PHASES, phase)
     ) {
       throw new Error(
-        `Expected words (a string), kind (${Object.keys(turnKinds).join(', ')}), askedForHelp (true or false), hintLevel (${hintLevels.join(', ')}) and phase (${CODING_PHASES.join(', ')})`,
+        `Expected heard (${candidateTurns.join(', ')}), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}) and phase (${CODING_PHASES.join(', ')})`,
       );
     }
-    return { words, kind: kind as TurnKindName, askedForHelp, hintLevel: hintLevel as HintLevel, phase: phase as CodingPhase };
+    return { heard, kind, words, hintLevel, phase };
+  },
+};
+
+/** A check-in comes back structured too, so the help in it can be checked like any other. */
+const checkInSchema: ObjectSchema<{ words: string; hintLevel: HintLevel }> = {
+  name: 'say',
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      words: { type: 'string', description: 'What you say aloud.' },
+      hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
+    },
+    required: ['words', 'hintLevel'],
+    additionalProperties: false,
+  },
+  parse(value) {
+    const { words, hintLevel } = (value ?? {}) as Record<string, unknown>;
+    if (typeof words !== 'string' || !oneOf(hintLevels, hintLevel)) {
+      throw new Error(`Expected words (a string) and hintLevel (${hintLevels.join(', ')})`);
+    }
+    return { words, hintLevel };
   },
 };
 
@@ -122,9 +169,10 @@ export interface ModelCallEntry {
     outcome: 'spoken' | 'failed' | 'replaced' | 'aborted' | 'late-reply-dropped';
     error?: ModelErrorKind;
     usage?: ModelUsage;
-    /** For a reply to a turn: the kind of reply the model chose. */
+    /** For a reply to a turn: what the model heard the candidate doing, and the kind of reply it chose. */
+    heard?: CandidateTurn;
     turnReply?: TurnKindName;
-    /** For a reply to a turn: whether the candidate asked for help, and the hint rung given. Grading reads this. */
+    /** Whether the candidate asked for help, and the hint rung given. Grading reads this. */
     hint?: { askedForHelp: boolean; level: HintLevel };
     /** Attempts thrown away before the words were said (or replaced), and why. */
     rejected?: Rejection[];
@@ -163,14 +211,9 @@ export interface InterviewerOptions {
 export function fallbackSituation(reply: Reply): Situation {
   switch (reply.kind) {
     case 'turn':
-    case 'ack':
       return 'acknowledgement';
     case 'intro':
       return reply.kind;
-    case 'suggest-phase':
-      return `suggest-${reply.next}`;
-    case 'move-on':
-      return reply.phase === 'wrap-up' ? 'wrap-up' : 'move-on';
     case 'check-in':
       return 'check-in';
   }
@@ -231,9 +274,6 @@ export function createInterviewer(options: InterviewerOptions) {
     if (decision.kind === 'silent') return;
     if (decision.kind === 'stop-preparing') abandon('aborted');
     if ('speakingMs' in decision) line('interviewer', decision.line);
-    if (decision.kind === 'preparing' && decision.reply.kind === 'move-on') {
-      phases.push({ phase: decision.reply.phase, atMs: round.snapshot().elapsedMs });
-    }
     if (decision.kind === 'phase-moved') phases.push({ phase: decision.phase, atMs: round.snapshot().elapsedMs });
     onEvent(decision);
     if (decision.kind === 'preparing') requestWords(decision.reply);
@@ -268,26 +308,41 @@ export function createInterviewer(options: InterviewerOptions) {
     const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
+      const askedForHelp = object.heard === 'asking-for-help';
       return {
         words: object.words.trim(),
         usage,
+        heard: object.heard,
         kind: object.kind,
         phase: object.phase,
-        hint: { askedForHelp: object.askedForHelp, level: object.hintLevel },
-      };
+        hint: { askedForHelp, level: object.hintLevel },
+        // Help comes only when asked for, or, a little at a time, when they're stuck: never the answer.
+        mayHint: askedForHelp ? 'any' : object.heard === 'stuck' ? 'small' : 'none',
+      } as const;
+    }
+    if (call.reply.kind === 'check-in') {
+      const { object, usage } = await model!.generateObject({ ...request, schema: checkInSchema });
+      // The first check-in in a silence only checks in; later ones may offer a small insight if they're stuck.
+      const mayHint = call.reply.nth > 1 ? 'small' : 'none';
+      return { words: object.words.trim(), usage, hint: { askedForHelp: false, level: object.hintLevel }, mayHint } as const;
     }
     const { text, usage } = await model!.streamText(request);
-    return { words: text.trim(), usage };
+    return { words: text.trim(), usage, mayHint: 'none' } as const;
   }
 
-  /** What's wrong with an attempt's words, if anything: help that wasn't asked for or skips a rung, or a leak. */
-  function rejection({ words, hint }: Awaited<ReturnType<typeof attempt>>): Rejection | null {
-    if (hint && hint.level !== 'none') {
-      if (!hint.askedForHelp) return 'hint-unasked';
+  /**
+   * What's wrong with an attempt's words, if anything: help that wasn't asked for (or, when they're stuck,
+   * more than a small insight), help that skips a rung, or a leak of the solution.
+   */
+  function rejection(written: Awaited<ReturnType<typeof attempt>>): Rejection | null {
+    const level = 'hint' in written && written.hint ? written.hint.level : 'none';
+    if (level !== 'none') {
+      if (written.mayHint === 'none') return 'hint-unasked';
+      if (written.mayHint === 'small' && level === 'concrete') return 'hint-too-concrete';
       const allowed = Math.max(1, rungs.indexOf(nextHint() ?? 'concrete') + 1);
-      if (hintLevels.indexOf(hint.level) > allowed) return 'hint-skipped-rung';
+      if (hintLevels.indexOf(level) > allowed) return 'hint-skipped-rung';
     }
-    return quotesSolution(words, options.problem.reference.code) ? 'solution-leak' : null;
+    return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
   }
 
   /** Writes a reply's words: a rejected attempt is written once more, and then given up for the fallback line. */
@@ -297,7 +352,8 @@ export function createInterviewer(options: InterviewerOptions) {
       // A barge-in or the time limit may have ended this reply while the last attempt was checked.
       if (call.controller.signal.aborted) throw new ModelError('aborted');
       const written = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
-      if (!written.words) throw new ModelError('bad-output', 'The reply was empty');
+      const staysQuiet = 'kind' in written && written.kind === 'stay-quiet';
+      if (!written.words && !staysQuiet) throw new ModelError('bad-output', 'The reply was empty');
       const problem = rejection(written);
       if (!problem) return { written: { ...written, words: capped(written.words) }, rejected };
       rejected.push(problem);
@@ -326,7 +382,8 @@ export function createInterviewer(options: InterviewerOptions) {
         }
         logCall(call, 'spoken', {
           usage: written.usage,
-          ...(written.kind ? { turnReply: written.kind } : {}),
+          ...('heard' in written && written.heard ? { heard: written.heard } : {}),
+          ...('kind' in written && written.kind ? { turnReply: written.kind } : {}),
           ...(written.hint ? { hint: written.hint } : {}),
           ...(written.phase ? { phase: written.phase } : {}),
           ...extra,

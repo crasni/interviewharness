@@ -103,9 +103,11 @@ async function saveTraceIfFailed(app: ElectronApplication) {
 
 /** Scripted replies to a candidate's turn, as the model gives them: an answer, an acknowledgement or an offer to move on. */
 export const turnReply = {
-  answer: (words: string) => ({ object: { words, kind: 'answer', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }),
-  ack: (words: string) => ({ object: { words, kind: 'acknowledgement', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }),
-  offer: (words: string) => ({ object: { words, kind: 'offer-next-phase', askedForHelp: false, hintLevel: 'none', phase: 'clarify' } }),
+  answer: (words: string) => ({ object: { words, heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', phase: 'clarify' } }),
+  ack: (words: string) => ({ object: { words, heard: 'explaining', kind: 'acknowledgement', hintLevel: 'none', phase: 'clarify' } }),
+  offer: (words: string) => ({ object: { words, heard: 'done', kind: 'offer-next-phase', hintLevel: 'none', phase: 'clarify' } }),
+  /** The candidate agreed to move on: the model hears the conversation in `phase`. */
+  agreed: (words: string, phase: string) => ({ object: { words, heard: 'agreeing', kind: 'acknowledgement', hintLevel: 'none', phase } }),
 };
 
 /** An intro long enough to talk over, as launchIntoRoom does. */

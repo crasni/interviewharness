@@ -1,5 +1,5 @@
 import type { LineBook } from './lines.ts';
-import { createPhaseGuide, type MoveOnCue, type PhaseState } from './phases.ts';
+import { createPhaseGuide, type PhaseState } from './phases.ts';
 import type { Clock, LaterPhase, Round } from './round.ts';
 
 /** Something the candidate did, or the passing of time. */
@@ -8,8 +8,6 @@ export type Signal =
   | { type: 'talk-end' }
   /** The candidate's words for their turn (typed for now), with their code as it stood; ends their turn. */
   | { type: 'said'; text: string; code?: CodeSnapshot }
-  /** The candidate's answer to a suggestion to move on: "Move on" or "Not yet". */
-  | { type: 'phase-answer'; accept: boolean }
   /** The candidate is typing in the code editor. Sent at most about once a second. */
   | { type: 'editor-activity' }
   | { type: 'tick' }
@@ -34,9 +32,10 @@ export type Spoken<K extends string> = { kind: K; line: string; speakingMs: numb
 
 /**
  * How the interviewer replies to a candidate's turn. The model decides, from what they said and did:
- * answer a question (however it's worded), acknowledge, or offer to move on because they're done.
+ * answer, acknowledge, offer the next phase because they said they're done, give a brief "mm-hm"
+ * without taking the floor, or stay quiet (they're thinking aloud).
  */
-export type TurnReplyKind = 'answer' | 'ack' | 'offer';
+export type TurnReplyKind = 'answer' | 'ack' | 'offer' | 'backchannel' | 'quiet';
 
 /**
  * A reply the Floor Manager has decided to give, before its words exist. The moment is the Floor
@@ -45,13 +44,12 @@ export type TurnReplyKind = 'answer' | 'ack' | 'offer';
 export type Reply =
   /** A reply to the candidate's finished turn. */
   | { kind: 'turn' }
-  /** A short acknowledgement of "Not yet". */
-  | { kind: 'ack' }
   | { kind: 'intro' }
-  | { kind: 'suggest-phase'; next: LaterPhase }
-  | { kind: 'move-on'; phase: LaterPhase }
-  /** One neutral line after a long stretch with nothing from the candidate. Never a hint. */
-  | { kind: 'check-in' };
+  /**
+   * A line after a long stretch with nothing from the candidate. The `nth` in this stretch of silence:
+   * the first only checks in; later ones may offer the smallest next hint if they seem stuck.
+   */
+  | { kind: 'check-in'; nth: number };
 
 /** What the interviewer does at this moment. */
 export type Decision =
@@ -64,12 +62,12 @@ export type Decision =
   | Spoken<'answer'>
   /** Opens the round: greets the candidate and explains the format. */
   | Spoken<'intro'>
-  /** Offers to move to the next phase. Only the candidate's agreement moves it. */
+  /** Offers the next phase after the candidate said they're done. Only their agreement moves it. */
   | (Spoken<'suggest-phase'> & { next: LaterPhase })
-  /** The candidate agreed; the round is now in `phase`. */
-  | (Spoken<'move-on'> & { phase: LaterPhase })
-  /** A neutral line after a long silence (GLOSSARY: Check-in). */
-  | Spoken<'check-in'>
+  /** A line after a long silence (GLOSSARY: Check-in). */
+  | (Spoken<'check-in'> & { nth: number })
+  /** The model heard the turn as thinking aloud or a murmur: the interviewer keeps listening. */
+  | { kind: 'quiet' }
   /** Barge-in: the candidate talked or said something over the interviewer, so it stops mid-line. */
   | { kind: 'stop-speaking' }
   /** Barge-in before the words arrived: the reply being prepared is dropped, and nothing was said. */
@@ -94,12 +92,10 @@ export interface FloorState extends PhaseState {
   silenceMs: number | null;
   /** Time since the last backchannel, or null if there hasn't been one. */
   sinceBackchannelMs: number | null;
-  /** Quiet since the interviewer acknowledged the candidate's finished turn, or null. Long enough reads as "done". */
-  quietAfterTurnMs: number | null;
   /** Time since the candidate last talked, said something or typed, or since the interviewer last spoke. */
   idleMs: number;
-  /** Whether the interviewer has checked in during this stretch of silence. */
-  checkedIn: boolean;
+  /** How many times the interviewer has checked in during this stretch of silence. */
+  checkIns: number;
 }
 
 export interface FloorLogEntry {
@@ -137,11 +133,9 @@ export const floorRules = {
   /** A moment of quiet after the round opens before the intro, so it doesn't start mid-click. */
   introAfter: 1_000,
   /**
-   * Quiet after the interviewer acknowledges a finished turn that reads as "done with this phase".
-   * Only after an acknowledgement: after an answer, the candidate is likely still thinking.
+   * A stretch with no talking, saying or typing after which the interviewer checks in (GLOSSARY: Check-in).
+   * Each further check-in in the same silence waits twice as long: 2.5 min, then 5, then 10.
    */
-  doneAfterSilence: 15_000,
-  /** A stretch with no talking, saying or typing after which the interviewer checks in, once (GLOSSARY: Check-in). */
   checkInAfterIdle: 150_000,
 };
 
@@ -162,15 +156,12 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
   let speakingUntil: number | null = null;
   // The reply whose words are on their way.
   let preparing: Reply | null = null;
-  // Whether the line being spoken acknowledges a finished turn; the quiet after it may mean "done".
-  let speakingAck = false;
-  let turnClosedAt: number | null = null;
   // A suggestion was withdrawn while handling a candidate signal; the next tick tells the room.
   let withdrawalToAnnounce = false;
   let ended = false;
-  // The last time the candidate did something, or the interviewer finished speaking; and whether it checked in since.
+  // The last time the candidate did something, or the interviewer finished speaking; and its check-ins since.
   let activeAt = openedAt;
-  let checkedIn = false;
+  let checkIns = 0;
 
   const isSpeaking = (now: number) => speakingUntil !== null && now < speakingUntil;
 
@@ -182,9 +173,8 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       talkMs: talkingSince !== null ? now - talkingSince : talkMs,
       silenceMs: silentSince === null ? null : now - silentSince,
       sinceBackchannelMs: lastBackchannelAt === null ? null : now - lastBackchannelAt,
-      quietAfterTurnMs: turnClosedAt === null ? null : now - turnClosedAt,
       idleMs: now - activeAt,
-      checkedIn,
+      checkIns,
       ...phases.state(now),
     };
   }
@@ -207,19 +197,6 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     return prepare({ kind: 'turn' });
   }
 
-  function suggest(now: number, next: LaterPhase) {
-    phases.offer(next, now);
-    turnClosedAt = null;
-    return prepare({ kind: 'suggest-phase', next });
-  }
-
-  function moveOn(): Decision {
-    const phase = phases.accept();
-    if (!phase) return silent;
-    turnClosedAt = null; // a new phase starts fresh: quiet now is not "done" with it
-    return prepare({ kind: 'move-on', phase });
-  }
-
   /** The interviewer takes the floor now, and holds it quietly until the words arrive. */
   function prepare(reply: Reply): Decision {
     preparing = reply;
@@ -233,16 +210,20 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     if (!preparing) return silent; // too late: a barge-in or the round's end already dropped this reply
     const reply = preparing;
     preparing = null;
+    // Thinking aloud or a murmur: the interviewer keeps listening, or nods without taking the floor.
+    if (reply.kind === 'turn' && as === 'quiet') return { kind: 'quiet' };
+    if (reply.kind === 'turn' && as === 'backchannel') {
+      lastBackchannelAt = now;
+      return { kind: 'backchannel', line };
+    }
     const speakingMs = speakingTime(line);
     speakingUntil = now + speakingMs;
-    speakingAck = false;
     if (reply.kind !== 'turn') return { ...reply, line, speakingMs } as Decision;
 
     // An offer to move on needs a phase to move to; with none left (or one already offered), it's an acknowledgement.
     const next = as === 'offer' ? phases.toOffer(now, 'candidate-said-done') : null;
     if (next) {
       phases.offer(next, now);
-      turnClosedAt = null;
       return { kind: 'suggest-phase', next, line, speakingMs };
     }
     // A reply that didn't take the candidate on to a new phase leaves a pending offer unaccepted: "not yet".
@@ -250,24 +231,19 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       phases.notYet(now);
       withdrawalToAnnounce = true;
     }
-    speakingAck = as !== 'answer';
     return { kind: as === 'answer' ? 'answer' : 'ack', line, speakingMs };
-  }
-
-  function moveOnCue(now: number): MoveOnCue {
-    return turnClosedAt !== null && now - turnClosedAt >= floorRules.doneAfterSilence ? 'quiet-after-turn' : 'none';
   }
 
   /** The candidate did something: the silence that would earn a check-in starts over. */
   function active(now: number) {
     activeAt = now;
-    checkedIn = false;
+    checkIns = 0;
   }
 
   /** Returns the decision, and whether it is worth logging. */
   function decide(signal: Signal, now: number): [Decision, boolean] {
     if (ended) return [silent, false];
-    if (signal.type === 'talk-start' || signal.type === 'talk-end' || signal.type === 'said' || signal.type === 'editor-activity' || signal.type === 'phase-answer') {
+    if (signal.type === 'talk-start' || signal.type === 'talk-end' || signal.type === 'said' || signal.type === 'editor-activity') {
       active(now);
     }
     switch (signal.type) {
@@ -281,7 +257,6 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
         return [silent, true];
 
       case 'talk-start':
-        turnClosedAt = null; // talking is not the quiet that reads as done
         talkingSince = now;
         silentSince = null;
         responseDueAt = null; // they kept the floor: the response they were owed no longer fits
@@ -300,30 +275,19 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       case 'said': {
         if (!signal.text.trim()) return [silent, true];
         // A pending offer to move on stays open: the reply to these words says whether they took it.
-        turnClosedAt = null;
         silentSince = null; // their turn is over: no backchannel for this pause
         responseDueAt = now + floorRules.respondAfter;
         return [bargeIn(now), true];
       }
 
-      case 'phase-answer':
-        if (!phases.suggested) return [silent, true];
-        if (signal.accept) return [moveOn(), true];
-        phases.notYet(now);
-        withdrawalToAnnounce = true;
-        return [prepare({ kind: 'ack' }), true];
-
       case 'editor-activity':
-        // Coding is not silence: restart the quiet that would read as "done". It answers no suggestion.
-        if (turnClosedAt !== null) turnClosedAt = now;
-        return [silent, true];
+        return [silent, true]; // coding is not silence: it restarts the wait for a check-in (above)
 
       case 'words':
         return [speak(now, signal.line, signal.as), true];
 
       case 'phase-reached':
         if (!phases.reach(signal.phase)) return [silent, true];
-        turnClosedAt = null; // a new phase starts fresh: quiet now is not "done" with it
         return [{ kind: 'phase-moved', phase: signal.phase }, true];
 
       case 'tick':
@@ -343,7 +307,6 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
     if (speakingUntil !== null && !isSpeaking(now)) {
       speakingUntil = null;
       activeAt = Math.max(activeAt, now); // the candidate's silence starts when the interviewer stops
-      if (speakingAck && talkingSince === null && responseDueAt === null) turnClosedAt = now;
       return [{ kind: 'done-speaking' }, true];
     }
     if (responseDueAt !== null && talkingSince === null && now >= responseDueAt) return [respond(), true];
@@ -353,11 +316,11 @@ export function createFloorManager({ clock, round, lines, log }: FloorManagerOpt
       phases.notYet(now); // nobody answered: same as "not yet"
       return [{ kind: 'suggestion-withdrawn' }, true];
     }
-    const next = floorIsFree ? phases.toOffer(now, moveOnCue(now)) : null;
-    if (next) return [suggest(now, next), true];
-    if (floorIsFree && !phases.suggested && !checkedIn && now - activeAt >= floorRules.checkInAfterIdle) {
-      checkedIn = true;
-      return [prepare({ kind: 'check-in' }), true];
+    // The interviewer never pushes a phase on the clock: the candidate drives the round. It only checks in on
+    // a long silence, waiting longer each time, so a stuck candidate can be helped a little at a time.
+    if (floorIsFree && !phases.suggested && now - activeAt >= floorRules.checkInAfterIdle * 2 ** checkIns) {
+      checkIns += 1;
+      return [prepare({ kind: 'check-in', nth: checkIns }), true];
     }
 
     // A quiet tick ten times a second would bury the decisions worth replaying,

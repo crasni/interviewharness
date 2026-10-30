@@ -34,7 +34,7 @@ const rules = `You are the interviewer in a live mock coding interview. The cand
 Rules:
 - You decide only the words. When to speak and what kind of reply to give have already been decided; give exactly that kind of reply.
 - Speak as a person talks: one to three short sentences, plain words, no markdown, no lists, no code.
-- Never give a hint, an approach or any part of the solution unless the candidate asks for help. Answer only what was asked.
+- Never give the answer, the approach or any part of the solution. Help only when the candidate asks for it, or, a small insight at a time, when they're stuck.
 - Comment on the candidate's code only when they say they're done, or ask you about it directly.
 - Don't praise or judge the candidate's ideas while the round is going on.
 - Stay in role all round: you are the interviewer, not an assistant.`;
@@ -62,40 +62,44 @@ function instruction(reply: Reply, phase: CodingPhase, nextHint: ReplyPromptInpu
       return 'Open the round: greet the candidate briefly, say this is a 45-minute coding round, and invite them to read the problem and ask any clarifying questions.';
     case 'turn':
       return turnInstruction(phase, nextHint);
-    case 'ack':
-      return 'The candidate said "not yet" to moving on. Acknowledge it in a few words and hand the floor back.';
-    case 'suggest-phase':
-      return `Ask the candidate whether they're ready to ${nextPhaseOffers[reply.next]}. It's an offer; they may say not yet.`;
     case 'check-in':
-      return "The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint, no suggestion, nothing about the approach.";
-    case 'move-on':
-      return reply.phase === 'wrap-up'
-        ? "Time is nearly up. Say so, and ask whether they have any questions for you."
-        : `The candidate agreed to ${nextPhaseOffers[reply.phase]}. Say a short line that hands it over to them.`;
+      return reply.nth === 1
+        ? 'The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint. hintLevel "none".'
+        : `The candidate is still quiet and idle after you checked in. If the conversation shows they're stuck, you may offer the smallest next insight from the hint ladder (${nextHint && nextHint !== 'concrete' ? `rung ${nextHint}, in your own words, with hintLevel "${nextHint}"` : 'none is left that small: just check in'}); never the concrete rung, never the answer. If they seem to be working, just check in gently with hintLevel "none".`;
   }
 }
 
+/** How a good interviewer answers each kind of turn (ADR 0017). The model picks the kind; code checks the help. */
+const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-quiet, or a backchannel like "mm-hm". Never interrupt their thinking.
+- murmur (a filler, a stray word, a typo, noise): stay-quiet.
+- clarifying-question (about the problem): answer briefly and factually from the problem and your notes. Only what they asked.
+- seeking-affirmation ("does that sound right?"): don't grade mid-round. If the direction is sound, a short "sounds reasonable, go ahead". If it isn't, ask one probing question (say, a case to try), never the fix.
+- asking-for-help (a hint, what to do next): give only the next rung of the hint ladder, in your own words.
+- stuck (unsure how to go on, circling, "I don't know"): offer the smallest insight that might help, the next rung at most and never the concrete one, or a question that helps them think. Never the answer.
+- explaining (their plan, approach or code): a short acknowledgement, or one follow-up question if something important is missing (complexity, an edge case).
+- done (finished a phase or the code, in any words): if it's their code, read it against the reference. If it looks wrong, ask them to walk a small example through it. If it looks right, say so briefly and offer the next phase.
+- answering-interviewer (answering your question): acknowledge it, or one follow-up if it's incomplete.
+- agreeing (to your offer or suggestion): a short line that hands the floor back, in the new phase.
+- declining or carrying on: a short acknowledgement; they keep going.
+- small-talk (logistics, "can you see my code?", thanks): a brief, natural reply.`;
+
 /**
  * The candidate finished a turn. What they meant is the model's to understand, however they put it: the
- * reply's kind, the help it gives and the phase the conversation is in all come back with the words.
+ * kind of turn, the reply that fits, the help it gives and the phase the conversation is in all come back with the words.
  */
 function turnInstruction(phase: CodingPhase, nextHint: ReplyPromptInput['nextHint']) {
-  const help = nextHint
-    ? `If they asked for help, give only the next rung of the hint ladder, ${nextHint}, in your own words, and set hintLevel to "${nextHint}".`
-    : 'If they asked for help, every rung is given already: say so kindly and repeat the concrete rung in other words, with hintLevel "concrete".';
+  const next = nextHint ? `The next rung is ${nextHint}.` : 'Every rung is given already: if they ask again, repeat the concrete rung in other words.';
   const offers = Object.entries(nextPhaseOffers)
-    .map(([next, offer]) => `${next}: ask if they're ready to ${offer}`)
+    .map(([later, offer]) => `${later}: ${offer}`)
     .join('; ');
   return [
-    "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a real interviewer would. Choose the kind of reply:",
-    `- answer: they asked you something. Answer briefly and correctly from the problem and your notes, only what they asked. If they asked about their code, read it against the reference solution: point them to a case to try, or ask them to walk an example through it, but never name the fix. ${help}`,
-    '- acknowledgement: they told you or showed you something, or are thinking aloud. A few words, then hand the floor back. Add nothing and judge nothing.',
-    `- offer-next-phase: they're done with the ${phase} phase (whether they said so in any words, or their work shows it). If it's their code, first read it against the reference: if it looks wrong, ask them to walk a small example through it instead, and make that an acknowledgement. Otherwise say so in a few words and offer the phase after the one the conversation is in (${offers}).`,
-    'Give no hint unless they asked for help: hintLevel "none". Set askedForHelp only if they asked for help, a hint or what to do next.',
-    "Report the phase the conversation is in now, by what they're actually doing, even if it's ahead of the round's.",
-    'If you offered to move on and they agreed, or they asked to move on (e.g. "should I start coding?") and you agree, report that phase.',
-    'If they moved ahead by themselves, judge it as a real interviewer would: usually go along with it, but if they skipped something that matters (say, coding with no approach discussed), briefly ask them to cover it first, and report that earlier phase.',
-  ].join('\n');
+    "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would.",
+    "First decide what they're doing (heard), then reply in the kind that fits (kind: answer, acknowledgement, offer-next-phase, backchannel or stay-quiet):",
+    replyByTurn,
+    `You never push them through the round: they drive it, and how far they get in 45 minutes is part of what's judged. Offer the next phase only when they say they're done (the phase after the one the conversation is in: ${offers}).`,
+    `Hints: only when they ask for help, or a small insight when they're stuck. ${next} Set hintLevel to the rung your words give, or "none".`,
+    `Report the phase the conversation is in now (the round says ${phase}), by what they're actually doing. If they agreed to move on, or asked to and you agree, report that phase. If they moved ahead by themselves, usually go along; if they skipped something that matters (say, coding with no approach discussed), briefly ask them to cover it, and report that earlier phase.`,
+  ].join('\n\n');
 }
 
 function hintLadder({ hintLadder: ladder }: Problem) {

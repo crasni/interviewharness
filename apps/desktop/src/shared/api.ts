@@ -8,7 +8,6 @@ export const candidateSignalTypes = [
   'talk-start',
   'talk-end',
   'said',
-  'phase-answer',
   'editor-activity',
 ] as const satisfies readonly Signal['type'][];
 export type CandidateSignal = Extract<Signal, { type: (typeof candidateSignalTypes)[number] }>;
@@ -109,10 +108,9 @@ export function isTheme(value: unknown): value is Theme {
 /** Checks a signal arriving over IPC: the renderer is not trusted to send well-formed data. */
 export function isCandidateSignal(value: unknown): value is CandidateSignal {
   if (typeof value !== 'object' || value === null) return false;
-  const { type, text, accept, code } = value as { type?: unknown; text?: unknown; accept?: unknown; code?: unknown };
+  const { type, text, code } = value as { type?: unknown; text?: unknown; code?: unknown };
   if (!(candidateSignalTypes as readonly unknown[]).includes(type)) return false;
   if (type === 'said') return typeof text === 'string' && (code === undefined || isCodeSnapshot(code));
-  if (type === 'phase-answer') return typeof accept === 'boolean';
   return true;
 }
 

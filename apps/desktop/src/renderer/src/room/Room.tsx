@@ -1,4 +1,4 @@
-import type { CodeSnapshot, LaterPhase, ModelErrorKind, RoundSnapshot } from '@interviewharness/engine';
+import type { CodeSnapshot, ModelErrorKind, RoundSnapshot } from '@interviewharness/engine';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
@@ -33,20 +33,13 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
   // A backchannel's words ("Mm-hm.") stay on the tile a moment longer than the nod itself.
   const [backchannelLine, setBackchannelLine] = useState<string | null>(null);
   const backchannelTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // The phase the interviewer has offered to move to, while it waits for "Move on" or "Not yet".
-  const [suggestion, setSuggestion] = useState<LaterPhase | null>(null);
-  const notice = useNotice();
+    const notice = useNotice();
   const editor = useRef<CodeEditorHandle>(null);
 
   const { talking, toggle: toggleTalking } = useTalking(
     useCallback(() => window.harness.signal({ type: 'talk-start' }), []),
     useCallback(() => window.harness.signal({ type: 'talk-end' }), []),
   );
-
-  function answerSuggestion(accept: boolean) {
-    setSuggestion(null);
-    window.harness.signal({ type: 'phase-answer', accept });
-  }
 
   // Subscribed before the room first paints, so no decision sent as it opens is missed.
   useLayoutEffect(
@@ -70,16 +63,11 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
           case 'stop-preparing':
             setPresence('listening'); // nothing was said, so no line is cut off
             break;
+          case 'quiet':
+            setPresence('listening'); // heard as thinking aloud: it keeps listening
+            break;
           case 'model-failed':
             notice.show(modelFailures[decision.error]);
-            break;
-          case 'suggest-phase':
-            setSuggestion(decision.next);
-            break;
-          case 'move-on':
-          case 'suggestion-withdrawn':
-          case 'phase-moved': // the conversation moved the round on: an offer to move is moot
-            setSuggestion(null);
             break;
           case 'done-speaking':
             setPresence('listening');
@@ -239,16 +227,6 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
           <p className="room-caption" data-testid="subtitle" data-faded={subtitle.faded}>
             {subtitle.text}
           </p>
-        )}
-        {suggestion && (
-          <div className="room-suggestion" role="group" aria-label={`Move on to ${phaseLabels[suggestion]}?`}>
-            <button type="button" className="primary" onClick={() => answerSuggestion(true)}>
-              Move on
-            </button>
-            <button type="button" onClick={() => answerSuggestion(false)}>
-              Not yet
-            </button>
-          </div>
         )}
         <div className="room-composer">
           <SayField
