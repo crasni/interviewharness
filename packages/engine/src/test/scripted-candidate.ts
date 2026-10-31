@@ -65,9 +65,9 @@ const replyLimit = 60_000;
 const realWait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Kinds of decision that end a reply being prepared: its words were said, or dropped. */
-const replyEnds = new Set<InterviewerEvent['kind']>(['ack', 'answer', 'intro', 'suggest-phase', 'check-in', 'quiet', 'backchannel', 'stop-preparing']);
+const replyEnds = new Set<InterviewerEvent['kind']>(['ack', 'answer', 'intro', 'suggest-phase', 'check-in', 'time-reminder', 'closing', 'quiet', 'backchannel', 'stop-preparing']);
 /** Kinds of decision that put the interviewer mid-line. */
-const speaks = new Set<InterviewerEvent['kind']>(['ack', 'answer', 'intro', 'suggest-phase', 'check-in']);
+const speaks = new Set<InterviewerEvent['kind']>(['ack', 'answer', 'intro', 'suggest-phase', 'check-in', 'time-reminder', 'closing']);
 
 /**
  * Plays a scripted candidate through a whole round, through the public Interviewer, ticking ten times a

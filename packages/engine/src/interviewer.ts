@@ -309,7 +309,16 @@ export function fallbackSituation(reply: Reply): Situation {
       return reply.kind;
     case 'check-in':
       return 'check-in';
+    case 'time-reminder':
+      return 'time-reminder';
+    case 'closing':
+      return 'wrap-up';
   }
+}
+
+/** Replies said as reviewed lines from the example lines, never written by the model: nothing it could add is called for. */
+function reviewedOnly(reply: Reply) {
+  return reply.kind === 'check-in' || reply.kind === 'time-reminder' || reply.kind === 'closing';
 }
 
 interface Call {
@@ -347,8 +356,17 @@ export function createInterviewer(options: InterviewerOptions) {
     asked.filter((a) => a.asks === 'follow-up').length < options.problem.followUps.length &&
     codingRoundMs - round.snapshot().elapsedMs >= followUpRules.minTimeLeft;
   const skipsPhase = (phase: LaterPhase) => phase === 'follow-up' && !followUpsOpen();
-  // Declined help stops check-ins too, until the candidate gets back to work or asks again.
-  const floor = createFloorManager({ clock, round, lines, log, skipsPhase, checksIn: () => !declinedHelp });
+  // Declined help stops check-ins too, until the candidate gets back to work or asks again. After goodbye,
+  // neither silence nor the clock gets another word.
+  const floor = createFloorManager({
+    clock,
+    round,
+    lines,
+    log,
+    skipsPhase,
+    checksIn: () => !declinedHelp && !saidGoodbye,
+    keepsTime: () => !saidGoodbye,
+  });
   // The round's books (ADR 0018): kept here from what the model reports, never left to the model to remember.
   const transcript: RecordLine[] = [];
   const phases: RoundRecord['phases'] = [{ phase: round.snapshot().phase, atMs: 0 }];
@@ -418,8 +436,8 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /** Says an example line in place of the model's words, and keeps the books for what it asks, as for any reply. */
-  function sayFallback(situation: Situation) {
-    const words = lines.next(situation);
+  function sayFallback(situation: Situation, minutesLeft?: number) {
+    const words = minutesLeft === undefined ? lines.next(situation) : lines.next(situation).replaceAll('{minutes}', String(minutesLeft));
     say(words);
     noteSaid(words, undefined, { asks: fallbackAsks(situation), pointsOutMistake: false });
   }
@@ -609,8 +627,11 @@ export function createInterviewer(options: InterviewerOptions) {
 
   function requestWords(reply: Reply) {
     abandon('aborted'); // a newer reply replaces one still being prepared
-    // A check-in is a reviewed line, never generated: silence alone is no reason to say more than that.
-    if (!model || reply.kind === 'check-in') return sayFallback(fallbackSituation(reply));
+    // At time, the closing line turns the round to Wrap-up, as the start of the follow-ups turns it to Follow-up.
+    if (reply.kind === 'closing') moveTo('wrap-up');
+    // A check-in, a time reminder and the closing are reviewed lines, never generated: silence or the clock
+    // alone is no reason to say more than that.
+    if (!model || reviewedOnly(reply)) return sayFallback(fallbackSituation(reply), reply.kind === 'time-reminder' ? reply.minutesLeft : undefined);
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
     const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
@@ -644,6 +665,8 @@ export function createInterviewer(options: InterviewerOptions) {
         const { observed, kind } = written;
         // Besides the candidate's own words, the round moves when the interviewer begins the follow-ups; never on its other questions.
         if (observed?.asks === 'follow-up' && call.observed?.movesTo === 'stays') moveTo('follow-up');
+        // After the goodbye only a real question gets an answer: thanks or bye doesn't reopen the round.
+        if (saidGoodbye && (kind === 'goodbye' || written.heard !== 'clarifying-question')) return say('', 'quiet');
         say(written.words, kind && turnKinds[kind]);
         noteSaid(written.words, kind, observed);
       },

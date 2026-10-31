@@ -77,7 +77,7 @@ Said when the candidate agrees to move on.
 
 ## Wrap-up
 
-Opens the last phase.
+Opens the last phase. Also the closing line said as written at a pause once the round's time is up; the round still ends only when the candidate ends it.
 
 - That's about time. Do you have any questions for me?
 - We're nearly out of time. Any questions for me?
@@ -89,6 +89,13 @@ Said after a few minutes with no talking or typing, as written: the model never 
 - Take your time. I'm here if you want to talk it through.
 - No rush. Feel free to think out loud whenever you like.
 - I'm here if you want to talk anything through.
+
+## Time reminder
+
+Said now and then at a pause, as written: how much time is left, and nothing about what to do with it. `{minutes}` is filled in.
+
+- Just so you know, we have about {minutes} minutes left.
+- Quick time check: about {minutes} minutes to go.
 
 ## Walk through
 

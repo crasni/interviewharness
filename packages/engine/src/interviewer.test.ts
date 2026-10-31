@@ -1096,3 +1096,107 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(spoken()).toEqual(['Could you trace [5, 1, 5]?']);
   });
 });
+
+describe('time and closing', () => {
+  const minute = 60_000;
+  type Helpers = Awaited<ReturnType<typeof afterIntro>>;
+  const roundElapsed = (helpers: Helpers) => helpers.interviewer.record().elapsedMs;
+  /** Waits, in ticks, until the round has run this long. */
+  const waitUntil = (helpers: Helpers, elapsedMs: number) => helpers.wait(elapsedMs - roundElapsed(helpers));
+  const timeEvents = (helpers: Helpers) => helpers.events.filter((e) => e.kind === 'time-reminder' || e.kind === 'closing');
+
+  /** Walks the round into Wrap-up on the candidate's word, then lets them say they're done. */
+  async function doneEarly(script: ReturnType<typeof reply>[]) {
+    const helpers = await afterIntro([ack('Okay.', 'wrap-up'), ...script], [verdict()]);
+    helpers.interviewer.onSignal({ type: 'said', text: "I'm finished, let's wrap up" });
+    helpers.wait(1_000);
+    await settle();
+    helpers.wait(5_000);
+    helpers.interviewer.onSignal({ type: 'said', text: "that's it" });
+    helpers.wait(1_000);
+    await settle();
+    return helpers;
+  }
+
+  it('reminds of the time twice, as a reviewed line: with 15 minutes left and with 5', async () => {
+    const helpers = await afterIntro();
+
+    waitUntil(helpers, 44 * minute);
+
+    expect(timeEvents(helpers)).toEqual([
+      { kind: 'time-reminder', minutesLeft: 15, line: 'Just so you know, we have about 15 minutes left.', speakingMs: expect.any(Number) },
+      { kind: 'time-reminder', minutesLeft: 5, line: 'Just so you know, we have about 5 minutes left.', speakingMs: expect.any(Number) },
+    ]);
+    expect(helpers.model.requests).toEqual([]);
+  });
+
+  it('never interrupts the candidate mid-work: it waits for a pause, then gives only the time actually left', async () => {
+    const helpers = await afterIntro();
+    waitUntil(helpers, 29 * minute);
+
+    // Typing straight through both marks, then talking for a while.
+    while (roundElapsed(helpers) < 41 * minute) {
+      helpers.interviewer.onSignal({ type: 'editor-activity' });
+      helpers.wait(1_000);
+    }
+    helpers.interviewer.onSignal({ type: 'talk-start' });
+    helpers.wait(20_000);
+    expect(timeEvents(helpers)).toEqual([]);
+
+    helpers.interviewer.onSignal({ type: 'talk-end' });
+    helpers.wait(10_000);
+
+    expect(timeEvents(helpers)).toEqual([expect.objectContaining({ kind: 'time-reminder', minutesLeft: 4 })]);
+  });
+
+  it('closes at time with one reviewed line that turns to Wrap-up, but never ends the round by itself', async () => {
+    const helpers = await afterIntro([answer('Sure, take a minute to finish.')]);
+
+    waitUntil(helpers, 50 * minute);
+
+    expect(timeEvents(helpers).map((e) => e.kind)).toEqual(['time-reminder', 'time-reminder', 'closing']);
+    expect(timeEvents(helpers).at(-1)).toMatchObject({ line: "That's about time. Do you have any questions for me?" });
+    expect(helpers.interviewer.record().phases.at(-1)!.phase).toBe('wrap-up');
+    expect(helpers.model.requests).toEqual([]);
+
+    // The round goes on until the candidate ends it.
+    helpers.interviewer.onSignal({ type: 'said', text: 'can I just finish this line?' });
+    helpers.wait(1_000);
+    await settle();
+    expect(helpers.spoken().at(-1)).toBe('Sure, take a minute to finish.');
+  });
+
+  it('lets End round win over the clock: nothing is said after it', async () => {
+    const helpers = await afterIntro();
+    waitUntil(helpers, 44 * minute);
+    helpers.events.length = 0;
+
+    helpers.interviewer.onSignal({ type: 'round-end' });
+    helpers.wait(10 * minute);
+
+    expect(helpers.events).toEqual([]);
+  });
+
+  it('gives no reminder or closing once the candidate finished early and the round is in Wrap-up', async () => {
+    const helpers = await doneEarly([reply('answer', 'Do you have any questions for me?', { heard: 'done' })]);
+
+    waitUntil(helpers, 50 * minute);
+
+    expect(helpers.interviewer.record().phases.at(-1)!.phase).toBe('wrap-up');
+    expect(timeEvents(helpers)).toEqual([]);
+  });
+
+  it('stays quiet after the goodbye: thanks does not reopen the round, and neither does the clock', async () => {
+    const helpers = await doneEarly([
+      reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }),
+      reply('acknowledgement', "You're welcome! Anything else you'd like to go over?", { heard: 'small-talk' }),
+    ]);
+    helpers.wait(5_000);
+    helpers.interviewer.onSignal({ type: 'said', text: 'thanks!' });
+    helpers.wait(1_000);
+    await settle();
+    waitUntil(helpers, 50 * minute);
+
+    expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.']);
+  });
+});

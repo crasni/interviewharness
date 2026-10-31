@@ -48,6 +48,10 @@ _Avoid_: Backchannel, reply
 A neutral line from the interviewer after a long stretch with no talking or typing ("Take your time. I'm here if you want to talk it through."), said as written from the example lines. If the silence goes on, it checks in again, waiting twice as long each time; it never hints, and stops once the candidate declines help until they get back to work.
 _Avoid_: Nudge, prompt, reminder
 
+**Time reminder**:
+A line from the interviewer saying how much time is left ("Just so you know, we have about 15 minutes left."), said as written from the example lines at a pause, with 15 and with 5 minutes left. It says nothing about what to do with the time. At time, one closing line asks for the candidate's questions and turns to Wrap-up; only End round ends the round.
+_Avoid_: Check-in, warning, countdown
+
 ### Help and feedback
 
 **Candidate turn**:

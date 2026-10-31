@@ -121,6 +121,9 @@ function instruction(input: ReplyPromptInput): string {
       return turnInstruction(input);
     case 'check-in':
       return "The candidate has been quiet for a few minutes. Say one short, neutral line that you're here if they want to talk it through. No hint, no question about their work.";
+    case 'time-reminder':
+    case 'closing':
+      throw new Error(`A ${reply.kind} is said as a reviewed line, never written by the model`);
   }
 }
 

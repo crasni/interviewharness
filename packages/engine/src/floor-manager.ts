@@ -1,7 +1,7 @@
 import type { CodingPhase } from '@interviewharness/core';
 import type { LineBook } from './lines.ts';
 import { createPhaseGuide, type PhaseState } from './phases.ts';
-import type { Clock, LaterPhase, Round } from './round.ts';
+import { type Clock, codingRoundMs, type LaterPhase, type Round } from './round.ts';
 
 /** Something the candidate did, or the passing of time. */
 export type Signal =
@@ -50,7 +50,11 @@ export type Reply =
   | { kind: 'turn' }
   | { kind: 'intro' }
   /** A line after a long stretch with nothing from the candidate, the `nth` in this stretch of silence. Always neutral, never a hint. */
-  | { kind: 'check-in'; nth: number };
+  | { kind: 'check-in'; nth: number }
+  /** How much time is left, at a pause: a reviewed line that says nothing about what to do with it. */
+  | { kind: 'time-reminder'; minutesLeft: number }
+  /** The round's time is up: a reviewed line that turns to Wrap-up. The round goes on until the candidate ends it. */
+  | { kind: 'closing' };
 
 /** What the interviewer does at this moment. */
 export type Decision =
@@ -67,6 +71,10 @@ export type Decision =
   | (Spoken<'suggest-phase'> & { next: LaterPhase })
   /** A line after a long silence (GLOSSARY: Check-in). */
   | (Spoken<'check-in'> & { nth: number })
+  /** How much time is left, said at a pause (GLOSSARY: Time reminder). */
+  | (Spoken<'time-reminder'> & { minutesLeft: number })
+  /** The time is up: asks for the candidate's questions and turns to Wrap-up. Never ends the round. */
+  | Spoken<'closing'>
   /** The model heard the turn as thinking aloud or a murmur: the interviewer keeps listening. */
   | { kind: 'quiet' }
   /** Barge-in: the candidate talked or said something over the interviewer, so it stops mid-line. */
@@ -97,6 +105,8 @@ export interface FloorState extends PhaseState {
   idleMs: number;
   /** How many times the interviewer has checked in during this stretch of silence. */
   checkIns: number;
+  /** Time left in the round; below zero once it has run over. */
+  roundLeftMs: number;
 }
 
 export interface FloorLogEntry {
@@ -123,7 +133,20 @@ export interface FloorManagerOptions {
   skipsPhase?: (phase: LaterPhase) => boolean;
   /** Whether a long silence may get a check-in now: not once the candidate has declined help. Yes when not given. */
   checksIn?: () => boolean;
+  /** Whether the interviewer may still remind of the time or close: not once it has said goodbye. Yes when not given. */
+  keepsTime?: () => boolean;
 }
+
+/**
+ * When the interviewer mentions the time, in milliseconds. Sparse on purpose: two reminders and, at time,
+ * one closing line, each only at a pause. The clock never ends the round: End round is the candidate's.
+ */
+export const timeRules = {
+  /** Time left at which a reminder is due, latest last. A mark passed while the candidate worked is skipped for a later one. */
+  remindAtLeft: [15 * 60_000, 5 * 60_000],
+  /** A stretch with no talking, saying or typing, and nobody else holding the floor, that counts as a pause. */
+  pauseBeforeTime: 5_000,
+};
 
 /** Timing rules, in milliseconds. Fixed defaults for now (no persona knobs, ADR 0014). */
 export const floorRules = {
@@ -145,7 +168,7 @@ export const floorRules = {
 };
 
 /** Decides *whether* the interviewer speaks at each moment, never *what* the substance is. */
-export function createFloorManager({ clock, round, lines, log, skipsPhase, checksIn = () => true }: FloorManagerOptions): FloorManager {
+export function createFloorManager({ clock, round, lines, log, skipsPhase, checksIn = () => true, keepsTime = () => true }: FloorManagerOptions): FloorManager {
   const phases = createPhaseGuide(round, skipsPhase);
   const openedAt = clock.now();
   let introduced = false;
@@ -167,6 +190,9 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
   // The last time the candidate did something, or the interviewer finished speaking; and its check-ins since.
   let activeAt = openedAt;
   let checkIns = 0;
+  // How many of the reminder marks are behind the round, said or skipped; and whether the closing line was said.
+  let marksPassed = 0;
+  let closed = false;
 
   const isSpeaking = (now: number) => speakingUntil !== null && now < speakingUntil;
 
@@ -180,6 +206,7 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
       sinceBackchannelMs: lastBackchannelAt === null ? null : now - lastBackchannelAt,
       idleMs: now - activeAt,
       checkIns,
+      roundLeftMs: codingRoundMs - round.snapshot().elapsedMs,
       ...phases.state(now),
     };
   }
@@ -300,6 +327,25 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
     }
   }
 
+  /**
+   * A time reminder or the closing line, when one is due and the candidate has paused: never mid-work, never in
+   * Wrap-up (they're finishing already), never after goodbye. A mark passed while they worked gives way to a later
+   * one, so they hear only the time actually left. At time, one closing line; the round still ends only on End round.
+   */
+  function timeToMention(now: number): Reply | null {
+    const { phase, elapsedMs } = round.snapshot();
+    if (now - activeAt < timeRules.pauseBeforeTime || phase === 'wrap-up' || closed || !keepsTime()) return null;
+    const left = codingRoundMs - elapsedMs;
+    if (left <= 0) {
+      closed = true;
+      return { kind: 'closing' };
+    }
+    const due = timeRules.remindAtLeft.filter((at) => left <= at).length;
+    if (due <= marksPassed) return null;
+    marksPassed = due;
+    return { kind: 'time-reminder', minutesLeft: Math.max(1, Math.round(left / 60_000)) };
+  }
+
   function onTick(now: number): [Decision, boolean] {
     if (!introduced && talkingSince === null && now - openedAt >= floorRules.introAfter) {
       introduced = true;
@@ -321,6 +367,8 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
       phases.notYet(now); // nobody answered: same as "not yet"
       return [{ kind: 'suggestion-withdrawn' }, true];
     }
+    const time = floorIsFree && !phases.suggested ? timeToMention(now) : null;
+    if (time) return [prepare(time), true];
     // The interviewer never pushes a phase on the clock: the candidate drives the round. It only checks in,
     // neutrally, on a long silence, waiting longer each time, and not at all once they've declined help.
     if (floorIsFree && !phases.suggested && checksIn() && now - activeAt >= floorRules.checkInAfterIdle * 2 ** checkIns) {

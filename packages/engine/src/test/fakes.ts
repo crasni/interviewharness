@@ -64,6 +64,9 @@ export function testLines() {
 
 ## Check-in
 - Take your time. Talk it through whenever you like.
+
+## Time reminder
+- Just so you know, we have about {minutes} minutes left.
 `);
 }
 
