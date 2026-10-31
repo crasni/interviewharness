@@ -16,7 +16,7 @@ const problem: Problem = {
 
 /** A reply to a turn as the model gives it. */
 const reply = (kind: string, words: string, heard = 'explaining') => ({
-  object: { heard, movesTo: 'stays', checkedCode: false, foundOwnMistake: false, hintLevel: 'none', pointsOutMistake: false, asks: 'nothing', kind, words },
+  object: { heard, movesTo: 'stays', checkedCode: false, foundOwnMistake: false, saysCodeDone: false, hintLevel: 'none', pointsOutMistake: false, asks: 'nothing', kind, words },
 });
 
 /** Lets promises settle between ticks, instead of waiting real time. */
