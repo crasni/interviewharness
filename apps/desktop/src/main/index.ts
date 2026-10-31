@@ -3,6 +3,8 @@ import type { RoundKind } from '@interviewharness/core';
 import { createLineBook, gradeRound, type GradingEntry, modelErrorKind, type RoundLog, type RoundRecord } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
+// The app icon from brand/ (png/app-icon-512.png); `?asset` gives its path in the build.
+import icon from '../../resources/icon.png?asset';
 import { channels, type FeedbackResult, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { writeFileAtomically } from './atomic-write.ts';
@@ -156,6 +158,7 @@ function createWindow() {
     width: 1280,
     height: 800,
     show: !hidden,
+    icon,
     ...windowChromeOptions(),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
@@ -179,6 +182,8 @@ function createWindow() {
 if (!app.isPackaged) app.commandLine.appendSwitch('log-level', '3');
 
 void app.whenReady().then(() => {
+  // Windows and Linux take the icon from the window; a packaged Mac app takes it from its bundle.
+  if (!app.isPackaged) app.dock?.setIcon(icon);
   installAppMenu();
   createWindow();
 });
