@@ -155,8 +155,13 @@ interface Written {
   heard?: CandidateTurn;
   kind?: TurnKindName;
   observed?: Observed;
-  /** The help the words give. Absent for the intro, which never helps. */
-  hint?: { askedForHelp: boolean; level: HintLevel };
+  /** Whether the candidate asked for help. Absent for the intro, which never helps, so logs no hint. */
+  askedForHelp?: boolean;
+  /**
+   * What the words give the candidate, for every kind of reply: the model's own labels, then the check's verdict
+   * once checked. A rejection reads only this, so a turn, a check-in and the intro are judged alike.
+   */
+  gives: { hintLevel: HintLevel; namesMistake: boolean };
   /** How much help this reply may give: any (asked for), small (stuck, or a later check-in) or none. */
   mayHint: 'any' | 'small' | 'none';
   check?: CheckVerdict;
@@ -456,7 +461,8 @@ export function createInterviewer(options: InterviewerOptions) {
         heard: object.heard,
         kind: object.kind,
         observed: { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks },
-        hint: { askedForHelp, level: object.hintLevel },
+        askedForHelp,
+        gives: { hintLevel: object.hintLevel, namesMistake: pointsOutMistake },
         // Help comes only when asked for, or, a little at a time, when they're stuck: never the answer.
         mayHint: askedForHelp ? 'any' : object.heard === 'stuck' ? 'small' : 'none',
       };
@@ -465,16 +471,16 @@ export function createInterviewer(options: InterviewerOptions) {
       const { object, usage } = await model!.generateObject({ ...request, schema: checkInSchema });
       // The first check-in in a silence only checks in; later ones may offer a small insight if they're stuck.
       const mayHint = call.reply.nth > 1 ? 'small' : 'none';
-      return { words: object.words.trim(), usage, hint: { askedForHelp: false, level: object.hintLevel }, mayHint };
+      return { words: object.words.trim(), usage, askedForHelp: false, gives: { hintLevel: object.hintLevel, namesMistake: false }, mayHint };
     }
     const { text, usage } = await model!.streamText(request);
-    return { words: text.trim(), usage, mayHint: 'none' };
+    return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: 'none' };
   }
 
   /** Whether help could have slipped into an attempt's words, so they get the check before they're said. */
   function risky(call: Call, written: Written) {
-    if (!written.words || !written.hint) return false;
-    if (written.hint.level !== 'none' || written.observed?.pointsOutMistake) return true;
+    if (!written.words || call.reply.kind === 'intro') return false;
+    if (written.gives.hintLevel !== 'none' || written.gives.namesMistake) return true;
     if (call.reply.kind === 'check-in') return call.reply.nth > 1;
     return written.heard !== undefined && riskyTurns.includes(written.heard);
   }
@@ -495,9 +501,9 @@ export function createInterviewer(options: InterviewerOptions) {
       maxOutputTokens: replyRules.checkMaxOutputTokens,
     });
     const both = { inputTokens: written.usage.inputTokens + usage.inputTokens, outputTokens: written.usage.outputTokens + usage.outputTokens };
-    const hint = { ...written.hint!, level: check.hintLevel };
+    const gives = { hintLevel: check.hintLevel, namesMistake: check.namesMistake };
     const observed = written.observed && { ...written.observed, pointsOutMistake: check.namesMistake };
-    return { ...written, usage: both, hint, ...(observed ? { observed } : {}), check };
+    return { ...written, usage: both, gives, ...(observed ? { observed } : {}), check };
   }
 
   /**
@@ -506,8 +512,8 @@ export function createInterviewer(options: InterviewerOptions) {
    */
   function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
-    if (written.observed?.pointsOutMistake && written.mayHint !== 'any') return 'mistake-unasked';
-    const level = written.hint?.level ?? 'none';
+    if (written.gives.namesMistake && written.mayHint !== 'any') return 'mistake-unasked';
+    const level = written.gives.hintLevel;
     if (level !== 'none') {
       if (written.mayHint === 'none') return 'hint-unasked';
       if (written.mayHint === 'small' && level === 'concrete') return 'hint-too-concrete';
@@ -589,15 +595,16 @@ export function createInterviewer(options: InterviewerOptions) {
           logCall(call, 'replaced', extra);
           return say(lines.next(replacedSituation(reply)));
         }
-        if (written.hint && written.hint.level !== 'none') {
-          hints.push(written.hint.level);
-          hintsGiven = Math.max(hintsGiven, rungs.indexOf(written.hint.level) + 1);
+        const level = written.gives.hintLevel;
+        if (level !== 'none') {
+          hints.push(level);
+          hintsGiven = Math.max(hintsGiven, rungs.indexOf(level) + 1);
         }
         logCall(call, 'spoken', {
           usage: written.usage,
           ...(written.heard ? { heard: written.heard } : {}),
           ...(written.kind ? { turnReply: written.kind } : {}),
-          ...(written.hint ? { hint: written.hint } : {}),
+          ...(written.askedForHelp !== undefined ? { hint: { askedForHelp: written.askedForHelp, level } } : {}),
           ...(written.observed ? { observed: written.observed } : {}),
           ...(written.check ? { check: written.check } : {}),
           ...extra,

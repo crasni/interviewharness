@@ -859,6 +859,33 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(modelCalls()).toMatchObject([{ rejected: ['solution-leak'] }]);
   });
 
+  it('rejects a later check-in that names their mistake, though it claims to give no hint', async () => {
+    const { wait, spoken, modelCalls, model, interviewer } = await afterIntro(
+      [
+        { object: { words: 'Want to talk me through where you are?', hintLevel: 'none' } },
+        { object: { words: 'Your loop returns the value instead of its index.', hintLevel: 'none' } },
+        { object: { words: 'Take your time. Shout if you want to talk it through.', hintLevel: 'none' } },
+      ],
+      [verdict({ namesMistake: true }), verdict()],
+    );
+
+    wait(floorRulesForTest.checkInAfterIdle);
+    await settle();
+    wait(2 * floorRulesForTest.checkInAfterIdle + 10_000);
+    await settle();
+    await settle();
+
+    expect(spoken()).toEqual(['Want to talk me through where you are?', 'Take your time. Shout if you want to talk it through.']);
+    expect(model.requests.map((r) => r.purpose)).toEqual(['interviewer-reply', 'interviewer-reply', 'reply-check', 'interviewer-reply', 'reply-check']);
+    expect(modelCalls()).toMatchObject([
+      { reply: 'check-in', outcome: 'spoken' },
+      { reply: 'check-in', outcome: 'spoken', rejected: ['mistake-unasked'], hint: { level: 'none' } },
+    ]);
+    const record = interviewer.record();
+    expect(record.hints).toEqual([]);
+    expect(record.mistakes).toEqual([]);
+  });
+
   it('is not waited on for plain answers', async () => {
     const { interviewer, wait, model } = await afterIntro([answer('Yes, values can repeat.')]);
 
