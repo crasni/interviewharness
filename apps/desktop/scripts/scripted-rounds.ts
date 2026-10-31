@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLineBook, readProblem } from '@interviewharness/engine';
 import { formatPlayedRound, playCandidate } from '@interviewharness/engine/scripted-candidate';
-import { type Credential, type CredentialStore, createProviders, defaultChatGPTModel, type ModelChoice } from '@interviewharness/providers';
+import { type Credential, type CredentialStore, createProviders, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import { validSettings } from '../src/shared/settings.ts';
 import { scriptedCandidates } from './scripted-candidates.ts';
 
 /**
@@ -16,9 +17,11 @@ import { scriptedCandidates } from './scripted-candidates.ts';
  *
  *   pnpm scripted-rounds [--only silent,finishes-early] [--out <folder>]
  *
- * The model: INTERVIEWHARNESS_MODEL if set (a ChatGPT model id), else the interviewer's model from the app's
- * settings, else the default. The app's saved login is encrypted by Electron and can't be read from here,
- * so this signs in to ChatGPT in the browser each run and keeps the login in memory only.
+ * The model: INTERVIEWHARNESS_MODEL if set, as provider/model (say chatgpt/gpt-5-mini), else the interviewer's
+ * model from the app's settings, built the way the app builds it (packages/providers). A model the app can't
+ * run, or none picked, stops the run with a message; it is never swapped for another. The app's saved logins
+ * are encrypted by Electron and can't be read from plain Node, so each provider signs in its own way here
+ * (see `signIns`), with whatever it gets kept in memory only: never printed or saved.
  */
 
 /** What to read the transcripts for. Written at the top of each run's index.md too. */
@@ -53,21 +56,52 @@ function appDataFolder() {
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'InterviewHarness');
 }
 
-/** The interviewer's model: from INTERVIEWHARNESS_MODEL, else the app's settings, else the default. */
+/** A model choice the app could run, checked as the app checks settings.json, or an error saying what's wrong. */
+function checkedChoice(raw: unknown, from: string): ModelChoice {
+  const choice = validSettings({ interviewerModel: raw }).interviewerModel;
+  if (!choice) throw new Error(`${from} names a model the app can't run: ${JSON.stringify(raw)}. Pick one in Settings → Model, or set INTERVIEWHARNESS_MODEL=provider/model.`);
+  return choice;
+}
+
+/** The interviewer's model: from INTERVIEWHARNESS_MODEL, else the app's settings. Never a model nobody picked. */
 function configuredModel(): ModelChoice {
   const fromEnv = process.env.INTERVIEWHARNESS_MODEL;
-  if (fromEnv) return { provider: 'chatgpt', model: fromEnv };
-  const settingsPath = join(appDataFolder(), 'settings.json');
-  if (existsSync(settingsPath)) {
-    try {
-      const choice = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { interviewerModel?: ModelChoice | null }).interviewerModel;
-      if (choice?.provider === 'chatgpt' && typeof choice.model === 'string') return choice;
-    } catch {
-      // Unreadable settings: the default below.
-    }
+  if (fromEnv) {
+    const slash = fromEnv.indexOf('/');
+    if (slash < 0) throw new Error(`INTERVIEWHARNESS_MODEL is "${fromEnv}"; write it as provider/model, say chatgpt/${fromEnv}.`);
+    return checkedChoice({ provider: fromEnv.slice(0, slash), model: fromEnv.slice(slash + 1) }, 'INTERVIEWHARNESS_MODEL');
   }
-  return { provider: 'chatgpt', model: defaultChatGPTModel };
+  const settingsPath = join(appDataFolder(), 'settings.json');
+  let raw: unknown;
+  try {
+    raw = existsSync(settingsPath) ? (JSON.parse(readFileSync(settingsPath, 'utf8')) as { interviewerModel?: unknown }).interviewerModel : undefined;
+  } catch (error) {
+    throw new Error(`Couldn't read ${settingsPath}: ${String(error)}. Set INTERVIEWHARNESS_MODEL=provider/model instead.`, { cause: error });
+  }
+  if (raw === undefined || raw === null) {
+    throw new Error(`No interviewer model is picked in ${settingsPath}. Pick one in the app (Settings → Model), or set INTERVIEWHARNESS_MODEL=provider/model.`);
+  }
+  return checkedChoice(raw, settingsPath);
 }
+
+/**
+ * How this script signs in to each provider, since it can't read the app's encrypted logins. One per provider,
+ * so a new provider can't run here until it says how. A provider that takes an API key should read it from an
+ * environment variable and stop with a clear message when it's missing; ChatGPT has no key, only a browser login.
+ */
+const signIns: Record<ProviderName, (providers: Providers) => Promise<void>> = {
+  async chatgpt(providers) {
+    console.log('Sign in to ChatGPT in the browser (kept in memory for this run only).');
+    await providers.loginWithChatGPT({
+      deviceId: randomUUID(),
+      openBrowser(url) {
+        if (new URL(url).origin !== signInOrigin) throw new Error(`Refused to open ${new URL(url).origin}`);
+        console.log(`If no browser opened, open this page: ${url}`);
+        openInBrowser(url);
+      },
+    });
+  },
+};
 
 /** Logins kept in this process's memory only, gone when it exits. */
 function memoryCredentials(): CredentialStore {
@@ -104,15 +138,8 @@ export async function main(argv: string[]) {
   const choice = configuredModel();
 
   const providers = createProviders({ credentials: memoryCredentials(), appVersion: 'scripted-rounds' });
-  console.log(`Model: ${choice.provider} / ${choice.model}. Sign in to ChatGPT in the browser (kept in memory for this run only).`);
-  await providers.loginWithChatGPT({
-    deviceId: randomUUID(),
-    openBrowser(url) {
-      if (new URL(url).origin !== signInOrigin) throw new Error(`Refused to open ${new URL(url).origin}`);
-      console.log(`If no browser opened, open this page: ${url}`);
-      openInBrowser(url);
-    },
-  });
+  console.log(`Model: ${choice.provider} / ${choice.model}.`);
+  await signIns[choice.provider](providers);
   const model = providers.model(choice);
 
   mkdirSync(out, { recursive: true });
