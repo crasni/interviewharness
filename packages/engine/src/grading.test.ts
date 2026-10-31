@@ -32,6 +32,7 @@ function record(overrides: Partial<RoundRecord> = {}): RoundRecord {
     hints: [],
     checks: [],
     mistakes: [],
+    codeDone: [],
     asked: [],
     code: { language: 'python', text: 'def two_sum(nums, target):\n    ...' },
     ...overrides,
@@ -132,7 +133,7 @@ describe('grading a round', () => {
 
   it('caps testing at weak when they said done with a bug they never caught themselves', async () => {
     const model = allStrong();
-    const missedBug = record({ checks: [{ lineId: 't4', by: 'interviewer' }], mistakes: [{ lineId: 't4', foundBy: 'candidate-when-asked' }] });
+    const missedBug = record({ codeDone: ['t3'], checks: [{ lineId: 't4', by: 'interviewer' }], mistakes: [{ lineId: 't4', foundBy: 'candidate-when-asked' }] });
 
     const feedback = await gradeRound({ model: model.model, problem, record: missedBug, rough: false });
 

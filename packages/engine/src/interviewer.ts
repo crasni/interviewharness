@@ -137,6 +137,7 @@ interface TurnWords {
   movesTo: Move;
   checkedCode: boolean;
   foundOwnMistake: boolean;
+  saysCodeDone: boolean;
   kind: TurnKindName;
   words: string;
   hintLevel: HintLevel;
@@ -145,7 +146,7 @@ interface TurnWords {
 }
 
 /** What the model observed about a turn, and what its reply does: the app keeps the round's books from these. */
-type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'pointsOutMistake' | 'asks'>;
+type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'saysCodeDone' | 'pointsOutMistake' | 'asks'>;
 
 /** One attempt at a reply's words, with what the model says they do and, once checked, the check's verdict. */
 interface Written {
@@ -185,22 +186,27 @@ const turnSchema: ObjectSchema<TurnWords> = {
         description: 'Whether the candidate checked their code in this turn: walked an input through it, gave test cases with what it returns, or said what it does on an edge case.',
       },
       foundOwnMistake: { type: 'boolean', description: 'Whether the candidate spotted a mistake in their own code or approach in this turn, without you pointing it out.' },
+      saysCodeDone: {
+        type: 'boolean',
+        description: 'Whether the candidate says in this turn that their code is finished, ready to be judged as it is. Finishing an explanation, an approach or a test run does not count; nor does asking for help with code they are still working on.',
+      },
       kind: { type: 'string', enum: Object.keys(turnKinds), description: 'The kind of reply that fits.' },
       words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
       hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
       pointsOutMistake: { type: 'boolean', description: 'Whether your words say what or where a mistake in their code or approach is.' },
       asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do.' },
     },
-    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
+    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'saysCodeDone', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
     additionalProperties: false,
   },
   parse(value) {
-    const { heard, movesTo, checkedCode, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
+    const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
     if (
       !oneOf(candidateTurns, heard) ||
       !oneOf(moves, movesTo) ||
       typeof checkedCode !== 'boolean' ||
       typeof foundOwnMistake !== 'boolean' ||
+      typeof saysCodeDone !== 'boolean' ||
       !oneOf(Object.keys(turnKinds) as TurnKindName[], kind) ||
       typeof words !== 'string' ||
       !oneOf(hintLevels, hintLevel) ||
@@ -208,10 +214,10 @@ const turnSchema: ObjectSchema<TurnWords> = {
       !oneOf(interviewerAsks, asks)
     ) {
       throw new Error(
-        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode and foundOwnMistake (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
+        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode, foundOwnMistake and saysCodeDone (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
       );
     }
-    return { heard, movesTo, checkedCode, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks };
+    return { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, kind, words, hintLevel, pointsOutMistake, asks };
   },
 };
 
@@ -351,6 +357,7 @@ export function createInterviewer(options: InterviewerOptions) {
   const hints: RoundRecord['hints'] = [];
   const checks: RoundRecord['checks'] = [];
   const mistakes: RoundRecord['mistakes'] = [];
+  const codeDone: RoundRecord['codeDone'] = [];
   const asked: RoundRecord['asked'] = [];
   // The phase offered and not yet answered; what the interviewer's last spoken reply asked, and whether it named a mistake.
   let offered: LaterPhase | null = null;
@@ -454,13 +461,13 @@ export function createInterviewer(options: InterviewerOptions) {
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
       const askedForHelp = object.heard === 'asking-for-help';
-      const { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks } = object;
+      const { movesTo, checkedCode, foundOwnMistake, saysCodeDone, pointsOutMistake, asks } = object;
       return {
         words: object.words.trim(),
         usage,
         heard: object.heard,
         kind: object.kind,
-        observed: { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks },
+        observed: { movesTo, checkedCode, foundOwnMistake, saysCodeDone, pointsOutMistake, asks },
         askedForHelp,
         gives: { hintLevel: object.hintLevel, namesMistake: pointsOutMistake },
         // Help comes only when asked for, or, a little at a time, when they're stuck: never the answer.
@@ -545,7 +552,8 @@ export function createInterviewer(options: InterviewerOptions) {
 
   /**
    * Keeps the books for the candidate's turn, from what the model's first reading of it observed: each time they
-   * checked their code and who started it, mistakes and how they were found, and the phase their own words moved
+   * checked their code and who started it, mistakes and how they were found, when they said their code was done, and
+   * the phase their own words moved
    * the round to. This is what the candidate did, so it stays whether or not the reply's words are ever said;
    * applied once per turn, so a rewritten reply can't count it again. The move comes before the words, so an
    * accepted offer is settled first.
@@ -557,7 +565,7 @@ export function createInterviewer(options: InterviewerOptions) {
     const { about } = call;
     const asked = lastAsk === 'trace-example' || lastAsk === 'edge-case';
     if (about && observed.checkedCode) checks.push({ lineId: about, by: asked ? 'interviewer' : 'candidate' });
-    // Found on a check the interviewer asked for, the mistake was still there when they said they were done.
+    if (about && observed.saysCodeDone) codeDone.push(about);
     if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: asked ? 'candidate-when-asked' : 'candidate' });
     if (observed.movesTo !== 'stays') moveTo(observed.movesTo);
   }
@@ -650,6 +658,7 @@ export function createInterviewer(options: InterviewerOptions) {
         hints: [...hints],
         checks: [...checks],
         mistakes: [...mistakes],
+        codeDone: [...codeDone],
         asked: [...asked],
         code,
       };

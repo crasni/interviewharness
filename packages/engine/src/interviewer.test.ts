@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInterviewer, floorRules as floorRulesForTest, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, roundFacts, startRound } from './index.ts';
+import { createInterviewer, floorRules as floorRulesForTest, gradeRound, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, roundFacts, startRound } from './index.ts';
 import { fakeClock, fakeLog, type ModelScript, scriptedModel, testLines } from './test/fakes.ts';
 
 const problem: Problem = {
@@ -53,6 +53,7 @@ interface Observed {
   movesTo?: string;
   checkedCode?: boolean;
   foundOwnMistake?: boolean;
+  saysCodeDone?: boolean;
   hintLevel?: string;
   pointsOutMistake?: boolean;
   asks?: string;
@@ -65,6 +66,7 @@ const reply = (kind: string, words: string, observed: Observed = {}) => ({
     movesTo: 'stays',
     checkedCode: false,
     foundOwnMistake: false,
+    saysCodeDone: false,
     hintLevel: 'none',
     pointsOutMistake: false,
     asks: 'nothing',
@@ -271,7 +273,7 @@ describe('the interviewer', () => {
         heard: 'clarifying-question',
         turnReply: 'answer',
         hint: { askedForHelp: false, level: 'none' },
-        observed: { movesTo: 'stays', checkedCode: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' },
+        observed: { movesTo: 'stays', checkedCode: false, foundOwnMistake: false, saysCodeDone: false, pointsOutMistake: false, asks: 'nothing' },
       },
     ]);
     expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.', as: 'answer' } }));
@@ -720,6 +722,74 @@ describe('a mistake is the candidate’s to find', () => {
 
     expect(spoken()).toEqual(['Look at what you return: positions or values?']);
     expect(interviewer.record().mistakes).toEqual([{ lineId: 't3', foundBy: 'interviewer' }]);
+  });
+});
+
+describe('a missed bug counts only after the candidate said their code was done', () => {
+  /** A grader that scores every area strong, so only the caps in code lower it. */
+  const strongGrader = () => {
+    const strong = { score: 4, evidence: ['t2'] };
+    const sample = { object: { problemSolving: strong, coding: strong, testing: strong, communication: strong } };
+    return scriptedModel({ grading: [sample, sample, sample], 'feedback-prose': [{ object: { why: 'Fine.', wentWell: [], toFix: [] } }] });
+  };
+
+  async function turns(script: ModelScript['interviewer-reply'], checks: ModelScript['reply-check'], said: string[]) {
+    const helpers = await afterIntro(script, checks);
+    for (const text of said) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+    return helpers.interviewer.record();
+  }
+
+  it('does not treat debugging help asked for while still coding as handing in buggy work', async () => {
+    const record = await turns(
+      [
+        reply('answer', 'Look at what you return: positions or values?', { ...help, hintLevel: 'nudge', pointsOutMistake: true }),
+        reply('acknowledgement', 'Okay.', { heard: 'done', saysCodeDone: true }),
+      ],
+      [verdict({ namesMistake: true, hintLevel: 'nudge' })],
+      ["it's wrong and I can't see why, help?", 'oh, fixed it. done'],
+    );
+
+    expect(record.mistakes).toEqual([{ lineId: 't3', foundBy: 'interviewer' }]);
+    expect(record.codeDone).toEqual(['t4']);
+    expect(roundFacts(record).doneWithMissedBug).toBe(false);
+    const feedback = await gradeRound({ model: strongGrader().model, problem, record, rough: false });
+    // Never checked on their own, so mixed at best; not weak, as no finished code had a bug in it.
+    expect(feedback.areas.testing.score).toBe(2);
+  });
+
+  it('does not count finishing an explanation as saying the code is done', async () => {
+    const record = await turns(
+      [
+        reply('acknowledgement', 'Okay.', { heard: 'done', saysCodeDone: false }),
+        reply('answer', 'Look at what you return: positions or values?', { ...help, hintLevel: 'nudge', pointsOutMistake: true }),
+      ],
+      [verdict({ namesMistake: true, hintLevel: 'nudge' })],
+      ["that's my approach, done explaining", "it's wrong and I can't see why, help?"],
+    );
+
+    expect(record.codeDone).toEqual([]);
+    expect(roundFacts(record).doneWithMissedBug).toBe(false);
+  });
+
+  it('still caps testing at weak when they said done and the bug came out only on the interviewer’s check', async () => {
+    const record = await turns(
+      [
+        reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', saysCodeDone: true, asks: 'trace-example' }),
+        reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', checkedCode: true, foundOwnMistake: true }),
+      ],
+      [verdict()],
+      ['done coding', 'seen[5] = 0, then 5 is in seen: oh, I return the value, not i'],
+    );
+
+    expect(record.codeDone).toEqual(['t2']);
+    expect(roundFacts(record).doneWithMissedBug).toBe(true);
+    const feedback = await gradeRound({ model: strongGrader().model, problem, record, rough: false });
+    expect(feedback.areas.testing.score).toBe(1);
   });
 });
 

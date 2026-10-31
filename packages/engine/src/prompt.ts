@@ -170,7 +170,7 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
 function turnInstruction(input: ReplyPromptInput) {
   return [
     "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would.",
-    'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
+    'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
     `# Each kind of turn, and how to reply\n\n${replyByTurn}`,
     `# In this phase\n\n${phaseParts[input.phase]}`,
     `# When they're done\n\n${whenDone(input)}`,
