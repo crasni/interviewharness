@@ -42,20 +42,21 @@ export type HintLevel = (typeof hintLevels)[number];
 const rungs: (keyof HintLadder)[] = ['nudge', 'question', 'concrete'];
 
 /** Why an attempt at a reply's words was thrown away and written again. */
-export type Rejection = 'hint-unasked' | 'mistake-unasked' | 'hint-skipped-rung' | 'hint-too-concrete' | 'solution-leak';
+export type Rejection = 'hint-unasked' | 'mistake-unasked' | 'hint-skipped-rung' | 'offer-unasked' | 'step-unasked' | 'solution-leak';
 
 const corrections: Record<Rejection, string> = {
   'hint-unasked': "it gave a hint the candidate didn't ask for. Answer only what they asked, with no hint.",
-  'mistake-unasked':
-    "it said what or where their mistake is, which they didn't ask for. Ask them to trace a small input instead, and let them find it.",
+  'mistake-unasked': "it said what or where their mistake is, which they didn't ask for. Don't point at it: it's theirs to find.",
   'hint-skipped-rung': 'it gave more help than the next rung of the hint ladder. Give only that rung.',
-  'hint-too-concrete': "it gave the concrete hint when they hadn't asked for help. Give a smaller insight, or none.",
+  'offer-unasked':
+    "it offered help too soon. Offer help only when they say they're stuck or after repeated failed attempts, and not again once they've declined it.",
+  'step-unasked': 'it told them what to try next. Ask at most one neutral question, such as what feels blocked, and leave the next step to them.',
   'solution-leak': 'it gave away part of the solution. Never quote or describe the solution, its code or its steps.',
 };
 
 /**
  * The turns where help could slip into a reply (ADR 0019): its words get the check before they're said.
- * Also any reply that labels itself as help, and a second check-in in a silence.
+ * Also any reply that labels itself as help, and help asked for by accepting an offer of it.
  */
 const riskyTurns: readonly CandidateTurn[] = ['done', 'asking-for-help', 'stuck', 'seeking-affirmation'];
 
@@ -89,7 +90,7 @@ const checkSchema: ObjectSchema<CheckVerdict> = {
 
 /**
  * What the candidate is doing with a turn, as the model hears it (ADR 0017). The reply follows from it,
- * and so does how much help may be given: a hint only when they ask for help or sound stuck.
+ * and so does how much help may be given: a hint only when they ask for help or accept an offer of it.
  */
 export const candidateTurns = [
   'thinking-aloud',
@@ -119,8 +120,11 @@ const turnKinds = {
 } as const satisfies Record<string, TurnReplyKind>;
 type TurnKindName = keyof typeof turnKinds;
 
-/** What the interviewer's words ask the candidate to do, so the round knows who started a test or a follow-up. */
-export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'other'] as const;
+/**
+ * What the interviewer's words ask the candidate to do, so the round knows who started a test or a follow-up.
+ * Also the one neutral question to a stuck candidate (what-blocks), and an offer of help.
+ */
+export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'what-blocks', 'offer-help', 'other'] as const;
 export type InterviewerAsk = (typeof interviewerAsks)[number];
 
 /** Where the candidate's own words take the round: another phase, ahead or back, or nowhere. */
@@ -137,6 +141,7 @@ interface TurnWords {
   movesTo: Move;
   checkedCode: boolean;
   foundOwnMistake: boolean;
+  attemptFailed: boolean;
   kind: TurnKindName;
   words: string;
   hintLevel: HintLevel;
@@ -145,7 +150,7 @@ interface TurnWords {
 }
 
 /** What the model observed about a turn, and what its reply does: the app keeps the round's books from these. */
-type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'pointsOutMistake' | 'asks'>;
+type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'attemptFailed' | 'pointsOutMistake' | 'asks'>;
 
 /** One attempt at a reply's words, with what the model says they do and, once checked, the check's verdict. */
 interface Written {
@@ -159,11 +164,13 @@ interface Written {
   askedForHelp?: boolean;
   /**
    * What the words give the candidate, for every kind of reply: the model's own labels, then the check's verdict
-   * once checked. A rejection reads only this, so a turn, a check-in and the intro are judged alike.
+   * once checked. A rejection reads only this, so a turn and the intro are judged alike.
    */
   gives: { hintLevel: HintLevel; namesMistake: boolean };
-  /** How much help this reply may give: any (asked for), small (stuck, or a later check-in) or none. */
-  mayHint: 'any' | 'small' | 'none';
+  /** Whether this reply may help: only when the candidate asked for help or accepted an offer of it. */
+  mayHint: boolean;
+  /** Whether this reply may offer help: they said they're stuck, or failed again and again, and haven't declined it. */
+  mayOffer: boolean;
   check?: CheckVerdict;
 }
 
@@ -185,22 +192,24 @@ const turnSchema: ObjectSchema<TurnWords> = {
         description: 'Whether the candidate checked their code in this turn: walked an input through it, gave test cases with what it returns, or said what it does on an edge case.',
       },
       foundOwnMistake: { type: 'boolean', description: 'Whether the candidate spotted a mistake in their own code or approach in this turn, without you pointing it out.' },
+      attemptFailed: { type: 'boolean', description: "Whether the candidate says something they tried didn't work: a trace or a run gave the wrong result, or an idea fell through." },
       kind: { type: 'string', enum: Object.keys(turnKinds), description: 'The kind of reply that fits.' },
       words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
       hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
       pointsOutMistake: { type: 'boolean', description: 'Whether your words say what or where a mistake in their code or approach is.' },
       asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do.' },
     },
-    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
+    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'attemptFailed', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
     additionalProperties: false,
   },
   parse(value) {
-    const { heard, movesTo, checkedCode, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
+    const { heard, movesTo, checkedCode, foundOwnMistake, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
     if (
       !oneOf(candidateTurns, heard) ||
       !oneOf(moves, movesTo) ||
       typeof checkedCode !== 'boolean' ||
       typeof foundOwnMistake !== 'boolean' ||
+      typeof attemptFailed !== 'boolean' ||
       !oneOf(Object.keys(turnKinds) as TurnKindName[], kind) ||
       typeof words !== 'string' ||
       !oneOf(hintLevels, hintLevel) ||
@@ -208,31 +217,10 @@ const turnSchema: ObjectSchema<TurnWords> = {
       !oneOf(interviewerAsks, asks)
     ) {
       throw new Error(
-        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode and foundOwnMistake (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
+        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode, foundOwnMistake and attemptFailed (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
       );
     }
-    return { heard, movesTo, checkedCode, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks };
-  },
-};
-
-/** A check-in comes back structured too, so the help in it can be checked like any other. */
-const checkInSchema: ObjectSchema<{ words: string; hintLevel: HintLevel }> = {
-  name: 'say',
-  jsonSchema: {
-    type: 'object',
-    properties: {
-      words: { type: 'string', description: 'What you say aloud.' },
-      hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
-    },
-    required: ['words', 'hintLevel'],
-    additionalProperties: false,
-  },
-  parse(value) {
-    const { words, hintLevel } = (value ?? {}) as Record<string, unknown>;
-    if (typeof words !== 'string' || !oneOf(hintLevels, hintLevel)) {
-      throw new Error(`Expected words (a string) and hintLevel (${hintLevels.join(', ')})`);
-    }
-    return { words, hintLevel };
+    return { heard, movesTo, checkedCode, foundOwnMistake, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks };
   },
 };
 
@@ -323,6 +311,12 @@ interface Call {
   about: string | null;
 }
 
+/** When the interviewer may offer help without the candidate saying they're stuck. */
+export const helpRules = {
+  /** Attempts the candidate said failed, since the last hint, before an offer of help is allowed. */
+  failedAttemptsBeforeOffer: 2,
+};
+
 /** When the round may still turn to the follow-up questions. */
 export const followUpRules = {
   /** Time a follow-up needs: with less left in the round, it goes straight to Wrap-up. */
@@ -339,7 +333,8 @@ export function createInterviewer(options: InterviewerOptions) {
     asked.filter((a) => a.asks === 'follow-up').length < options.problem.followUps.length &&
     codingRoundMs - round.snapshot().elapsedMs >= followUpRules.minTimeLeft;
   const skipsPhase = (phase: LaterPhase) => phase === 'follow-up' && !followUpsOpen();
-  const floor = createFloorManager({ clock, round, lines, log, skipsPhase });
+  // Declined help stops check-ins too, until the candidate gets back to work or asks again.
+  const floor = createFloorManager({ clock, round, lines, log, skipsPhase, checksIn: () => !declinedHelp });
   // The round's books (ADR 0018): kept here from what the model reports, never left to the model to remember.
   const transcript: RecordLine[] = [];
   const phases: RoundRecord['phases'] = [{ phase: round.snapshot().phase, atMs: 0 }];
@@ -352,6 +347,11 @@ export function createInterviewer(options: InterviewerOptions) {
   let lastAsk: InterviewerAsk = 'nothing';
   let lastPointedOut = false;
   let saidGoodbye = false;
+  // Help around an impasse: whether the interviewer asked what's blocking them, whether the candidate declined
+  // its offer of help, and the attempts they said failed since the last hint.
+  let askedWhatBlocks = false;
+  let declinedHelp = false;
+  let failedAttempts = 0;
   const line = (who: RecordLine['who'], text: string) =>
     transcript.push({ id: `t${transcript.length + 1}`, who, text, atMs: round.snapshot().elapsedMs });
   // The call whose words the interviewer is waiting on. Any other call that finishes is too late.
@@ -425,6 +425,7 @@ export function createInterviewer(options: InterviewerOptions) {
       mistakesPointedOut: mistakes.filter((m) => m.foundBy === 'interviewer').length,
       checks: { own: checks.filter((t) => t.by === 'candidate').length, asked: checks.filter((t) => t.by === 'interviewer').length },
       followUps: { asked: asked.filter((a) => a.asks === 'follow-up').length, open: followUpsOpen() },
+      help: { askedWhatBlocks, offer: declinedHelp ? 'declined' : lastAsk === 'offer-help' ? 'waiting' : 'none', failedAttempts },
       saidGoodbye,
     };
   }
@@ -447,35 +448,32 @@ export function createInterviewer(options: InterviewerOptions) {
     call.stepAt = clock.now();
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
-      const askedForHelp = object.heard === 'asking-for-help';
-      const { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks } = object;
+      const { heard, movesTo, checkedCode, foundOwnMistake, attemptFailed, pointsOutMistake, asks } = object;
+      // Help comes only when asked for: in so many words, or by accepting the interviewer's offer.
+      const askedForHelp = heard === 'asking-for-help' || (heard === 'agreeing' && lastAsk === 'offer-help');
+      // Saying they're stuck, or asking for help, undoes an earlier "no thanks".
+      const declined = heard === 'stuck' || heard === 'asking-for-help' ? false : declinedHelp;
+      const failed = failedAttempts + (attemptFailed ? 1 : 0);
       return {
         words: object.words.trim(),
         usage,
-        heard: object.heard,
+        heard,
         kind: object.kind,
-        observed: { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks },
+        observed: { movesTo, checkedCode, foundOwnMistake, attemptFailed, pointsOutMistake, asks },
         askedForHelp,
         gives: { hintLevel: object.hintLevel, namesMistake: pointsOutMistake },
-        // Help comes only when asked for, or, a little at a time, when they're stuck: never the answer.
-        mayHint: askedForHelp ? 'any' : object.heard === 'stuck' ? 'small' : 'none',
+        mayHint: askedForHelp,
+        mayOffer: !declined && (heard === 'stuck' || failed >= helpRules.failedAttemptsBeforeOffer),
       };
     }
-    if (call.reply.kind === 'check-in') {
-      const { object, usage } = await model!.generateObject({ ...request, schema: checkInSchema });
-      // The first check-in in a silence only checks in; later ones may offer a small insight if they're stuck.
-      const mayHint = call.reply.nth > 1 ? 'small' : 'none';
-      return { words: object.words.trim(), usage, askedForHelp: false, gives: { hintLevel: object.hintLevel, namesMistake: false }, mayHint };
-    }
     const { text, usage } = await model!.streamText(request);
-    return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: 'none' };
+    return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: false, mayOffer: false };
   }
 
   /** Whether help could have slipped into an attempt's words, so they get the check before they're said. */
   function risky(call: Call, written: Written) {
     if (!written.words || call.reply.kind === 'intro') return false;
-    if (written.gives.hintLevel !== 'none' || written.gives.namesMistake) return true;
-    if (call.reply.kind === 'check-in') return call.reply.nth > 1;
+    if (written.gives.hintLevel !== 'none' || written.gives.namesMistake || written.askedForHelp) return true;
     return written.heard !== undefined && riskyTurns.includes(written.heard);
   }
 
@@ -501,18 +499,23 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /**
-   * What's wrong with an attempt's words, if anything: help that wasn't asked for (or, when they're stuck,
-   * more than a small insight), a mistake named unasked, help that skips a rung, or a leak of the solution.
+   * What's wrong with an attempt's words, if anything: help that wasn't asked for, a mistake named unasked, help
+   * that skips a rung, an offer of help too soon, a step prescribed to a stuck candidate, or a leak of the solution.
    */
   function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
-    if (written.gives.namesMistake && written.mayHint !== 'any') return 'mistake-unasked';
+    if (written.gives.namesMistake && !written.mayHint) return 'mistake-unasked';
     const level = written.gives.hintLevel;
     if (level !== 'none') {
-      if (written.mayHint === 'none') return 'hint-unasked';
-      if (written.mayHint === 'small' && level === 'concrete') return 'hint-too-concrete';
+      if (!written.mayHint) return 'hint-unasked';
       const allowed = Math.max(1, rungs.indexOf(nextHint() ?? 'concrete') + 1);
       if (hintLevels.indexOf(level) > allowed) return 'hint-skipped-rung';
+    }
+    const asks = written.observed?.asks;
+    if (asks === 'offer-help' && !written.mayOffer) return 'offer-unasked';
+    // A stuck candidate gets one neutral question, not a case to try or a step to take: those are theirs to find.
+    if (written.heard === 'stuck' && !written.mayHint && (asks === 'trace-example' || asks === 'edge-case' || asks === 'complexity')) {
+      return 'step-unasked';
     }
     if (written.check?.describesSolution) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
@@ -541,8 +544,11 @@ export function createInterviewer(options: InterviewerOptions) {
    * code and who started it, mistakes and how they were found, and the phase their own words moved the round to.
    * Returns the phase to move to, if any; the move comes before the words, so an accepted offer is settled first.
    */
-  function noteTurn(about: string | null, observed: Observed): CodingPhase | null {
+  function noteTurn(about: string | null, heard: CandidateTurn | undefined, observed: Observed): CodingPhase | null {
     const asked = lastAsk === 'trace-example' || lastAsk === 'edge-case';
+    if (observed.attemptFailed) failedAttempts += 1;
+    if (heard === 'declining' && lastAsk === 'offer-help') declinedHelp = true;
+    if (heard === 'stuck' || heard === 'asking-for-help') declinedHelp = false;
     if (about && observed.checkedCode) checks.push({ lineId: about, by: asked ? 'interviewer' : 'candidate' });
     // Found on a check the interviewer asked for, the mistake was still there when they said they were done.
     if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: asked ? 'candidate-when-asked' : 'candidate' });
@@ -558,13 +564,15 @@ export function createInterviewer(options: InterviewerOptions) {
     lastAsk = observed?.asks ?? 'nothing';
     lastPointedOut = observed?.pointsOutMistake ?? false;
     if (observed && observed.asks !== 'nothing') asked.push({ lineId: said.id, asks: observed.asks });
+    if (observed?.asks === 'what-blocks') askedWhatBlocks = true;
     if (observed?.pointsOutMistake) mistakes.push({ lineId: said.id, foundBy: 'interviewer' });
     if (kind === 'goodbye') saidGoodbye = true;
   }
 
   function requestWords(reply: Reply) {
     abandon('aborted'); // a newer reply replaces one still being prepared
-    if (!model) return say(lines.next(fallbackSituation(reply)));
+    // A check-in is a reviewed line, never generated: silence alone is no reason to say more than that.
+    if (!model || reply.kind === 'check-in') return say(lines.next(fallbackSituation(reply)));
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
     const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
@@ -582,6 +590,9 @@ export function createInterviewer(options: InterviewerOptions) {
         if (level !== 'none') {
           hints.push(level);
           hintsGiven = Math.max(hintsGiven, rungs.indexOf(level) + 1);
+          // Help reached them: a new impasse starts from here.
+          askedWhatBlocks = false;
+          failedAttempts = 0;
         }
         logCall(call, 'spoken', {
           usage: written.usage,
@@ -593,7 +604,7 @@ export function createInterviewer(options: InterviewerOptions) {
           ...extra,
         });
         const { observed, kind } = written;
-        const to = observed ? noteTurn(call.about, observed) : null;
+        const to = observed ? noteTurn(call.about, written.heard, observed) : null;
         if (to) handle(floor.onSignal({ type: 'phase-reached', phase: to }));
         say(written.words, kind && turnKinds[kind]);
         noteSaid(written.words, kind, observed);
@@ -615,6 +626,8 @@ export function createInterviewer(options: InterviewerOptions) {
         if (signal.code) code = signal.code;
       }
       if (signal.type === 'round-end' && signal.code) code = signal.code;
+      // Getting back to work after declining help is a change: a later silence may get check-ins again.
+      if (signal.type === 'editor-activity') declinedHelp = false;
       if (signal.type === 'round-end') abandon('aborted');
       handle(floor.onSignal(signal));
       if (signal.type === 'tick' && pending && clock.now() - pending.stepAt >= replyRules.timeout) {

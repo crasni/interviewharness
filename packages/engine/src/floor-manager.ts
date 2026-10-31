@@ -49,10 +49,7 @@ export type Reply =
   /** A reply to the candidate's finished turn. */
   | { kind: 'turn' }
   | { kind: 'intro' }
-  /**
-   * A line after a long stretch with nothing from the candidate. The `nth` in this stretch of silence:
-   * the first only checks in; later ones may offer the smallest next hint if they seem stuck.
-   */
+  /** A line after a long stretch with nothing from the candidate, the `nth` in this stretch of silence. Always neutral, never a hint. */
   | { kind: 'check-in'; nth: number };
 
 /** What the interviewer does at this moment. */
@@ -124,6 +121,8 @@ export interface FloorManagerOptions {
   log: FloorLog;
   /** A phase the round passes over right now when offering the next one (Follow-up, with no time or nothing to ask). */
   skipsPhase?: (phase: LaterPhase) => boolean;
+  /** Whether a long silence may get a check-in now: not once the candidate has declined help. Yes when not given. */
+  checksIn?: () => boolean;
 }
 
 /** Timing rules, in milliseconds. Fixed defaults for now (no persona knobs, ADR 0014). */
@@ -146,7 +145,7 @@ export const floorRules = {
 };
 
 /** Decides *whether* the interviewer speaks at each moment, never *what* the substance is. */
-export function createFloorManager({ clock, round, lines, log, skipsPhase }: FloorManagerOptions): FloorManager {
+export function createFloorManager({ clock, round, lines, log, skipsPhase, checksIn = () => true }: FloorManagerOptions): FloorManager {
   const phases = createPhaseGuide(round, skipsPhase);
   const openedAt = clock.now();
   let introduced = false;
@@ -322,9 +321,9 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase }: Flo
       phases.notYet(now); // nobody answered: same as "not yet"
       return [{ kind: 'suggestion-withdrawn' }, true];
     }
-    // The interviewer never pushes a phase on the clock: the candidate drives the round. It only checks in on
-    // a long silence, waiting longer each time, so a stuck candidate can be helped a little at a time.
-    if (floorIsFree && !phases.suggested && now - activeAt >= floorRules.checkInAfterIdle * 2 ** checkIns) {
+    // The interviewer never pushes a phase on the clock: the candidate drives the round. It only checks in,
+    // neutrally, on a long silence, waiting longer each time, and not at all once they've declined help.
+    if (floorIsFree && !phases.suggested && checksIn() && now - activeAt >= floorRules.checkInAfterIdle * 2 ** checkIns) {
       checkIns += 1;
       return [prepare({ kind: 'check-in', nth: checkIns }), true];
     }

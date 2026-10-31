@@ -364,7 +364,7 @@ describe('the check-in', () => {
     const decisions = wait(floorRules.checkInAfterIdle + 1_000);
 
     expect(checkIns(decisions)).toEqual([
-      { kind: 'check-in', nth: 1, line: 'Want to talk me through where you are?', speakingMs: expect.any(Number) },
+      { kind: 'check-in', nth: 1, line: 'Take your time. Talk it through whenever you like.', speakingMs: expect.any(Number) },
     ]);
   });
 

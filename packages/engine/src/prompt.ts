@@ -35,6 +35,11 @@ export interface RoundSoFar {
   checks: { own: number; asked: number };
   /** Follow-up questions asked, and whether another may be asked now (one is left and there's time). */
   followUps: { asked: number; open: boolean };
+  /**
+   * Help around an impasse: whether the interviewer asked what's blocking them, its offer of help (waiting on
+   * an answer, or declined), and the attempts the candidate said failed since the last hint.
+   */
+  help: { askedWhatBlocks: boolean; offer: 'none' | 'waiting' | 'declined'; failedAttempts: number };
   saidGoodbye: boolean;
 }
 
@@ -58,7 +63,7 @@ const rules = `You are the interviewer in a live mock coding interview. The cand
 Rules:
 - Speak as a person talks: one to three short sentences, plain words, no markdown, no lists, no code.
 - The candidate drives the round. Don't lead them through it: testing, edge cases and complexity are theirs to bring up. How far they get on their own is what's judged.
-- Never give the answer, the approach or any part of the solution. Never say what or where a mistake is unless they ask you for help.
+- Never give the answer, the approach or any part of the solution. Never hint, or say what or where a mistake is, unless they ask you for help or accept your offer of it.
 - Comment on their code only when they say they're done, or ask you about it directly.
 - Don't grade ideas while the round is going on: no "great", "correct" or "that's wrong". A neutral "okay" or "sounds reasonable" is fine.
 - Never ask a question you've already asked. "The round so far" is kept for you: trust it over the conversation lines.
@@ -93,21 +98,29 @@ function soFarBlock(soFar: RoundSoFar, phaseElapsedMs: number): string {
     `- Mistakes you pointed out: ${count(soFar.mistakesPointedOut, 'time')}.`,
     `- Times they checked their code: ${checks}.`,
     `- Follow-up questions asked: ${count(soFar.followUps.asked, 'question')}${soFar.followUps.open ? '; another may be asked' : ''}.`,
+    `- Help: ${helpLine(soFar.help)}`,
     `- You've said goodbye: ${soFar.saidGoodbye ? 'yes' : 'no'}.`,
   ].join('\n');
 }
 
+function helpLine({ askedWhatBlocks, offer, failedAttempts }: RoundSoFar['help']): string {
+  const offerNow = {
+    none: 'no offer of help made',
+    waiting: 'waiting on their answer to your offer of help',
+    declined: "they declined your offer of help: don't offer again unless they say they're stuck or ask",
+  }[offer];
+  return `${askedWhatBlocks ? "you asked what's blocking them" : "you haven't asked what's blocking them"}; ${offerNow}; attempts they said failed since the last hint: ${failedAttempts}.`;
+}
+
 function instruction(input: ReplyPromptInput): string {
-  const { reply, soFar } = input;
+  const { reply } = input;
   switch (reply.kind) {
     case 'intro':
       return 'Open the round: greet the candidate briefly, say this is a 45-minute coding round, and invite them to read the problem and ask any clarifying questions.';
     case 'turn':
       return turnInstruction(input);
     case 'check-in':
-      return reply.nth === 1
-        ? 'The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint. hintLevel "none".'
-        : `The candidate is still quiet and idle after you checked in. If the conversation shows they're stuck, you may offer the smallest next insight from the hint ladder (${soFar.nextHint && soFar.nextHint !== 'concrete' ? `rung ${soFar.nextHint}, in your own words, with hintLevel "${soFar.nextHint}"` : 'none is left that small: just check in'}); never the concrete rung, never the answer. If they seem to be working, just check in gently with hintLevel "none".`;
+      return "The candidate has been quiet for a few minutes. Say one short, neutral line that you're here if they want to talk it through. No hint, no question about their work.";
   }
 }
 
@@ -116,14 +129,14 @@ const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-qu
 - murmur (a filler, a stray word, a typo, noise): stay-quiet.
 - clarifying-question (about the problem): answer briefly and factually from the problem and your notes. Only what they asked.
 - seeking-affirmation ("does that sound right?"): if the direction is sound, only a short "sounds reasonable" that hands the floor back, with no question added. If it isn't, ask one probing question (say, an input to try), never the fix.
-- asking-for-help (a hint; they don't know how to go on): the next rung of the hint ladder, in your own words.
-- asking-to-move-on ("can I start coding?", "should I test it now?"): a short yes. If they'd skip something that matters (coding with no approach discussed), ask them to cover it first.
-- stuck (unsure how to go on, circling, "I don't know"): the smallest insight that might help, the next rung at most and never the concrete one, or a question that helps them think. Never the answer.
+- asking-for-help (a hint, or a question about the language or syntax): the next rung of the hint ladder, in your own words, kept to what they're blocked on. A syntax question gets only the syntax, never the algorithm.
+- asking-to-move-on ("can I start coding?", "should I test it now?"): a short yes. The order is theirs to choose.
+- stuck (they say directly they're stuck, "I don't know how to go on"): no hint. If you haven't yet, ask one neutral question such as "What feels blocked?" (asks "what-blocks"), then wait. It names no bug, suggests no input, prescribes no next step and gives no insight. If they're still stuck after that, offer help in a short question such as "Want a hint?" (asks "offer-help").
 - explaining (their plan, approach or code): a short acknowledgement. Ask something only if you can't follow what they mean.
 - done (finished a phase or the code, in any words): see "When they're done" below.
 - answering-interviewer (answering your question): acknowledge it. Ask again only if their answer left your question unanswered.
-- agreeing (to your offer or suggestion): a short line that hands the floor back.
-- declining or carrying on: a short acknowledgement; they keep going.
+- agreeing (to your offer or suggestion): a short line that hands the floor back. If they accepted your offer of help, the next rung of the hint ladder, kept to what they're blocked on.
+- declining or carrying on: a short acknowledgement; they keep going. If they declined your offer of help, don't offer it again.
 - small-talk (logistics, "who are you?", "can you see my code?", thanks): a brief, natural reply.`;
 
 /**
@@ -170,19 +183,19 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
 function turnInstruction(input: ReplyPromptInput) {
   return [
     "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would.",
-    'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
+    'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake, attemptFailed), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
     `# Each kind of turn, and how to reply\n\n${replyByTurn}`,
     `# In this phase\n\n${phaseParts[input.phase]}`,
     `# When they're done\n\n${whenDone(input)}`,
     'movesTo is the phase their own words moved to, ahead or back: going back to Code to fix a bug after testing counts.',
-    `# Hints\n\nOnly when they ask for help, or a small insight when they're stuck. Set hintLevel to the rung your words give, or "none".`,
+    `# Help\n\nNever unasked. A hint only when they ask for help or accept your offer; set hintLevel to the rung your words give, or "none". Offer help (asks "offer-help") only when they say they're stuck or after repeated failed attempts, and never after they've declined it. A long pause, or testing or complexity they haven't covered, is never a reason to speak or to ask for it.`,
   ].join('\n\n');
 }
 
 function hintLadder({ hintLadder: ladder }: Problem) {
   return [
     '# Hint ladder',
-    'Only when the candidate asks for help, give one rung at a time, never beyond the next one, in your own words.',
+    'Only when the candidate asks for help or accepts your offer of it, give one rung at a time, never beyond the next one, in your own words.',
     `1. Nudge: ${ladder.nudge}`,
     `2. Question: ${ladder.question}`,
     `3. Concrete: ${ladder.concrete}`,
@@ -250,7 +263,7 @@ export interface CheckPromptInput {
   words: string;
 }
 
-const checkRules = `You check one line that the interviewer in a mock coding interview is about to say, before it is said. The candidate must find their own mistakes and their own solution; help comes only in small steps, and only when they ask.
+const checkRules = `You check one line that the interviewer in a mock coding interview is about to say, before it is said. The candidate must find their own mistakes and their own solution; help comes only in small steps, and only when they ask or accept an offer of it.
 
 Judge only what the words give the candidate, not what the interviewer meant:
 - namesMistake: the words say what or where a mistake in the candidate's code or approach is ("you return the value, not the index", "look at your return line"). Asking them to trace an input, without saying what will go wrong, is not naming it.

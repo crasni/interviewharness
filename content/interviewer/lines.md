@@ -84,11 +84,11 @@ Opens the last phase.
 
 ## Check-in
 
-Said once after a few minutes with no talking or typing. Neutral: never a hint.
+Said after a few minutes with no talking or typing, as written: the model never writes a check-in. Neutral: no hint, no question about the work, nothing to do next.
 
-- Want to talk me through where you are?
-- How's it going? Feel free to think out loud.
-- Where are you at with it?
+- Take your time. I'm here if you want to talk it through.
+- No rush. Feel free to think out loud whenever you like.
+- I'm here if you want to talk anything through.
 
 ## Walk through
 

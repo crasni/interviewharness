@@ -45,7 +45,7 @@ A short spoken reply after the candidate's turn ends ("Okay, that makes sense") 
 _Avoid_: Backchannel, reply
 
 **Check-in**:
-A line from the interviewer after a long stretch with no talking or typing ("Want to talk me through where you are?"). The first in a silence is neutral; if the silence goes on, it checks in again, waiting twice as long each time, and may offer the smallest next hint if the candidate seems stuck.
+A neutral line from the interviewer after a long stretch with no talking or typing ("Take your time. I'm here if you want to talk it through."), said as written from the example lines. If the silence goes on, it checks in again, waiting twice as long each time; it never hints, and stops once the candidate declines help until they get back to work.
 _Avoid_: Nudge, prompt, reminder
 
 ### Help and feedback
@@ -55,7 +55,7 @@ What the candidate is doing with a turn, as the interviewer hears it: thinking a
 _Avoid_: Intent, message type, utterance class
 
 **Hint**:
-Help toward the next step, one rung of the problem's hint ladder at a time and never the answer. Given when the candidate asks, or, a small insight at most (never the concrete rung), when they're stuck. Hints used lower the problem-solving score, as in a real interview, but the candidate never sees a hint count or budget.
+Help toward the next step, one rung of the problem's hint ladder at a time and never the answer. Given only when the candidate asks, or accepts the interviewer's offer; offered only when they say they're stuck or after repeated failed attempts (ADR 0017). Hints used lower the problem-solving score, as in a real interview, but the candidate never sees a hint count or budget.
 _Avoid_: Clue, help, hints left
 
 **Feedback**:

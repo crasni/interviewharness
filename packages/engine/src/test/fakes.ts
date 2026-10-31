@@ -63,7 +63,7 @@ export function testLines() {
 - That's about time. Do you have any questions for me?
 
 ## Check-in
-- Want to talk me through where you are?
+- Take your time. Talk it through whenever you like.
 `);
 }
 

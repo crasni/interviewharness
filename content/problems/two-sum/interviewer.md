@@ -26,7 +26,7 @@ When the candidate says they're done, a good check is to ask them to trace `nums
 
 - Nudge: Think about what you need to know about the values you've already seen.
 - Question: For each value, which other value would complete the pair, and how fast can you check whether you've seen it?
-- Concrete: Keep a map from each value you've seen to its position, and look up `target - value` before adding the current one.
+- Concrete: Some structure could tell you in constant time whether a value's partner has already appeared. Which one, and what would it hold?
 
 ## Follow-ups
 
