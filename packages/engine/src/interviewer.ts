@@ -54,6 +54,7 @@ export type Rejection =
   | 'what-blocks-repeated'
   | 'probe-repeated'
   | 'probe-mid-work'
+  | 'goodbye-too-soon'
   | 'written-for-old-phase'
   | 'solution-leak';
 
@@ -68,6 +69,7 @@ const corrections: Record<Rejection, string> = {
     "it asked again what feels blocked, which you already asked. Don't ask it twice: if they're still stuck, offer help in a short question, or just acknowledge.",
   'probe-repeated': 'it was a third probe in a row. Accept what they said and move on, fixed or not.',
   'probe-mid-work': "it probed while they're still working it out. Wait until they hand the answer over: stay quiet or give a backchannel.",
+  'goodbye-too-soon': 'it said goodbye before asking whether they have questions for you. Ask that first (asks "their-questions"); say goodbye once they have none.',
   'written-for-old-phase':
     "it was written for the phase before their turn moved the round on. Reply for the phase they're in now, as \"The round so far\" says.",
   'solution-leak': 'it gave away part of the solution. Never quote or describe the solution, its code or its steps.',
@@ -147,10 +149,11 @@ type TurnKindName = keyof typeof turnKinds;
 
 /**
  * What the interviewer's words ask the candidate to do, so the round knows who started a test or a follow-up.
- * Also the one neutral question to a stuck candidate (what-blocks), an offer of help, and a probe: one neutral
- * question that makes them check an answer they handed over that looks wrong.
+ * Also the one neutral question to a stuck candidate (what-blocks), an offer of help, a probe: one neutral
+ * question that makes them check an answer they handed over that looks wrong, and asking in Wrap-up whether
+ * they have questions, which comes before any goodbye.
  */
-export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'what-blocks', 'offer-help', 'probe', 'other'] as const;
+export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'what-blocks', 'offer-help', 'probe', 'their-questions', 'other'] as const;
 export type InterviewerAsk = (typeof interviewerAsks)[number];
 
 /** Where the candidate's own words take the round: another phase, ahead or back, or nowhere. */
@@ -348,9 +351,13 @@ export function replacedSituation(reply: Reply): Situation {
   return reply.kind === 'turn' ? 'walk-through' : fallbackSituation(reply);
 }
 
-/** What an example line said in place of the model's words asks the candidate to do: the walk-through line asks for a trace. */
+/**
+ * What an example line said in place of the model's words asks the candidate to do: the walk-through line asks
+ * for a trace, and the closing line and the their-questions line ask for their questions.
+ */
 function fallbackAsks(situation: Situation): InterviewerAsk {
-  return situation === 'walk-through' ? 'trace-example' : 'nothing';
+  if (situation === 'walk-through') return 'trace-example';
+  return situation === 'wrap-up' || situation === 'their-questions' ? 'their-questions' : 'nothing';
 }
 
 /** The example-lines situation whose line is said when the model can't give the words for a reply. */
@@ -440,6 +447,7 @@ export function createInterviewer(options: InterviewerOptions) {
   let lastPointedOut = false;
   let probesInARow = 0;
   let saidGoodbye = false;
+  let askedForQuestions = false;
   // Help around an impasse: whether the interviewer asked what's blocking them, whether the candidate declined
   // its offer of help, and the attempts they said failed since the last hint.
   let askedWhatBlocks = false;
@@ -528,6 +536,7 @@ export function createInterviewer(options: InterviewerOptions) {
       followUps: { asked: asked.filter((a) => a.asks === 'follow-up').length, open: followUpsOpen() },
       help: { askedWhatBlocks, offer: declinedHelp ? 'declined' : lastAsk === 'offer-help' ? 'waiting' : 'none', failedAttempts },
       saidGoodbye,
+      askedForQuestions,
       probesInARow,
     };
   }
@@ -609,7 +618,8 @@ export function createInterviewer(options: InterviewerOptions) {
   /**
    * What's wrong with an attempt's words, if anything: help that wasn't asked for, a mistake named unasked, help
    * that skips a rung, an offer of help too soon, a step prescribed to a stuck candidate, asking again what feels
-   * blocked, a probe past the limit in a row or one mid-work, or a leak of the solution.
+   * blocked, a probe past the limit in a row or one mid-work, a goodbye before asking for their questions, or a
+   * leak of the solution.
    */
   function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
@@ -632,6 +642,8 @@ export function createInterviewer(options: InterviewerOptions) {
     // tell; the limit in a row is the app's, so probing can't turn into an interrogation.
     if (asks === 'probe' && probesInARow >= probeRules.maxInARow) return 'probe-repeated';
     if (asks === 'probe' && written.heard && midWork.includes(written.heard)) return 'probe-mid-work';
+    // The round closes the way a real one does: they're asked once for their questions before any goodbye.
+    if (written.kind === 'goodbye' && !askedForQuestions && !saidGoodbye) return 'goodbye-too-soon';
     if (written.check?.describesSolution) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
   }
@@ -725,6 +737,7 @@ export function createInterviewer(options: InterviewerOptions) {
     lastPointedOut = observed?.pointsOutMistake ?? false;
     if (observed && observed.asks !== 'nothing') asked.push({ lineId: said.id, asks: observed.asks });
     if (observed?.asks === 'what-blocks') askedWhatBlocks = true;
+    if (observed?.asks === 'their-questions') askedForQuestions = true;
     if (observed?.pointsOutMistake) mistakes.push({ lineId: said.id, foundBy: 'interviewer' });
     if (kind === 'goodbye') saidGoodbye = true;
   }
@@ -746,7 +759,8 @@ export function createInterviewer(options: InterviewerOptions) {
         const extra = rejected.length ? { rejected } : {};
         if (!written) {
           logCall(call, 'replaced', extra);
-          return sayFallback(replacedSituation(reply));
+          // A goodbye written too soon each time is replaced by the line it should have been: asking for their questions.
+          return sayFallback(rejected.at(-1) === 'goodbye-too-soon' ? 'their-questions' : replacedSituation(reply));
         }
         const level = written.gives.hintLevel;
         const said = {

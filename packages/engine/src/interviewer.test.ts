@@ -87,6 +87,9 @@ const ack = (words: string, movesTo = 'stays') => reply('acknowledgement', words
 /** A reply that heard the candidate as done with the phase, and offers to move on. */
 const offer = (words: string) => reply('offer-next-phase', words, { heard: 'done' });
 
+/** Asking once, in Wrap-up, whether they have questions: what must come before any goodbye. */
+const askQuestions = reply('answer', 'Any questions for me?', { heard: 'done', asks: 'their-questions' });
+
 /** A check-in as the model writes it: its words, and the hint rung it says they give. */
 const checkIn = (words: string, hintLevel = 'none') => ({ object: { words, hintLevel } });
 
@@ -570,13 +573,15 @@ describe('the conversation sets the phase', () => {
   });
 
   it('says goodbye once, and is told so after', async () => {
-    const helpers = await doneIn('wrap-up', [reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }), reply('stay-quiet', '', { heard: 'small-talk' })]);
-    helpers.wait(5_000);
-    helpers.interviewer.onSignal({ type: 'said', text: 'thanks' });
-    helpers.wait(1_000);
-    await settle();
+    const helpers = await doneIn('wrap-up', [askQuestions, reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }), reply('stay-quiet', '', { heard: 'small-talk' })]);
+    for (const text of ['no, all good', 'thanks']) {
+      helpers.wait(5_000);
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+    }
 
-    expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.']);
+    expect(helpers.spoken()).toEqual(['Okay.', 'Any questions for me?', 'Thanks for your time. Take care.']);
     expect(helpers.model.requests.at(-1)!.messages[0]!.text).toContain("You've said goodbye: yes.");
   });
 });
@@ -1257,37 +1262,88 @@ describe('time and closing', () => {
     expect(timeEvents(helpers)).toEqual([]);
   });
 
+  /** Says one line after another, each answered before the next. */
+  async function say(helpers: Helpers, said: string[]) {
+    for (const text of said) {
+      helpers.wait(5_000);
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+    }
+  }
+
+  it('asks once for their questions before saying goodbye: a goodbye before that is written again', async () => {
+    const helpers = await doneEarly([
+      reply('goodbye', 'Thanks for your time. That wraps up the interview.', { heard: 'agreeing' }),
+      reply('answer', 'Before we finish, do you have any questions for me?', { heard: 'agreeing', asks: 'their-questions' }),
+      reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }),
+    ]);
+    await say(helpers, ["no, I'm good"]);
+
+    expect(helpers.spoken()).toEqual(['Okay.', 'Before we finish, do you have any questions for me?', 'Thanks for your time. Take care.']);
+    expect(helpers.modelCalls().slice(1).map((c) => c.rejected)).toEqual([['goodbye-too-soon'], undefined]);
+    const rewrite = helpers.model.requests.filter((r) => r.purpose === 'interviewer-reply')[2]!.messages[0]!.text;
+    expect(rewrite).toContain('Before any goodbye, ask once whether they have questions for you');
+    expect(rewrite).toContain('it said goodbye before asking whether they have questions for you');
+  });
+
+  it('says the reviewed line asking for their questions when every reply says goodbye too soon', async () => {
+    const helpers = await doneEarly([
+      reply('goodbye', 'Thanks for your time.', { heard: 'agreeing' }),
+      reply('goodbye', 'Great work, take care.', { heard: 'agreeing' }),
+      reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }),
+    ]);
+    await say(helpers, ["no, I'm good"]);
+
+    expect(helpers.spoken()).toEqual(['Okay.', 'Do you have any questions for me?', 'Thanks for your time. Take care.']);
+    expect(helpers.modelCalls().slice(1).map((c) => c.outcome)).toEqual(['replaced', 'spoken']);
+  });
+
+  it('counts the closing line at time as asking for their questions', async () => {
+    const helpers = await afterIntro([reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' })]);
+    // Typing now and then, so the silence gets no check-in, until the closing line at time.
+    while (roundElapsed(helpers) < 46 * minute) {
+      helpers.interviewer.onSignal({ type: 'editor-activity' });
+      helpers.wait(minute);
+    }
+    expect(timeEvents(helpers).at(-1)).toMatchObject({ kind: 'closing' });
+    await say(helpers, ['no questions, thanks']);
+
+    expect(helpers.spoken().at(-1)).toBe('Thanks for your time. Take care.');
+    expect(helpers.modelCalls().at(-1)!.rejected).toBeUndefined();
+  });
+
   it('stays quiet after the goodbye: thanks does not reopen the round, and neither does the clock', async () => {
     const helpers = await doneEarly([
+      askQuestions,
       reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }),
       reply('acknowledgement', "You're welcome! Anything else you'd like to go over?", { heard: 'small-talk' }),
     ]);
-    helpers.wait(5_000);
-    helpers.interviewer.onSignal({ type: 'said', text: 'thanks!' });
-    helpers.wait(1_000);
-    await settle();
+    await say(helpers, ['no, all good', 'thanks!']);
     waitUntil(helpers, 50 * minute);
 
-    expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.']);
+    expect(helpers.spoken()).toEqual(['Okay.', 'Any questions for me?', 'Thanks for your time. Take care.']);
     // The log says the words were held back, not spoken.
     expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'quiet-after-goodbye', heard: 'small-talk', turnReply: 'acknowledgement' });
   });
 
   it('answers a real question after the goodbye, about the problem or to the interviewer, but never says goodbye twice', async () => {
     const helpers = await doneEarly([
+      askQuestions,
       reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }),
-      reply('answer', 'Small and friendly; we pair a lot.', { heard: 'small-talk' }),
+      reply('answer', "It's a practice round, so there's no real team, but ask me anything about the problem.", { heard: 'small-talk' }),
       reply('answer', 'Yes, values can repeat.', { heard: 'clarifying-question' }),
       reply('goodbye', 'Bye now, take care!', { heard: 'small-talk' }),
     ]);
-    for (const text of ["what's the team like?", 'oh, could the values repeat?', 'bye!']) {
-      helpers.wait(5_000);
-      helpers.interviewer.onSignal({ type: 'said', text });
-      helpers.wait(1_000);
-      await settle();
-    }
+    await say(helpers, ['no, all good', "what's the team like?", 'oh, could the values repeat?', 'bye!']);
 
-    expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.', 'Small and friendly; we pair a lot.', 'Yes, values can repeat.']);
+    expect(helpers.spoken()).toEqual([
+      'Okay.',
+      'Any questions for me?',
+      'Thanks for your time. Take care.',
+      "It's a practice round, so there's no real team, but ask me anything about the problem.",
+      'Yes, values can repeat.',
+    ]);
     expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'quiet-after-goodbye', turnReply: 'goodbye' });
   });
 });
@@ -1512,5 +1568,16 @@ describe("the candidate's own questions and offers", () => {
     const record = helpers.interviewer.record();
     expect(record.asked).toEqual([]);
     expect(record.checks).toEqual([{ lineId: 't4', by: 'candidate' }]);
+  });
+
+  it('is told this is practice with no real company, so it never invents a team, role or company', async () => {
+    const helpers = await turns(
+      [reply('answer', "This is a practice round, so there's no real team behind it. Happy to talk about the problem, though.", { heard: 'small-talk' })],
+      ["what's the team like day to day?"],
+    );
+
+    const prompt = helpers.model.requests[0]!.messages[0]!.text;
+    expect(prompt).toContain('practice round with no real company');
+    expect(prompt).toContain('never invent a team or role');
   });
 });

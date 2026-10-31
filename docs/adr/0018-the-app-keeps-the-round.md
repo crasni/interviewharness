@@ -4,6 +4,8 @@ _Amended by ADR 0019: phases follow the candidate back as well as ahead, every p
 
 _Amended 2026-10-31 (owner): the closing line said at time also moves the round to Wrap-up, and after the goodbye a real question still gets an answer. See "Closing at time, and after the goodbye" below._
 
+_Amended 2026-10-31 (owner's second round): the app, not only the prompt, makes sure they're asked for their questions before the goodbye. See "The interviewer closes once" below._
+
 A real round on 2026-10-30 (Two sum, 5.5 minutes) showed the model keeping the round's state badly. It reported the phase itself, so its own question ("what's the complexity?") moved the round to Complexity. It rated its own help, so naming the candidate's bug ("the return value uses the number rather than its index") counted as no hint. It led the testing ("try a negative value"), asked "anything else?" twice in a row, and ended a round with 40 minutes left. The grader then credited the candidate with tests the interviewer had asked for. Most of this was the prompt inviting it ("one follow-up if something important is missing: complexity, an edge case"), but the deeper cause was that the round's state lived in the model's reading of twelve recent lines.
 
 So each reply to a turn still comes back as one structured call (ADR 0017), now in two parts. **What the model observed** about the candidate's turn: what they're doing, the phase *their own words* moved to (`movesTo`), whether they traced an example, and whether they found their own mistake. **What its reply does:** its kind and words, the hint rung, whether it names a mistake (`pointsOutMistake`), and what it asks for (`asks`: a trace, an edge case, complexity, a follow-up). The model only reports. **The app keeps the books:**
@@ -16,7 +18,7 @@ So each reply to a turn still comes back as one structured call (ADR 0017), now 
 ## Two additions decided with this
 
 - **A Follow-up phase**, between Complexity and Wrap-up. When the candidate finishes Complexity with at least 5 minutes left and the problem has follow-up questions, the interviewer asks them one at a time instead of offering to wrap up. It's the only phase the interviewer leads. With no time or no questions left, the round goes on to Wrap-up.
-- **The interviewer closes once.** In Wrap-up it asks once for the candidate's questions, then says goodbye once (reply kind `goodbye`) and stays quiet after. The candidate still ends the round with End round.
+- **The interviewer closes once.** In Wrap-up it asks once for the candidate's questions (`asks: "their-questions"`), then says goodbye once (reply kind `goodbye`) and stays quiet after. The candidate still ends the round with End round. In the owner's second round it went from "sure" (to its offer to wrap up) straight to goodbye, so the app enforces the order: a goodbye before they've been asked is written again (`goodbye-too-soon`), and if every attempt says goodbye too soon, the reviewed "Their questions" line is said instead. The closing line at time asks for their questions, so it counts.
 
 ## Closing at time, and after the goodbye (amendment, 2026-10-31)
 

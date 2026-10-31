@@ -41,6 +41,8 @@ export interface RoundSoFar {
    */
   help: { askedWhatBlocks: boolean; offer: 'none' | 'waiting' | 'declined'; failedAttempts: number };
   saidGoodbye: boolean;
+  /** Whether the interviewer has asked whether they have questions for it, which comes before any goodbye. */
+  askedForQuestions: boolean;
   /** How many of the interviewer's last lines in a row were probes: this turn holds the reply to the last one. */
   probesInARow: number;
 }
@@ -150,7 +152,7 @@ const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-qu
 - answering-interviewer (answering your question): acknowledge it, or one probe if it's wrong. Ask again only if their answer left your question unanswered.
 - agreeing (to your offer or suggestion): a short line that hands the floor back. If they accepted your offer of help, a hint (see "Help").
 - declining or carrying on: a short acknowledgement; they keep going.
-- small-talk (logistics, "who are you?", "can you see my code?", thanks): a brief, natural reply.`;
+- small-talk (logistics, "who are you?", "can you see my code?", thanks): a brief, natural reply. It's a practice round with no real company: say so kindly if asked; never invent a team or role.`;
 
 /**
  * How the interviewer behaves in each phase: only the current phase's part goes into the prompt, so a
@@ -163,7 +165,7 @@ const phaseParts: Record<CodingPhase, string> = {
   test: "They choose the examples to test with. Don't suggest inputs or edge cases; if they ask what to test, turn it back to them (\"what would you try?\").",
   complexity: 'Let them state the time and space complexity.',
   'follow-up': 'You lead this phase: ask the follow-up questions and let them think.',
-  'wrap-up': "Answer their questions about the role or the interview briefly. Don't review how they did: feedback comes after the round.",
+  'wrap-up': "Answer their questions briefly. Don't review how they did: feedback comes after the round.",
 };
 
 /** What to do when the candidate is done with the phase the round is in. */
@@ -183,7 +185,9 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
     case 'wrap-up':
       return soFar.saidGoodbye
         ? 'You have said goodbye already: never again. If they say thanks or bye, stay-quiet. Answer any real question, about the problem or to you ("what\'s the team like?"), briefly (kind "answer").'
-        : 'Ask once whether they have questions for you, and answer them briefly. When they have nothing more, say goodbye once (kind "goodbye").';
+        : soFar.askedForQuestions
+          ? 'Answer their questions briefly. When they have nothing more, say goodbye once (kind "goodbye").'
+          : 'Before any goodbye, ask once whether they have questions for you (asks "their-questions").';
     default:
       return `When they're done with this phase, ${offer}.`;
   }
@@ -194,7 +198,7 @@ const mistakesAndProbes = `- Until they say they're done or ask you, don't comme
 - Don't grade answers mid-round: no "great", "correct" or "that's wrong". A neutral "okay" is fine.
 - A mistake is theirs to find: never say what or where it is, the fix or the right answer, unless they ask for help or accept your offer.
 - When they hand over an answer (to your question, a trace, their complexity, an approach they ask about) that's wrong or ignores a constraint they agreed to, ask one short neutral question in your own words so they check it themselves (asks "probe"): what one step of their own trace or code gives, or how their answer meets that constraint.
-- One probe per answer: whatever they say back to it, accept it, fixed or not; only a new, different answer may get its own. An answer that works but differs from your reference gets none.`;
+- One probe per answer: accept whatever they say back to it, fixed or not; a new, different answer may get its own. One that works but differs from your reference gets none.`;
 
 /**
  * The candidate finished a turn. What they meant is the model's to understand, however they put it; what the

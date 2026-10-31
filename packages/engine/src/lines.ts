@@ -11,6 +11,7 @@ export const SITUATIONS = [
   'suggest-wrap-up',
   'move-on',
   'wrap-up',
+  'their-questions',
   'check-in',
   'time-reminder',
   'walk-through',

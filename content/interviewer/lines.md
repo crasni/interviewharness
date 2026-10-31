@@ -2,7 +2,7 @@
 
 Examples of what the interviewer says, grouped by situation. Each `## heading` is a situation; each `- item` is one line.
 
-In v0.0 the interviewer says these lines as written, in turn. Once an AI writes the interviewer's words, this file becomes guidance for tone and length, not a script.
+The AI writes the interviewer's words in this tone and length; a line is said as written only where noted.
 
 ## Backchannel
 
@@ -26,7 +26,7 @@ Said after the candidate's turn ends. Takes the floor briefly, then hands it bac
 
 ## Answer
 
-Said when the candidate asks a question. In v0.0 these are generic; the AI interviewer will answer the actual question.
+Said when the candidate asks a question.
 
 - Good question. You can assume the input fits in memory.
 - Assume the simplest reasonable case for now.
@@ -42,7 +42,7 @@ Opens the round: a short greeting and the format. Said once, a moment after the 
 
 ## Suggest approach
 
-Offers to move from clarifying the problem to the approach. The candidate answers "Move on" or "Not yet".
+Offers to move from clarifying the problem to the approach.
 
 - Want to talk through your approach?
 - Shall we move on to how you'd solve it?
@@ -77,14 +77,21 @@ Said when the candidate agrees to move on.
 
 ## Wrap-up
 
-Opens the last phase. Also the closing line said as written at a pause once the round's time is up; the round still ends only when the candidate ends it.
+Opens the last phase; also the closing line, said as written at a pause once time is up.
 
 - That's about time. Do you have any questions for me?
 - We're nearly out of time. Any questions for me?
 
+## Their questions
+
+Asked once in Wrap-up, before any goodbye; said as written when every reply the AI wrote said goodbye first.
+
+- Before we finish, do you have any questions for me?
+- Do you have any questions for me?
+
 ## Check-in
 
-Said after a few minutes with no talking or typing. The model writes it in this tone; one of these is said as written when the model can't, or when its words gave help. Neutral: no hint, no mistake named, nothing to do next.
+Said after a few minutes with no talking or typing. Neutral: no hint, no mistake named, nothing to do next. Said as written when the AI's words can't be used.
 
 - Take your time. I'm here if you want to talk it through.
 - No rush. Feel free to think out loud whenever you like.

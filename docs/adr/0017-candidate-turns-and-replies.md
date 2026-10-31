@@ -6,7 +6,7 @@ _Amended 2026-10-31 (owner, candidate-led v0.1a): no unasked hints. See "Help on
 
 _Amended 2026-10-31 (owner's round): a wrong answer they hand over gets one probe. See "One probe for a wrong answer" below; it replaces the seeking-affirmation and answering-the-interviewer rows' "one probing question" and "one follow-up"._
 
-_Amended 2026-10-31 (owner's second round): one probe per answer, not per line; probes in the interviewer's own words; no invented employer. See "One probe for a wrong answer" and "Small talk" below._
+_Amended 2026-10-31 (owner's second round): one probe per answer, not per line; probes in the interviewer's own words; no invented employer. See "One probe for a wrong answer" below, and the small-talk row._
 
 Playing real rounds showed the keyword rules planned for v0.1 (a question needs a "?", "that's it" means done, "yes" accepts) misread typed, casual speech, and that time-based offers to move on interrupt candidates mid-thought, for example 15 seconds into tracing an example they'd just been asked to trace. So the Floor Manager keeps only *when* the interviewer may speak (the beat after a turn, barge-in, silence), and what the candidate meant is the model's to understand.
 
@@ -24,7 +24,7 @@ Every reply to a turn comes back structured: what the candidate was doing (a **c
 | done | reads the work; asks for a trace if it looks wrong, else offers the next phase |
 | answering the interviewer | acknowledges; if the answer is wrong or ignores a constraint they agreed to, one probe, then moves on whatever they say |
 | agreeing / declining | moves on, or the next rung if it was an offer of help / keeps going, and no more offers |
-| small talk, logistics | a brief natural reply |
+| small talk, logistics | a brief natural reply. It's a practice round with no real company: asked about the team, role or company, it says so kindly and never invents one |
 
 ## Consequences
 
