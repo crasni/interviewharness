@@ -398,8 +398,8 @@ export function createInterviewer(options: InterviewerOptions) {
     lines,
     log,
     skipsPhase,
-    checksIn: () => !declinedHelp && !saidGoodbye,
-    keepsTime: () => !saidGoodbye,
+    checkInsHeldBack: () => (saidGoodbye ? 'said-goodbye' : declinedHelp ? 'declined-help' : null),
+    timeHeldBack: () => (saidGoodbye ? 'said-goodbye' : null),
   });
   // The round's books (ADR 0018): kept here from what the model reports, never left to the model to remember.
   const transcript: RecordLine[] = [];

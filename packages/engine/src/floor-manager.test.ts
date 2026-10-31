@@ -5,6 +5,7 @@ import {
   fallbackSituation,
   floorRules,
   type FloorLogEntry,
+  type FloorManagerOptions,
   type LaterPhase,
   type Signal,
   startRound,
@@ -21,12 +22,12 @@ function understood(text: string): { as: TurnReplyKind; agreed: boolean } {
   return { as: text.endsWith('?') ? 'answer' : 'ack', agreed: false };
 }
 
-function setup({ skipIntro = true } = {}) {
+function setup({ skipIntro = true, ...heldBack }: { skipIntro?: boolean } & Pick<FloorManagerOptions, 'checkInsHeldBack' | 'timeHeldBack'> = {}) {
   const clock = fakeClock(10_000);
   const log = fakeLog<FloorLogEntry>();
   const round = startRound('coding', clock);
   const lines = testLines();
-  const manager = createFloorManager({ clock, round, lines, log });
+  const manager = createFloorManager({ clock, round, lines, log, ...heldBack });
   // The words for each reply arrive at once, as the example line for it: these tests are about the
   // Floor Manager's timing, not about where the words come from (the interviewer's tests cover that).
   // What the candidate meant is the model's to understand; here a stand-in reads the test's own sentences.
@@ -125,13 +126,13 @@ describe('the Floor Manager', () => {
     wait(1_000);
 
     expect(log.entries).toEqual([
-      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, idleMs: 0, checkIns: 0, roundLeftMs: 2_690_000, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
-      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, idleMs: 0, checkIns: 0, roundLeftMs: 2_688_000, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, idleMs: 0, checkIns: 0, roundLeftMs: 2_690_000, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0, checkInsHeldBack: null, timeHeldBack: null } },
+      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, idleMs: 0, checkIns: 0, roundLeftMs: 2_688_000, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0, checkInsHeldBack: null, timeHeldBack: null } },
       {
         at: 22_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, idleMs: 800, checkIns: 0, roundLeftMs: 2_687_200, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, idleMs: 800, checkIns: 0, roundLeftMs: 2_687_200, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0, checkInsHeldBack: null, timeHeldBack: null },
       },
     ]);
   });
@@ -238,6 +239,31 @@ describe('the Floor Manager', () => {
 
     floor.onSignal({ type: 'talk-end' });
     expect(wait(1_000).filter((d) => d.kind !== 'silent').map((d) => d.kind)).toEqual(['ack']);
+  });
+
+  describe('held back', () => {
+    const heldTicks = (log: { entries: FloorLogEntry[] }, field: 'checkInsHeldBack' | 'timeHeldBack') =>
+      log.entries.filter((e) => e.signal.type === 'tick' && e.decision.kind === 'silent' && e.state[field] !== null);
+
+    it('logs once, with the reason, a check-in that was due but held back because the candidate declined help', () => {
+      const { wait, log } = setup({ checkInsHeldBack: () => 'declined-help' });
+
+      const decisions = wait(3 * floorRules.checkInAfterIdle);
+
+      expect(decisions.every((d) => d.kind === 'silent')).toBe(true);
+      expect(heldTicks(log, 'checkInsHeldBack')).toEqual([expect.objectContaining({ state: expect.objectContaining({ checkInsHeldBack: 'declined-help' }) })]);
+    });
+
+    it('logs each time reminder and the closing line held back after the goodbye, with the reason', () => {
+      const { wait, log } = setup({ checkInsHeldBack: () => 'said-goodbye', timeHeldBack: () => 'said-goodbye' });
+
+      const decisions = wait(50 * 60_000);
+
+      expect(decisions.every((d) => d.kind === 'silent')).toBe(true);
+      // The first check-in held back, then the two reminders and the closing line, each logged at the tick it came due.
+      expect(heldTicks(log, 'timeHeldBack').map((e) => Math.round(e.state.roundLeftMs / 60_000))).toEqual([42, 15, 5, 0]);
+      expect(heldTicks(log, 'timeHeldBack').every((e) => e.state.timeHeldBack === 'said-goodbye')).toBe(true);
+    });
   });
 
   describe('phases', () => {

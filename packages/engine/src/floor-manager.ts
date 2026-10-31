@@ -107,7 +107,16 @@ export interface FloorState extends PhaseState {
   checkIns: number;
   /** Time left in the round; below zero once it has run over. */
   roundLeftMs: number;
+  /** Why a long silence gets no check-in now, or null if it may. */
+  checkInsHeldBack: CheckInsHeldBack | null;
+  /** Why the time is no longer mentioned, or null if it may be. */
+  timeHeldBack: TimeHeldBack | null;
 }
+
+/** Why check-ins are held back: the candidate declined help (until they get back to work), or the interviewer said goodbye. */
+export type CheckInsHeldBack = 'declined-help' | 'said-goodbye';
+/** Why time reminders and the closing line are held back: the interviewer said goodbye. */
+export type TimeHeldBack = 'said-goodbye';
 
 export interface FloorLogEntry {
   at: number;
@@ -131,10 +140,10 @@ export interface FloorManagerOptions {
   log: FloorLog;
   /** A phase the round passes over right now when offering the next one (Follow-up, with no time or nothing to ask). */
   skipsPhase?: (phase: LaterPhase) => boolean;
-  /** Whether a long silence may get a check-in now: not once the candidate has declined help. Yes when not given. */
-  checksIn?: () => boolean;
-  /** Whether the interviewer may still remind of the time or close: not once it has said goodbye. Yes when not given. */
-  keepsTime?: () => boolean;
+  /** Why a long silence may not get a check-in now (declined help, a goodbye), or null if it may. Null when not given. */
+  checkInsHeldBack?: () => CheckInsHeldBack | null;
+  /** Why the interviewer may no longer remind of the time or close (a goodbye), or null if it may. Null when not given. */
+  timeHeldBack?: () => TimeHeldBack | null;
 }
 
 /**
@@ -168,7 +177,15 @@ export const floorRules = {
 };
 
 /** Decides *whether* the interviewer speaks at each moment, never *what* the substance is. */
-export function createFloorManager({ clock, round, lines, log, skipsPhase, checksIn = () => true, keepsTime = () => true }: FloorManagerOptions): FloorManager {
+export function createFloorManager({
+  clock,
+  round,
+  lines,
+  log,
+  skipsPhase,
+  checkInsHeldBack = () => null,
+  timeHeldBack = () => null,
+}: FloorManagerOptions): FloorManager {
   const phases = createPhaseGuide(round, skipsPhase);
   const openedAt = clock.now();
   let introduced = false;
@@ -190,6 +207,8 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
   // The last time the candidate did something, or the interviewer finished speaking; and its check-ins since.
   let activeAt = openedAt;
   let checkIns = 0;
+  // A check-in that came due but was held back is logged once, until the candidate does something.
+  let heldCheckInLogged = false;
   // How many of the reminder marks are behind the round, said or skipped; and whether the closing line was said.
   let marksPassed = 0;
   let closed = false;
@@ -207,6 +226,8 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
       idleMs: now - activeAt,
       checkIns,
       roundLeftMs: round.timeLeftMs(),
+      checkInsHeldBack: checkInsHeldBack(),
+      timeHeldBack: timeHeldBack(),
       ...phases.state(now),
     };
   }
@@ -270,6 +291,7 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
   function active(now: number) {
     activeAt = now;
     checkIns = 0;
+    heldCheckInLogged = false;
   }
 
   /** Returns the decision, and whether it is worth logging. */
@@ -329,11 +351,11 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
 
   /**
    * A time reminder or the closing line, when one is due and the candidate has paused: never mid-work, never in
-   * Wrap-up (they're finishing already), never after goodbye. A mark passed while they worked gives way to a later
-   * one, so they hear only the time actually left. At time, one closing line; the round still ends only on End round.
+   * Wrap-up (they're finishing already). A mark passed while they worked gives way to a later one, so they hear
+   * only the time actually left. At time, one closing line; the round still ends only on End round.
    */
   function timeToMention(now: number): Reply | null {
-    if (now - activeAt < timeRules.quietBeforeMentioningTime || round.snapshot().phase === 'wrap-up' || closed || !keepsTime()) return null;
+    if (now - activeAt < timeRules.quietBeforeMentioningTime || round.snapshot().phase === 'wrap-up' || closed) return null;
     const left = round.timeLeftMs();
     if (left <= 0) {
       closed = true;
@@ -366,13 +388,21 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
       phases.notYet(now); // nobody answered: same as "not yet"
       return [{ kind: 'suggestion-withdrawn' }, true];
     }
+    // After goodbye the time is never mentioned: a mark that comes due is passed over, and logged with why.
     const time = floorIsFree && !phases.suggested ? timeToMention(now) : null;
-    if (time) return [prepare(time), true];
+    if (time) return timeHeldBack() ? [silent, true] : [prepare(time), true];
     // The interviewer never pushes a phase on the clock: the candidate drives the round. It only checks in,
-    // neutrally, on a long silence, waiting longer each time, and not at all once they've declined help.
-    if (floorIsFree && !phases.suggested && checksIn() && now - activeAt >= floorRules.checkInAfterIdle * 2 ** checkIns) {
-      checkIns += 1;
-      return [prepare({ kind: 'check-in', nth: checkIns }), true];
+    // neutrally, on a long silence, waiting longer each time, and not at all once they've declined help or
+    // it has said goodbye; a check-in held back is logged once, with why.
+    if (floorIsFree && !phases.suggested && now - activeAt >= floorRules.checkInAfterIdle * 2 ** checkIns) {
+      if (!checkInsHeldBack()) {
+        checkIns += 1;
+        return [prepare({ kind: 'check-in', nth: checkIns }), true];
+      }
+      if (!heldCheckInLogged) {
+        heldCheckInLogged = true;
+        return [silent, true];
+      }
     }
 
     // A quiet tick ten times a second would bury the decisions worth replaying,
