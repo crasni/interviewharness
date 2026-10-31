@@ -141,6 +141,7 @@ interface TurnWords {
   movesTo: Move;
   checkedCode: boolean;
   foundOwnMistake: boolean;
+  saysCodeDone: boolean;
   attemptFailed: boolean;
   kind: TurnKindName;
   words: string;
@@ -150,7 +151,7 @@ interface TurnWords {
 }
 
 /** What the model observed about a turn, and what its reply does: the app keeps the round's books from these. */
-type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'attemptFailed' | 'pointsOutMistake' | 'asks'>;
+type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'saysCodeDone' | 'attemptFailed' | 'pointsOutMistake' | 'asks'>;
 
 /** One attempt at a reply's words, with what the model says they do and, once checked, the check's verdict. */
 interface Written {
@@ -169,8 +170,6 @@ interface Written {
   gives: { hintLevel: HintLevel; namesMistake: boolean };
   /** Whether this reply may help: only when the candidate asked for help or accepted an offer of it. */
   mayHint: boolean;
-  /** Whether this reply may offer help: they said they're stuck, or failed again and again, and haven't declined it. */
-  mayOffer: boolean;
   check?: CheckVerdict;
 }
 
@@ -192,6 +191,10 @@ const turnSchema: ObjectSchema<TurnWords> = {
         description: 'Whether the candidate checked their code in this turn: walked an input through it, gave test cases with what it returns, or said what it does on an edge case.',
       },
       foundOwnMistake: { type: 'boolean', description: 'Whether the candidate spotted a mistake in their own code or approach in this turn, without you pointing it out.' },
+      saysCodeDone: {
+        type: 'boolean',
+        description: 'Whether the candidate says in this turn that their code is finished, ready to be judged as it is. Finishing an explanation, an approach or a test run does not count; nor does asking for help with code they are still working on.',
+      },
       attemptFailed: { type: 'boolean', description: "Whether the candidate says something they tried didn't work: a trace or a run gave the wrong result, or an idea fell through." },
       kind: { type: 'string', enum: Object.keys(turnKinds), description: 'The kind of reply that fits.' },
       words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
@@ -199,16 +202,17 @@ const turnSchema: ObjectSchema<TurnWords> = {
       pointsOutMistake: { type: 'boolean', description: 'Whether your words say what or where a mistake in their code or approach is.' },
       asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do.' },
     },
-    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'attemptFailed', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
+    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'saysCodeDone', 'attemptFailed', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
     additionalProperties: false,
   },
   parse(value) {
-    const { heard, movesTo, checkedCode, foundOwnMistake, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
+    const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
     if (
       !oneOf(candidateTurns, heard) ||
       !oneOf(moves, movesTo) ||
       typeof checkedCode !== 'boolean' ||
       typeof foundOwnMistake !== 'boolean' ||
+      typeof saysCodeDone !== 'boolean' ||
       typeof attemptFailed !== 'boolean' ||
       !oneOf(Object.keys(turnKinds) as TurnKindName[], kind) ||
       typeof words !== 'string' ||
@@ -217,10 +221,10 @@ const turnSchema: ObjectSchema<TurnWords> = {
       !oneOf(interviewerAsks, asks)
     ) {
       throw new Error(
-        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode, foundOwnMistake and attemptFailed (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
+        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode, foundOwnMistake, saysCodeDone and attemptFailed (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
       );
     }
-    return { heard, movesTo, checkedCode, foundOwnMistake, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks };
+    return { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks };
   },
 };
 
@@ -250,7 +254,10 @@ export interface ModelCallEntry {
     hint?: { askedForHelp: boolean; level: HintLevel };
     /** Attempts thrown away before the words were said (or replaced), and why. */
     rejected?: Rejection[];
-    /** For a reply to a turn: what the model observed and what its words do, which the app keeps the round's state from. */
+    /**
+     * For a reply to a turn: what the model observed and what its words do, which the app keeps the round's state from.
+     * Also on a reply that was replaced or cut off after its first attempt: what was observed about the turn still counts.
+     */
     observed?: Observed;
     /** The check's verdict on the words that were said, when they were checked. It overrides the reply's own labels. */
     check?: CheckVerdict;
@@ -288,6 +295,11 @@ export function replacedSituation(reply: Reply): Situation {
   return reply.kind === 'turn' ? 'walk-through' : fallbackSituation(reply);
 }
 
+/** What an example line said in place of the model's words asks the candidate to do: the walk-through line asks for a trace. */
+function fallbackAsks(situation: Situation): InterviewerAsk {
+  return situation === 'walk-through' ? 'trace-example' : 'nothing';
+}
+
 /** The example-lines situation whose line is said when the model can't give the words for a reply. */
 export function fallbackSituation(reply: Reply): Situation {
   switch (reply.kind) {
@@ -309,6 +321,8 @@ interface Call {
   controller: AbortController;
   /** The candidate's line it replies to, if any. */
   about: string | null;
+  /** What the first attempt observed about that line, applied to the round once, whatever becomes of the words. */
+  observed?: Observed;
 }
 
 /** When the interviewer may offer help without the candidate saying they're stuck. */
@@ -341,6 +355,7 @@ export function createInterviewer(options: InterviewerOptions) {
   const hints: RoundRecord['hints'] = [];
   const checks: RoundRecord['checks'] = [];
   const mistakes: RoundRecord['mistakes'] = [];
+  const codeDone: RoundRecord['codeDone'] = [];
   const asked: RoundRecord['asked'] = [];
   // The phase offered and not yet answered; what the interviewer's last spoken reply asked, and whether it named a mistake.
   let offered: LaterPhase | null = null;
@@ -372,6 +387,7 @@ export function createInterviewer(options: InterviewerOptions) {
         model: model!.identity,
         ms: now - call.startedAt,
         outcome,
+        ...(call.observed ? { observed: call.observed } : {}),
         ...extra,
       },
     });
@@ -401,9 +417,16 @@ export function createInterviewer(options: InterviewerOptions) {
     handle(floor.onSignal({ type: 'words', line, ...(as ? { as } : {}) }));
   }
 
+  /** Says an example line in place of the model's words, and keeps the books for what it asks, as for any reply. */
+  function sayFallback(situation: Situation) {
+    const words = lines.next(situation);
+    say(words);
+    noteSaid(words, undefined, { asks: fallbackAsks(situation), pointsOutMistake: false });
+  }
+
   function fallBack(reply: Reply, error: ModelErrorKind) {
     onEvent({ kind: 'model-failed', error });
-    say(lines.next(fallbackSituation(reply)));
+    sayFallback(fallbackSituation(reply));
   }
 
   /** The rung the interviewer may give next if asked, or null when all three are given. */
@@ -448,26 +471,22 @@ export function createInterviewer(options: InterviewerOptions) {
     call.stepAt = clock.now();
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
-      const { heard, movesTo, checkedCode, foundOwnMistake, attemptFailed, pointsOutMistake, asks } = object;
+      const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake, asks } = object;
       // Help comes only when asked for: in so many words, or by accepting the interviewer's offer.
       const askedForHelp = heard === 'asking-for-help' || (heard === 'agreeing' && lastAsk === 'offer-help');
-      // Saying they're stuck, or asking for help, undoes an earlier "no thanks".
-      const declined = heard === 'stuck' || heard === 'asking-for-help' ? false : declinedHelp;
-      const failed = failedAttempts + (attemptFailed ? 1 : 0);
       return {
         words: object.words.trim(),
         usage,
         heard,
         kind: object.kind,
-        observed: { movesTo, checkedCode, foundOwnMistake, attemptFailed, pointsOutMistake, asks },
+        observed: { movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake, asks },
         askedForHelp,
         gives: { hintLevel: object.hintLevel, namesMistake: pointsOutMistake },
         mayHint: askedForHelp,
-        mayOffer: !declined && (heard === 'stuck' || failed >= helpRules.failedAttemptsBeforeOffer),
       };
     }
     const { text, usage } = await model!.streamText(request);
-    return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: false, mayOffer: false };
+    return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: false };
   }
 
   /** Whether help could have slipped into an attempt's words, so they get the check before they're said. */
@@ -512,13 +531,21 @@ export function createInterviewer(options: InterviewerOptions) {
       if (hintLevels.indexOf(level) > allowed) return 'hint-skipped-rung';
     }
     const asks = written.observed?.asks;
-    if (asks === 'offer-help' && !written.mayOffer) return 'offer-unasked';
+    if (asks === 'offer-help' && !mayOffer(written.heard)) return 'offer-unasked';
     // A stuck candidate gets one neutral question, not a case to try or a step to take: those are theirs to find.
     if (written.heard === 'stuck' && !written.mayHint && (asks === 'trace-example' || asks === 'edge-case' || asks === 'complexity')) {
       return 'step-unasked';
     }
     if (written.check?.describesSolution) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
+  }
+
+  /**
+   * Whether a reply may offer help: the candidate said they're stuck, or said attempts failed again and again,
+   * and hasn't declined help since. Read after the turn is noted, so this turn's failed attempt counts once.
+   */
+  function mayOffer(heard: CandidateTurn | undefined) {
+    return !declinedHelp && (heard === 'stuck' || failedAttempts >= helpRules.failedAttemptsBeforeOffer);
   }
 
   /** Writes a reply's words, checked where help could slip: a rejected attempt is written once more, then given up for a safe line. */
@@ -528,6 +555,7 @@ export function createInterviewer(options: InterviewerOptions) {
       // A barge-in or the time limit may have ended this reply while the last attempt was checked.
       if (call.controller.signal.aborted) throw new ModelError('aborted');
       const first = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
+      noteTurn(call, first.heard, first.observed);
       const staysQuiet = first.kind === 'stay-quiet';
       if (!first.words && !staysQuiet) throw new ModelError('bad-output', 'The reply was empty');
       // Labels the reply gives itself already rule it out: no need to wait on the check.
@@ -540,25 +568,35 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /**
-   * Keeps the books for a reply to a turn, from what the model observed: each time the candidate checked their
-   * code and who started it, mistakes and how they were found, and the phase their own words moved the round to.
-   * Returns the phase to move to, if any; the move comes before the words, so an accepted offer is settled first.
+   * Keeps the books for the candidate's turn, from what the model's first reading of it observed: each time they
+   * checked their code and who started it, mistakes and how they were found, when they said their code was done,
+   * attempts they said failed, help they declined, and the phase their own words moved the round to. This is what the candidate did, so it stays whether or not the reply's words are ever said;
+   * applied once per turn, so a rewritten reply can't count it again. The move comes before the words, so an
+   * accepted offer is settled first.
    */
-  function noteTurn(about: string | null, heard: CandidateTurn | undefined, observed: Observed): CodingPhase | null {
+  function noteTurn(call: Call, heard: CandidateTurn | undefined, observed: Observed | undefined) {
+    // A reply already replaced (a barge-in, a newer turn, the time limit) has no say; nor has a second reading.
+    if (!observed || call.observed || pending !== call) return;
+    call.observed = observed;
+    const { about } = call;
     const asked = lastAsk === 'trace-example' || lastAsk === 'edge-case';
     if (observed.attemptFailed) failedAttempts += 1;
     if (heard === 'declining' && lastAsk === 'offer-help') declinedHelp = true;
     if (heard === 'stuck' || heard === 'asking-for-help') declinedHelp = false;
     if (about && observed.checkedCode) checks.push({ lineId: about, by: asked ? 'interviewer' : 'candidate' });
-    // Found on a check the interviewer asked for, the mistake was still there when they said they were done.
+    if (about && observed.saysCodeDone) codeDone.push(about);
     if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: asked ? 'candidate-when-asked' : 'candidate' });
-    // The round moves on the candidate's words, or when the interviewer begins the follow-ups; never on its other questions.
-    const to = observed.movesTo !== 'stays' ? observed.movesTo : observed.asks === 'follow-up' ? 'follow-up' : null;
-    return to === 'follow-up' && !followUpsOpen() ? null : to;
+    if (observed.movesTo !== 'stays') moveTo(observed.movesTo);
+  }
+
+  /** Moves the round to a phase, unless it's the follow-ups and they're no longer open. */
+  function moveTo(phase: CodingPhase) {
+    if (phase === 'follow-up' && !followUpsOpen()) return;
+    handle(floor.onSignal({ type: 'phase-reached', phase }));
   }
 
   /** Keeps the books for what the interviewer just said: what it asked, a mistake it named, a goodbye. */
-  function noteSaid(words: string, kind: TurnKindName | undefined, observed: Observed | undefined) {
+  function noteSaid(words: string, kind: TurnKindName | undefined, observed: Pick<Observed, 'asks' | 'pointsOutMistake'> | undefined) {
     const said = transcript.at(-1);
     if (!said || said.who !== 'interviewer' || said.text !== words) return; // quiet, a backchannel, or dropped
     lastAsk = observed?.asks ?? 'nothing';
@@ -572,7 +610,7 @@ export function createInterviewer(options: InterviewerOptions) {
   function requestWords(reply: Reply) {
     abandon('aborted'); // a newer reply replaces one still being prepared
     // A check-in is a reviewed line, never generated: silence alone is no reason to say more than that.
-    if (!model || reply.kind === 'check-in') return say(lines.next(fallbackSituation(reply)));
+    if (!model || reply.kind === 'check-in') return sayFallback(fallbackSituation(reply));
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
     const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
@@ -584,7 +622,7 @@ export function createInterviewer(options: InterviewerOptions) {
         const extra = rejected.length ? { rejected } : {};
         if (!written) {
           logCall(call, 'replaced', extra);
-          return say(lines.next(replacedSituation(reply)));
+          return sayFallback(replacedSituation(reply));
         }
         const level = written.gives.hintLevel;
         if (level !== 'none') {
@@ -604,8 +642,8 @@ export function createInterviewer(options: InterviewerOptions) {
           ...extra,
         });
         const { observed, kind } = written;
-        const to = observed ? noteTurn(call.about, written.heard, observed) : null;
-        if (to) handle(floor.onSignal({ type: 'phase-reached', phase: to }));
+        // Besides the candidate's own words, the round moves when the interviewer begins the follow-ups; never on its other questions.
+        if (observed?.asks === 'follow-up' && call.observed?.movesTo === 'stays') moveTo('follow-up');
         say(written.words, kind && turnKinds[kind]);
         noteSaid(written.words, kind, observed);
       },
@@ -646,6 +684,7 @@ export function createInterviewer(options: InterviewerOptions) {
         hints: [...hints],
         checks: [...checks],
         mistakes: [...mistakes],
+        codeDone: [...codeDone],
         asked: [...asked],
         code,
       };

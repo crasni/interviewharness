@@ -37,7 +37,7 @@ const prose = {
 async function playRound(grading: NonNullable<ModelScript['grading']>) {
   ({ app, window, dataDir } = await launchApp({
     model: {
-      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'Yes, values can repeat.', heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', movesTo: 'stays', checkedCode: false, foundOwnMistake: false, attemptFailed: false, pointsOutMistake: false, asks: 'nothing' } }],
+      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'Yes, values can repeat.', heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', movesTo: 'stays', checkedCode: false, foundOwnMistake: false, saysCodeDone: false, attemptFailed: false, pointsOutMistake: false, asks: 'nothing' } }],
       grading,
       'feedback-prose': [prose],
     },

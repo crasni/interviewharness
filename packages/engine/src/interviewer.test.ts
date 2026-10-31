@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInterviewer, floorRules as floorRulesForTest, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, startRound } from './index.ts';
+import { createInterviewer, floorRules as floorRulesForTest, gradeRound, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, roundFacts, startRound } from './index.ts';
 import { fakeClock, fakeLog, type ModelScript, scriptedModel, testLines } from './test/fakes.ts';
 
 const problem: Problem = {
@@ -53,6 +53,7 @@ interface Observed {
   movesTo?: string;
   checkedCode?: boolean;
   foundOwnMistake?: boolean;
+  saysCodeDone?: boolean;
   attemptFailed?: boolean;
   hintLevel?: string;
   pointsOutMistake?: boolean;
@@ -66,6 +67,7 @@ const reply = (kind: string, words: string, observed: Observed = {}) => ({
     movesTo: 'stays',
     checkedCode: false,
     foundOwnMistake: false,
+    saysCodeDone: false,
     attemptFailed: false,
     hintLevel: 'none',
     pointsOutMistake: false,
@@ -273,7 +275,7 @@ describe('the interviewer', () => {
         heard: 'clarifying-question',
         turnReply: 'answer',
         hint: { askedForHelp: false, level: 'none' },
-        observed: { movesTo: 'stays', checkedCode: false, foundOwnMistake: false, attemptFailed: false, pointsOutMistake: false, asks: 'nothing' },
+        observed: { movesTo: 'stays', checkedCode: false, foundOwnMistake: false, saysCodeDone: false, attemptFailed: false, pointsOutMistake: false, asks: 'nothing' },
       },
     ]);
     expect(log.entries).toContainEqual(expect.objectContaining({ signal: { type: 'words', line: 'Yes.', as: 'answer' } }));
@@ -618,6 +620,125 @@ describe('the round so far, kept by the app', () => {
   });
 });
 
+describe('a fallback line asks for what its words ask for', () => {
+  /** Says each line, then waits for the reply to it. */
+  async function say(helpers: { interviewer: ReturnType<typeof createInterviewer>; wait: (ms: number) => void }, texts: string[]) {
+    for (const text of texts) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+  }
+
+  it('credits a walkthrough asked for by the fallback to the interviewer', async () => {
+    const helpers = await afterIntro([
+      answer('Yes. Also, try a hash map.', { hintLevel: 'concrete' }),
+      answer('Yes, and a map would help.', { hintLevel: 'nudge' }),
+      reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', checkedCode: true }),
+    ]);
+    await say(helpers, ['Can values repeat?', 'with [2, 7] and target 9: seen[2] = 0, then 7 finds it, so [0, 1]']);
+
+    expect(helpers.spoken()).toEqual(['Could you walk me through it with a small example?', 'Okay.']);
+    const record = helpers.interviewer.record();
+    expect(record.asked).toEqual([{ lineId: 't3', asks: 'trace-example' }]);
+    expect(record.checks).toEqual([{ lineId: 't4', by: 'interviewer' }]);
+    expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: false });
+  });
+
+  it('asks for nothing when it only acknowledges, so a later trace is the candidate’s own', async () => {
+    const helpers = await afterIntro([
+      reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', asks: 'trace-example' }),
+      { error: 'rate-limit' },
+      reply('acknowledgement', 'Okay.', { checkedCode: true }),
+    ], [verdict()]);
+    await say(helpers, ['done coding', 'actually, one more thing first', 'with [2, 7] and target 9: seen[2] = 0, then 7 finds it, so [0, 1]']);
+
+    expect(helpers.spoken()).toEqual(['Could you trace [5, 1, 5] with target 10?', 'Okay, that makes sense.', 'Okay.']);
+    const record = helpers.interviewer.record();
+    expect(record.asked).toEqual([{ lineId: 't3', asks: 'trace-example' }]);
+    expect(record.checks).toEqual([{ lineId: 't6', by: 'candidate' }]);
+    expect(roundFacts(record).testedOnOwn).toBe(true);
+  });
+});
+
+describe('what the candidate did stays in the round when the interviewer’s words fail', () => {
+  // Their own check, in words the grader's backstop wouldn't catch: only the model's reading of the turn records it.
+  const ownCheck = 'with [5, 1, 5] and 10, seen of 5 is 0, then 5 again: oh, I return the value, not the index';
+  const observedCheck = { checkedCode: true, foundOwnMistake: true, movesTo: 'test' };
+
+  it('keeps the check and the mistake they found when both drafts of the reply are rejected', async () => {
+    const helpers = await afterIntro([
+      reply('answer', 'Right, you return the value.', { ...observedCheck, pointsOutMistake: true }),
+      reply('answer', 'Yes, the value instead of its index.', { ...observedCheck, pointsOutMistake: true }),
+    ]);
+    const { interviewer, wait, spoken, modelCalls } = helpers;
+
+    interviewer.onSignal({ type: 'said', text: ownCheck });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Could you walk me through it with a small example?']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'replaced', observed: { checkedCode: true, foundOwnMistake: true } }]);
+    const record = interviewer.record();
+    expect(record.checks).toEqual([{ lineId: 't2', by: 'candidate' }]);
+    expect(record.mistakes).toEqual([{ lineId: 't2', foundBy: 'candidate' }]);
+    expect(record.phases.at(-1)!.phase).toBe('test');
+    expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: true, doneWithMissedBug: false });
+  });
+
+  it('applies what was observed once, however many drafts the reply takes', async () => {
+    const { interviewer, wait, spoken } = await afterIntro([
+      reply('answer', 'Right, you return the value.', { ...observedCheck, pointsOutMistake: true }),
+      reply('acknowledgement', 'Okay.', observedCheck),
+    ]);
+
+    interviewer.onSignal({ type: 'said', text: ownCheck });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Okay.']);
+    const record = interviewer.record();
+    expect(record.checks).toEqual([{ lineId: 't2', by: 'candidate' }]);
+    expect(record.mistakes).toEqual([{ lineId: 't2', foundBy: 'candidate' }]);
+    expect(record.phases.map((p) => p.phase)).toEqual(['clarify', 'test']);
+  });
+
+  it('keeps what was observed about the turn when a barge-in drops its reply', async () => {
+    const { interviewer, wait, spoken, kinds } = await afterIntro([reply('answer', 'Nice, what did you find?', { ...observedCheck, heard: 'done' })], ['wait']);
+
+    interviewer.onSignal({ type: 'said', text: ownCheck });
+    wait(1_000);
+    await settle(); // the reply is written and waits on its check
+    interviewer.onSignal({ type: 'talk-start' });
+    await settle();
+
+    expect(kinds()).toContain('stop-preparing');
+    expect(spoken()).toEqual([]);
+    const record = interviewer.record();
+    expect(record.checks).toEqual([{ lineId: 't2', by: 'candidate' }]);
+    expect(record.mistakes).toEqual([{ lineId: 't2', foundBy: 'candidate' }]);
+  });
+
+  it('records nothing when the model fails to read the turn, leaving their own words as the evidence', async () => {
+    const { interviewer, wait, modelCalls } = await afterIntro([{ error: 'bad-output' }]);
+    const traced = 'Let me trace [5, 1, 5] with target 10: I get [0, 2].';
+
+    interviewer.onSignal({ type: 'said', text: traced });
+    wait(1_000);
+    await settle();
+
+    const record = interviewer.record();
+    expect(modelCalls()).toMatchObject([{ outcome: 'failed' }]);
+    expect(modelCalls()[0]!.observed).toBeUndefined();
+    expect(record.checks).toEqual([]);
+    expect(record.mistakes).toEqual([]);
+    expect(record.phases.map((p) => p.phase)).toEqual(['clarify']);
+    // The failed reading isn't evidence that they didn't test: their words still count.
+    expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: true });
+  });
+});
+
 describe('a mistake is the candidate’s to find', () => {
   it('is never named unasked: such a reply is written again', async () => {
     const { interviewer, wait, spoken, modelCalls } = await afterIntro([
@@ -645,6 +766,74 @@ describe('a mistake is the candidate’s to find', () => {
 
     expect(spoken()).toEqual(['Look at what you return: positions or values?']);
     expect(interviewer.record().mistakes).toEqual([{ lineId: 't3', foundBy: 'interviewer' }]);
+  });
+});
+
+describe('a missed bug counts only after the candidate said their code was done', () => {
+  /** A grader that scores every area strong, so only the caps in code lower it. */
+  const strongGrader = () => {
+    const strong = { score: 4, evidence: ['t2'] };
+    const sample = { object: { problemSolving: strong, coding: strong, testing: strong, communication: strong } };
+    return scriptedModel({ grading: [sample, sample, sample], 'feedback-prose': [{ object: { why: 'Fine.', wentWell: [], toFix: [] } }] });
+  };
+
+  async function turns(script: ModelScript['interviewer-reply'], checks: ModelScript['reply-check'], said: string[]) {
+    const helpers = await afterIntro(script, checks);
+    for (const text of said) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+    return helpers.interviewer.record();
+  }
+
+  it('does not treat debugging help asked for while still coding as handing in buggy work', async () => {
+    const record = await turns(
+      [
+        reply('answer', 'Look at what you return: positions or values?', { ...help, hintLevel: 'nudge', pointsOutMistake: true }),
+        reply('acknowledgement', 'Okay.', { heard: 'done', saysCodeDone: true }),
+      ],
+      [verdict({ namesMistake: true, hintLevel: 'nudge' })],
+      ["it's wrong and I can't see why, help?", 'oh, fixed it. done'],
+    );
+
+    expect(record.mistakes).toEqual([{ lineId: 't3', foundBy: 'interviewer' }]);
+    expect(record.codeDone).toEqual(['t4']);
+    expect(roundFacts(record).doneWithMissedBug).toBe(false);
+    const feedback = await gradeRound({ model: strongGrader().model, problem, record, rough: false });
+    // Never checked on their own, so mixed at best; not weak, as no finished code had a bug in it.
+    expect(feedback.areas.testing.score).toBe(2);
+  });
+
+  it('does not count finishing an explanation as saying the code is done', async () => {
+    const record = await turns(
+      [
+        reply('acknowledgement', 'Okay.', { heard: 'done', saysCodeDone: false }),
+        reply('answer', 'Look at what you return: positions or values?', { ...help, hintLevel: 'nudge', pointsOutMistake: true }),
+      ],
+      [verdict({ namesMistake: true, hintLevel: 'nudge' })],
+      ["that's my approach, done explaining", "it's wrong and I can't see why, help?"],
+    );
+
+    expect(record.codeDone).toEqual([]);
+    expect(roundFacts(record).doneWithMissedBug).toBe(false);
+  });
+
+  it('still caps testing at weak when they said done and the bug came out only on the interviewer’s check', async () => {
+    const record = await turns(
+      [
+        reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', saysCodeDone: true, asks: 'trace-example' }),
+        reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', checkedCode: true, foundOwnMistake: true }),
+      ],
+      [verdict()],
+      ['done coding', 'seen[5] = 0, then 5 is in seen: oh, I return the value, not i'],
+    );
+
+    expect(record.codeDone).toEqual(['t2']);
+    expect(roundFacts(record).doneWithMissedBug).toBe(true);
+    const feedback = await gradeRound({ model: strongGrader().model, problem, record, rough: false });
+    expect(feedback.areas.testing.score).toBe(1);
   });
 });
 

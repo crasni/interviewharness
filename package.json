@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "eslint . && node --test scripts/layering.test.mjs",
     "test": "turbo run test",
+    "scripted-rounds": "pnpm --filter @interviewharness/desktop scripted-rounds",
     "test:e2e": "pnpm --filter @interviewharness/desktop test:e2e"
   },
   "devDependencies": {

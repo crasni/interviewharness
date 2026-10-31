@@ -11,7 +11,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
     "test:e2e": "electron-vite build && playwright test",
-    "test": "vitest run --dir src"
+    "test": "vitest run --dir src",
+    "scripted-rounds": "node scripts/scripted-rounds.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.4",

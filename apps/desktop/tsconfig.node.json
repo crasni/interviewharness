@@ -12,6 +12,7 @@
     "src/main",
     "src/preload",
     "src/shared",
-    "e2e"
+    "e2e",
+    "scripts"
   ]
 }

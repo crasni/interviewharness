@@ -26,6 +26,8 @@ export interface RoundRecord {
    * candidate on a check the interviewer asked for, or pointed out by the interviewer.
    */
   mistakes: { lineId: string; foundBy: 'candidate' | 'candidate-when-asked' | 'interviewer' }[];
+  /** The candidate's lines that said their code was done (not just an explanation or a step finished). */
+  codeDone: string[];
   /** What the interviewer's lines asked the candidate to do, when they asked anything. */
   asked: { lineId: string; asks: Exclude<InterviewerAsk, 'nothing'> }[];
   code: CodeSnapshot | null;
@@ -41,7 +43,10 @@ export interface RoundFacts {
   tested: boolean;
   /** Checked their code on their own initiative, not because the interviewer asked. */
   testedOnOwn: boolean;
-  /** Said they were done with a mistake still in the code, which only the interviewer's check or words brought out. */
+  /**
+   * Said their code was done with a mistake still in it, which only the interviewer's check or words brought out
+   * afterwards. Help with a bug asked for before any "done" is help, not finished work with a missed bug.
+   */
   doneWithMissedBug: boolean;
 }
 
@@ -97,6 +102,8 @@ export function roundFacts(record: RoundRecord): RoundFacts {
   const phasesReached = [...new Set(record.phases.map((p) => p.phase))];
   const askedFor = new Set(record.checks.filter((t) => t.by === 'interviewer').map((t) => t.lineId));
   const candidateChecks = record.transcript.filter((line) => line.who === 'candidate' && checksTheCode(line.text));
+  const order = new Map(record.transcript.map((line, i) => [line.id, i]));
+  const firstDone = Math.min(...record.codeDone.map((id) => order.get(id) ?? Infinity));
   return {
     phasesReached,
     timeInPhaseMs,
@@ -105,7 +112,7 @@ export function roundFacts(record: RoundRecord): RoundFacts {
     tested: record.checks.length > 0 || candidateChecks.length > 0,
     // The interviewer's book says who started each trace; a trace in words it missed counts as their own.
     testedOnOwn: record.checks.some((t) => t.by === 'candidate') || candidateChecks.some((line) => !askedFor.has(line.id)),
-    doneWithMissedBug: record.mistakes.some((m) => m.foundBy !== 'candidate'),
+    doneWithMissedBug: record.mistakes.some((m) => m.foundBy !== 'candidate' && (order.get(m.lineId) ?? -Infinity) > firstDone),
   };
 }
 
@@ -224,6 +231,7 @@ function roundForPrompt(problem: Problem, record: RoundRecord, facts: RoundFacts
       `Checked their code: ${facts.tested ? 'yes' : 'no'}. On their own: ${facts.testedOnOwn ? 'yes' : 'no'}.`,
       `Times they checked their code: ${lineList(record.checks, (t) => (t.by === 'candidate' ? 'on their own' : 'when the interviewer asked'))}.`,
       `Mistakes found in their code or approach: ${lineList(record.mistakes, (m) => foundBy[m.foundBy])}.`,
+      `Said their code was done: ${record.codeDone.join(', ') || 'never'}.`,
       `The interviewer asked for: ${lineList(record.asked, (a) => a.asks)}.`,
     ].join('\n'),
     `# The conversation (id, time, who: words)\n\n${record.transcript.map((l) => `${l.id} ${clock(l.atMs)} ${l.who}: ${l.text}`).join('\n') || '(nothing was said)'}`,
