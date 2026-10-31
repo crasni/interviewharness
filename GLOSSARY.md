@@ -52,6 +52,10 @@ _Avoid_: Nudge, prompt, reminder
 A line from the interviewer saying how much time is left ("Just so you know, we have about 15 minutes left."), said as written from the example lines at a pause, with 15 and with 5 minutes left. It says nothing about what to do with the time. At time, one closing line asks for the candidate's questions and turns to Wrap-up; only End round ends the round.
 _Avoid_: Check-in, warning, countdown
 
+**Closing line**:
+The one reviewed line the interviewer says at a pause once the round's time is up ("That's about time. Do you have any questions for me?"). It asks for the candidate's questions and moves the round to Wrap-up, but never ends it: only End round does (ADR 0018).
+_Avoid_: Goodbye, time's up, ending
+
 ### Help and feedback
 
 **Candidate turn**:
@@ -60,7 +64,15 @@ _Avoid_: Intent, message type, utterance class
 
 **Hint**:
 Help toward the next step, one rung of the problem's hint ladder at a time and never the answer. Given only when the candidate asks, or accepts the interviewer's offer; offered only when they say they're stuck or after repeated failed attempts (ADR 0017). Hints used lower the problem-solving score, as in a real interview, but the candidate never sees a hint count or budget.
-_Avoid_: Clue, help, hints left
+_Avoid_: Clue, hints left
+
+**Offer of help**:
+The interviewer asking whether the candidate wants a hint ("Want a hint?"), without giving one. Made only when the candidate says they're stuck or after two failed attempts since the last hint, and not again once they decline, until they say they're stuck or ask (ADR 0017). Accepting it counts as asking for help.
+_Avoid_: Hint, suggestion, nudge
+
+**Failed attempt**:
+Something the candidate says they tried that didn't work: a trace or a run gave the wrong result, or an idea fell through. Counted since the last hint, to decide when an offer of help may come.
+_Avoid_: Mistake, error, wrong answer
 
 **Feedback**:
 The interviewer's written assessment after a round: a verdict, what went well and what to fix, each point tied to a moment in the round. Each area is scored inside the app to reach the verdict, but the candidate never sees a score.
