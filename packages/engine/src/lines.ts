@@ -18,8 +18,14 @@ export const SITUATIONS = [
 export type Situation = (typeof SITUATIONS)[number];
 
 export interface LineBook {
-  /** The next line for a situation, rotating through its examples. */
-  next(situation: Situation): string;
+  /** The next line for a situation, rotating through its examples, with any `{minutes}` in it filled in. */
+  next(situation: Situation, fill?: LineFill): string;
+}
+
+/** Values a line may have a place for, written `{name}` in the example-lines file. */
+export interface LineFill {
+  /** Minutes left in the round, for a time reminder. */
+  minutes?: number;
 }
 
 /**
@@ -42,12 +48,13 @@ export function createLineBook(markdown: string): LineBook {
 
   const positions = new Map<Situation, number>();
   return {
-    next(situation) {
+    next(situation, fill = {}) {
       const lines = groups.get(situation);
       if (!lines?.length) throw new Error(`The example-lines file has no lines for "${situation}"`);
       const position = positions.get(situation) ?? 0;
       positions.set(situation, (position + 1) % lines.length);
-      return lines[position]!;
+      const line = lines[position]!;
+      return fill.minutes === undefined ? line : line.replaceAll('{minutes}', String(fill.minutes));
     },
   };
 }

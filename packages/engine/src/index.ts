@@ -1,7 +1,7 @@
 export { codingPhaseShares, nextPhase, startRound } from './round.ts';
 export type { Clock, LaterPhase, Round, RoundSnapshot } from './round.ts';
 export { createLineBook, SITUATIONS } from './lines.ts';
-export type { LineBook, Situation } from './lines.ts';
+export type { LineBook, LineFill, Situation } from './lines.ts';
 export { createFloorManager, floorRules } from './floor-manager.ts';
 export type { CodeSnapshot, TurnReplyKind, Decision, FloorLog, FloorLogEntry, FloorManager, FloorManagerOptions, FloorState, Reply, Signal, Spoken } from './floor-manager.ts';
 export { candidateTurns, createInterviewer, fallbackSituation, hintLevels, replyRules } from './interviewer.ts';

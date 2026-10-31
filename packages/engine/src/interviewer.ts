@@ -8,7 +8,7 @@ import {
   type Signal,
   type TurnReplyKind,
 } from './floor-manager.ts';
-import type { LineBook, Situation } from './lines.ts';
+import type { LineBook, LineFill, Situation } from './lines.ts';
 import {
   type Model,
   ModelError,
@@ -436,8 +436,8 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /** Says an example line in place of the model's words, and keeps the books for what it asks, as for any reply. */
-  function sayFallback(situation: Situation, minutesLeft?: number) {
-    const words = minutesLeft === undefined ? lines.next(situation) : lines.next(situation).replaceAll('{minutes}', String(minutesLeft));
+  function sayFallback(situation: Situation, fill?: LineFill) {
+    const words = lines.next(situation, fill);
     say(words);
     noteSaid(words, undefined, { asks: fallbackAsks(situation), pointsOutMistake: false });
   }
@@ -631,7 +631,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (reply.kind === 'closing') moveTo('wrap-up');
     // A check-in, a time reminder and the closing are reviewed lines, never generated: silence or the clock
     // alone is no reason to say more than that.
-    if (!model || reviewedOnly(reply)) return sayFallback(fallbackSituation(reply), reply.kind === 'time-reminder' ? reply.minutesLeft : undefined);
+    if (!model || reviewedOnly(reply)) return sayFallback(fallbackSituation(reply), reply.kind === 'time-reminder' ? { minutes: reply.minutesLeft } : undefined);
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
     const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
