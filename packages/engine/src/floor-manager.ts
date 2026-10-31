@@ -144,8 +144,8 @@ export interface FloorManagerOptions {
 export const timeRules = {
   /** Time left at which a reminder is due, latest last. A mark passed while the candidate worked is skipped for a later one. */
   remindAtLeft: [15 * 60_000, 5 * 60_000],
-  /** A stretch with no talking, saying or typing, and nobody else holding the floor, that counts as a pause. */
-  pauseBeforeTime: 5_000,
+  /** How long the candidate must be quiet (no talking, saying or typing, the floor free) before the time is mentioned. */
+  quietBeforeMentioningTime: 5_000,
 };
 
 /** Timing rules, in milliseconds. Fixed defaults for now (no persona knobs, ADR 0014). */
@@ -333,7 +333,7 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
    * one, so they hear only the time actually left. At time, one closing line; the round still ends only on End round.
    */
   function timeToMention(now: number): Reply | null {
-    if (now - activeAt < timeRules.pauseBeforeTime || round.snapshot().phase === 'wrap-up' || closed || !keepsTime()) return null;
+    if (now - activeAt < timeRules.quietBeforeMentioningTime || round.snapshot().phase === 'wrap-up' || closed || !keepsTime()) return null;
     const left = round.timeLeftMs();
     if (left <= 0) {
       closed = true;
