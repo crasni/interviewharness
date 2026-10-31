@@ -300,6 +300,11 @@ export function replacedSituation(reply: Reply): Situation {
   return reply.kind === 'turn' ? 'walk-through' : fallbackSituation(reply);
 }
 
+/** What an example line said in place of the model's words asks the candidate to do: the walk-through line asks for a trace. */
+function fallbackAsks(situation: Situation): InterviewerAsk {
+  return situation === 'walk-through' ? 'trace-example' : 'nothing';
+}
+
 /** The example-lines situation whose line is said when the model can't give the words for a reply. */
 export function fallbackSituation(reply: Reply): Situation {
   switch (reply.kind) {
@@ -401,9 +406,16 @@ export function createInterviewer(options: InterviewerOptions) {
     handle(floor.onSignal({ type: 'words', line, ...(as ? { as } : {}) }));
   }
 
+  /** Says an example line in place of the model's words, and keeps the books for what it asks, as for any reply. */
+  function sayFallback(situation: Situation) {
+    const words = lines.next(situation);
+    say(words);
+    noteSaid(words, undefined, { asks: fallbackAsks(situation), pointsOutMistake: false });
+  }
+
   function fallBack(reply: Reply, error: ModelErrorKind) {
     onEvent({ kind: 'model-failed', error });
-    say(lines.next(fallbackSituation(reply)));
+    sayFallback(fallbackSituation(reply));
   }
 
   /** The rung the interviewer may give next if asked, or null when all three are given. */
@@ -552,7 +564,7 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /** Keeps the books for what the interviewer just said: what it asked, a mistake it named, a goodbye. */
-  function noteSaid(words: string, kind: TurnKindName | undefined, observed: Observed | undefined) {
+  function noteSaid(words: string, kind: TurnKindName | undefined, observed: Pick<Observed, 'asks' | 'pointsOutMistake'> | undefined) {
     const said = transcript.at(-1);
     if (!said || said.who !== 'interviewer' || said.text !== words) return; // quiet, a backchannel, or dropped
     lastAsk = observed?.asks ?? 'nothing';
@@ -564,7 +576,7 @@ export function createInterviewer(options: InterviewerOptions) {
 
   function requestWords(reply: Reply) {
     abandon('aborted'); // a newer reply replaces one still being prepared
-    if (!model) return say(lines.next(fallbackSituation(reply)));
+    if (!model) return sayFallback(fallbackSituation(reply));
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
     const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
@@ -576,7 +588,7 @@ export function createInterviewer(options: InterviewerOptions) {
         const extra = rejected.length ? { rejected } : {};
         if (!written) {
           logCall(call, 'replaced', extra);
-          return say(lines.next(replacedSituation(reply)));
+          return sayFallback(replacedSituation(reply));
         }
         const level = written.gives.hintLevel;
         if (level !== 'none') {
