@@ -3,6 +3,7 @@ import type { CodeSnapshot } from './floor-manager.ts';
 import type { HintLevel, InterviewerAsk } from './interviewer.ts';
 import type { Model, ModelIdentity, ObjectSchema } from './model.ts';
 import type { Problem } from './problem.ts';
+import { codingRoundMs } from './round.ts';
 
 /** One line of the round's conversation, with an id the grader can cite as evidence. */
 export interface RecordLine {
@@ -230,7 +231,7 @@ function roundForPrompt(problem: Problem, record: RoundRecord, facts: RoundFacts
     `# The reference solution (to judge the code by)\n\n\`\`\`${problem.reference.language}\n${problem.reference.code.trim()}\n\`\`\``,
     [
       '# Facts, worked out from the round',
-      `Length: ${minutes(record.elapsedMs)}.`,
+      `Length: ${minutes(record.elapsedMs)} of ${codingRoundMs / 60_000}.`,
       `Phases reached: ${facts.phasesReached.map((p) => `${p} (${minutes(facts.timeInPhaseMs[p])})`).join(', ')}.`,
       `Hints the candidate asked for: ${facts.hints.length ? facts.hints.join(', ') : 'none'}.`,
       `Checked their code: ${facts.tested ? 'yes' : 'no'}. On their own: ${facts.testedOnOwn ? 'yes' : 'no'}.`,
@@ -259,7 +260,11 @@ const writerRules = `You write the feedback a candidate reads after a mock codin
 - Never mention scores, numbers or a scale.
 - If they asked for hints, say so in words where it matters, without counting them.
 - Never credit them for a test or a find the interviewer started; the facts say who started each.
+- Keep each moment in one list: a moment with a flaw goes under what to fix only, or what went well names only the part that went well.
 - Typos, spelling and lines about the mock itself are not feedback.`;
+
+/** A round that ended with more than this share of its time left is short: its scores rest on little. */
+const shortRoundShare = 0.5;
 
 /**
  * Grades a finished round: three structured grading samples, unknown evidence dropped, a score with no
@@ -299,10 +304,13 @@ export async function gradeRound({
   const verdict = verdictFor(Object.fromEntries(AREAS.map((area) => [area, areas[area].score])) as AreaScores);
 
   const scored = AREAS.map((area) => `${area}: ${areas[area].score} (evidence: ${areas[area].evidence.join(', ') || 'none'})`).join('\n');
+  const short = record.elapsedMs < codingRoundMs * shortRoundShare
+    ? '\n\nThe round ended with more than half its time left: say in "why" that the scores rest on a short round.'
+    : '';
   const { object: prose } = await model.generateObject({
     purpose: 'feedback-prose',
     system: writerRules,
-    messages: [{ role: 'user', text: `${round}\n\n# The grade\n\nVerdict: ${verdict}\n${scored}\n\nWrite the feedback.` }],
+    messages: [{ role: 'user', text: `${round}\n\n# The grade\n\nVerdict: ${verdict}\n${scored}${short}\n\nWrite the feedback.` }],
     schema: proseSchema,
     signal,
   });

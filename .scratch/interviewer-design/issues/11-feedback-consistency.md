@@ -4,11 +4,11 @@
 
 **Blocked by:** 08 (grading facts change there)
 
-**Status:** needs-triage
+**Status:** done
 
-- [ ] The grading prompt keeps one moment out of both lists: a moment with a flaw goes under "to fix" only, or "went well" names only the part that went well
-- [ ] When the round ended with more than half its time left, the "why" says the scores rest on a short round
-- [ ] Hint and testing caps, areas and the verdict table are unchanged
-- [ ] Tested through `gradeRound` with a scripted grader: the prompt carries the round length and the new instruction
+- [x] The grading prompt keeps one moment out of both lists: a moment with a flaw goes under "to fix" only, or "went well" names only the part that went well
+- [x] When the round ended with more than half its time left, the "why" says the scores rest on a short round
+- [x] Hint and testing caps, areas and the verdict table are unchanged
+- [x] Tested through `gradeRound` with a scripted grader: the prompt carries the round length and the new instruction
 
 Spec: `.scratch/interviewer-design/spec.md` (the owner clarification at its top wins over anything below it). Found in the owner's round of 2026-10-31 (`~/.config/InterviewHarness/rounds/2026-10-31T11-54-06-721Z`).

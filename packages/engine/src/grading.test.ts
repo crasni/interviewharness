@@ -197,3 +197,28 @@ it('counts checking the code against values as testing, and reaching Test withou
   // Reaching Test is only a phase: with no example walked through, nothing was tested.
   expect(roundFacts(record({ transcript: traced.transcript.slice(0, 3) })).tested).toBe(false);
 });
+
+describe('feedback that holds together', () => {
+  const grade = async (elapsedMs: number) => {
+    const model = scriptedModel({ grading: [sample([3, 3, 3, 3]), sample([3, 3, 3, 3]), sample([3, 3, 3, 3])], 'feedback-prose': [prose] });
+    const feedback = await gradeRound({ model: model.model, problem, record: record({ elapsedMs }), rough: false });
+    return { feedback, writer: model.requests.find((r) => r.purpose === 'feedback-prose')! };
+  };
+
+  it('tells the writer to keep one moment out of both lists', async () => {
+    const { writer } = await grade(30 * 60_000);
+
+    expect(writer.system).toContain('Keep each moment in one list');
+  });
+
+  it('says the scores rest on a short round when it ended with more than half its time left, and leaves the scores alone', async () => {
+    const short = await grade(12 * 60_000 + 30_000);
+    const full = await grade(30 * 60_000);
+
+    expect(short.writer.messages[0]!.text).toContain('Length: 13 min of 45.');
+    expect(short.writer.messages[0]!.text).toContain('say in "why" that the scores rest on a short round');
+    expect(full.writer.messages[0]!.text).not.toContain('short round');
+    expect(short.feedback.areas).toEqual(full.feedback.areas);
+    expect(short.feedback.verdict).toBe(full.feedback.verdict);
+  });
+});
