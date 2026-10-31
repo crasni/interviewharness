@@ -4,10 +4,10 @@
 
 **Blocked by:** 01
 
-**Status:** needs-triage
+**Status:** done
 
-- [ ] A regression test reproduces it: two rejected drafts, a walkthrough fallback, then a trace; the trace is recorded as asked for
-- [ ] Fallback lines record what they ask for the same way normal replies do; acknowledgement fallbacks ask for nothing
-- [ ] Tested through the shown words and what `gradeRound` sees
+- [x] A regression test reproduces it: two rejected drafts, a walkthrough fallback, then a trace; the trace is recorded as asked for
+- [x] Fallback lines record what they ask for the same way normal replies do; acknowledgement fallbacks ask for nothing
+- [x] Tested through the shown words and what `gradeRound` sees
 
 Spec: `.scratch/interviewer-design/spec.md` (the owner clarification at its top wins over anything below it).

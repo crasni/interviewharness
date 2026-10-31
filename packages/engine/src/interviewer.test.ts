@@ -618,6 +618,48 @@ describe('the round so far, kept by the app', () => {
   });
 });
 
+describe('a fallback line asks for what its words ask for', () => {
+  /** Says each line, then waits for the reply to it. */
+  async function say(helpers: { interviewer: ReturnType<typeof createInterviewer>; wait: (ms: number) => void }, texts: string[]) {
+    for (const text of texts) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+  }
+
+  it('credits a walkthrough asked for by the fallback to the interviewer', async () => {
+    const helpers = await afterIntro([
+      answer('Yes. Also, try a hash map.', { hintLevel: 'concrete' }),
+      answer('Yes, and a map would help.', { hintLevel: 'nudge' }),
+      reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', checkedCode: true }),
+    ]);
+    await say(helpers, ['Can values repeat?', 'with [2, 7] and target 9: seen[2] = 0, then 7 finds it, so [0, 1]']);
+
+    expect(helpers.spoken()).toEqual(['Could you walk me through it with a small example?', 'Okay.']);
+    const record = helpers.interviewer.record();
+    expect(record.asked).toEqual([{ lineId: 't3', asks: 'trace-example' }]);
+    expect(record.checks).toEqual([{ lineId: 't4', by: 'interviewer' }]);
+    expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: false });
+  });
+
+  it('asks for nothing when it only acknowledges, so a later trace is the candidate’s own', async () => {
+    const helpers = await afterIntro([
+      reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', asks: 'trace-example' }),
+      { error: 'rate-limit' },
+      reply('acknowledgement', 'Okay.', { checkedCode: true }),
+    ], [verdict()]);
+    await say(helpers, ['done coding', 'actually, one more thing first', 'with [2, 7] and target 9: seen[2] = 0, then 7 finds it, so [0, 1]']);
+
+    expect(helpers.spoken()).toEqual(['Could you trace [5, 1, 5] with target 10?', 'Okay, that makes sense.', 'Okay.']);
+    const record = helpers.interviewer.record();
+    expect(record.asked).toEqual([{ lineId: 't3', asks: 'trace-example' }]);
+    expect(record.checks).toEqual([{ lineId: 't6', by: 'candidate' }]);
+    expect(roundFacts(record).testedOnOwn).toBe(true);
+  });
+});
+
 describe('what the candidate did stays in the round when the interviewer’s words fail', () => {
   // Their own check, in words the grader's backstop wouldn't catch: only the model's reading of the turn records it.
   const ownCheck = 'with [5, 1, 5] and 10, seen of 5 is 0, then 5 again: oh, I return the value, not the index';
