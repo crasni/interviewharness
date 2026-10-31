@@ -42,7 +42,14 @@ export type HintLevel = (typeof hintLevels)[number];
 const rungs: (keyof HintLadder)[] = ['nudge', 'question', 'concrete'];
 
 /** Why an attempt at a reply's words was thrown away and written again. */
-export type Rejection = 'hint-unasked' | 'mistake-unasked' | 'hint-skipped-rung' | 'offer-unasked' | 'step-unasked' | 'solution-leak';
+export type Rejection =
+  | 'hint-unasked'
+  | 'mistake-unasked'
+  | 'hint-skipped-rung'
+  | 'offer-unasked'
+  | 'step-unasked'
+  | 'what-blocks-repeated'
+  | 'solution-leak';
 
 const corrections: Record<Rejection, string> = {
   'hint-unasked': "it gave a hint the candidate didn't ask for. Answer only what they asked, with no hint.",
@@ -51,6 +58,8 @@ const corrections: Record<Rejection, string> = {
   'offer-unasked':
     "it offered help too soon. Offer help only when they say they're stuck or after repeated failed attempts, and not again once they've declined it.",
   'step-unasked': 'it told them what to try next. Ask at most one neutral question, such as what feels blocked, and leave the next step to them.',
+  'what-blocks-repeated':
+    "it asked again what feels blocked, which you already asked. Don't ask it twice: if they're still stuck, offer help in a short question, or just acknowledge.",
   'solution-leak': 'it gave away part of the solution. Never quote or describe the solution, its code or its steps.',
 };
 
@@ -567,7 +576,8 @@ export function createInterviewer(options: InterviewerOptions) {
 
   /**
    * What's wrong with an attempt's words, if anything: help that wasn't asked for, a mistake named unasked, help
-   * that skips a rung, an offer of help too soon, a step prescribed to a stuck candidate, or a leak of the solution.
+   * that skips a rung, an offer of help too soon, a step prescribed to a stuck candidate, asking again what feels
+   * blocked, or a leak of the solution.
    */
   function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
@@ -580,6 +590,8 @@ export function createInterviewer(options: InterviewerOptions) {
     }
     const asks = written.observed?.asks;
     if (asks === 'offer-help' && !mayOffer(written.heard)) return 'offer-unasked';
+    // The neutral question comes once per impasse: asked again, it's a lead-on, not space.
+    if (asks === 'what-blocks' && askedWhatBlocks) return 'what-blocks-repeated';
     // A stuck candidate gets one neutral question, not a case to try or a step to take: those are theirs to find.
     if (written.heard === 'stuck' && !written.mayHint && (asks === 'trace-example' || asks === 'edge-case' || asks === 'complexity')) {
       return 'step-unasked';

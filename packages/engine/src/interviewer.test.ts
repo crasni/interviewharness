@@ -941,7 +941,21 @@ describe('help only when asked', () => {
     expect(helpers.modelCalls()).toMatchObject([{ rejected: ['step-unasked'] }]);
   });
 
-  it('offers help only after repeated failed attempts, when they have not said they are stuck', async () => {
+  it('asks what feels blocked at most once while they stay stuck: a second asking is written again', async () => {
+    const helpers = await afterIntro([
+      reply('answer', 'What feels blocked?', { heard: 'stuck', asks: 'what-blocks' }),
+      reply('answer', 'What part feels blocked?', { heard: 'stuck', asks: 'what-blocks' }),
+      reply('answer', 'Want a hint?', { heard: 'stuck', asks: 'offer-help' }),
+    ], [verdict(), verdict()]);
+
+    await turn(helpers, "I'm stuck");
+    await turn(helpers, 'still stuck, no idea');
+
+    expect(helpers.spoken()).toEqual(['What feels blocked?', 'Want a hint?']);
+    expect(helpers.modelCalls()).toMatchObject([{ outcome: 'spoken' }, { outcome: 'spoken', rejected: ['what-blocks-repeated'] }]);
+  });
+
+    it('offers help only after repeated failed attempts, when they have not said they are stuck', async () => {
     const helpers = await afterIntro([
       reply('answer', 'Want a hint?', { attemptFailed: true, asks: 'offer-help' }),
       reply('acknowledgement', 'Okay.', { attemptFailed: true }),
