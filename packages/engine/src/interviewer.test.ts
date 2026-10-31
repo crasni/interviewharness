@@ -1393,3 +1393,44 @@ describe('a wrong answer gets one probe', () => {
     expect(grader.requests[0]!.messages[0]!.text).toContain("by the candidate, right after the interviewer's probe t4");
   });
 });
+
+describe('a reply for the phase the turn moved to', () => {
+  async function turns(script: ModelScript['interviewer-reply'], checks: ModelScript['reply-check'], said: string[]) {
+    const helpers = await afterIntro(script, checks);
+    for (const text of said) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+    return helpers;
+  }
+
+  it('writes an offer to move on again for the new phase: complexity given during Test gets the first follow-up, not a wrap-up', async () => {
+    const helpers = await turns(
+      [
+        ack('Okay.', 'test'),
+        reply('offer-next-phase', 'Okay, that makes sense. Shall we wrap up there?', { heard: 'answering-interviewer', movesTo: 'complexity' }),
+        reply('answer', 'What if the list were sorted?', { heard: 'answering-interviewer', asks: 'follow-up' }),
+      ],
+      [],
+      ['let me test it', "sure, I think it's O(n) time and space"],
+    );
+
+    expect(helpers.spoken()).toEqual(['Okay.', 'What if the list were sorted?']);
+    expect(helpers.events.filter((e) => e.kind === 'suggest-phase')).toEqual([]);
+    expect(helpers.interviewer.record().phases.map((p) => p.phase)).toEqual(['clarify', 'test', 'complexity', 'follow-up']);
+    // The second writing is told the phase the turn moved to, and why it's written again.
+    const rewrite = helpers.model.requests.filter((r) => r.purpose === 'interviewer-reply').at(-1)!.messages[0]!.text;
+    expect(rewrite).toContain('- Phase: Complexity');
+    expect(rewrite).toContain('ask the first follow-up question');
+    expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'spoken', rejected: ['written-for-old-phase'] });
+  });
+
+  it('costs no extra call when the candidate asked to move on and the reply says yes', async () => {
+    const helpers = await turns([reply('offer-next-phase', 'Yes, go ahead.', { heard: 'asking-to-move-on', movesTo: 'code' })], [], ['should I start coding?']);
+
+    expect(helpers.spoken()).toEqual(['Yes, go ahead.']);
+    expect(helpers.model.requests).toHaveLength(1);
+  });
+});

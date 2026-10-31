@@ -4,10 +4,10 @@
 
 **Blocked by:** 08 (same files)
 
-**Status:** needs-triage
+**Status:** done
 
-- [ ] When the model reports a phase move and its reply is an offer to move on (or otherwise written for the old phase), the reply is written once more with the new phase's prompt; turns that don't move the phase cost no extra call
-- [ ] Regression test: candidate answers the complexity question during Test with follow-ups left; the reply asks the first follow-up and never offers to wrap up
-- [ ] The extra call is logged with its reason
+- [x] When the model reports a phase move and its reply is an offer to move on (or otherwise written for the old phase), the reply is written once more with the new phase's prompt; turns that don't move the phase cost no extra call
+- [x] Regression test: candidate answers the complexity question during Test with follow-ups left; the reply asks the first follow-up and never offers to wrap up
+- [x] The extra call is logged with its reason
 
 Spec: `.scratch/interviewer-design/spec.md` (the owner clarification at its top wins over anything below it). Found in the owner's round of 2026-10-31 (`~/.config/InterviewHarness/rounds/2026-10-31T11-54-06-721Z`).

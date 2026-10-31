@@ -41,7 +41,10 @@ export const hintLevels = ['none', 'nudge', 'question', 'concrete'] as const;
 export type HintLevel = (typeof hintLevels)[number];
 const rungs: (keyof HintLadder)[] = ['nudge', 'question', 'concrete'];
 
-/** Why an attempt at a reply's words was thrown away and written again. */
+/**
+ * Why an attempt at a reply's words was thrown away and written again. `written-for-old-phase`: the candidate's turn
+ * moved the round, and the attempt offered to move on from the phase they had already left.
+ */
 export type Rejection =
   | 'hint-unasked'
   | 'mistake-unasked'
@@ -51,6 +54,7 @@ export type Rejection =
   | 'what-blocks-repeated'
   | 'probe-repeated'
   | 'probe-mid-work'
+  | 'written-for-old-phase'
   | 'solution-leak';
 
 const corrections: Record<Rejection, string> = {
@@ -65,6 +69,8 @@ const corrections: Record<Rejection, string> = {
   'probe-repeated':
     "it probed their answer again, right after your last probe. One probe per answer: accept what they said and move on, fixed or not.",
   'probe-mid-work': "it probed while they're still working it out. Wait until they hand the answer over: stay quiet or give a backchannel.",
+  'written-for-old-phase':
+    "it was written for the phase before their turn moved the round on. Reply for the phase they're in now, as \"The round so far\" says.",
   'solution-leak': 'it gave away part of the solution. Never quote or describe the solution, its code or its steps.',
 };
 
@@ -175,6 +181,8 @@ type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 
 interface Written {
   words: string;
   usage: ModelUsage;
+  /** The phase the prompt was written for. */
+  phase: CodingPhase;
   /** For a reply to a turn: what the candidate was doing, the reply's kind and what the model observed. */
   heard?: CandidateTurn;
   kind?: TurnKindName;
@@ -539,6 +547,7 @@ export function createInterviewer(options: InterviewerOptions) {
       return {
         words: object.words.trim(),
         usage,
+        phase,
         heard,
         kind: object.kind,
         observed: { movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake, asks },
@@ -550,10 +559,10 @@ export function createInterviewer(options: InterviewerOptions) {
     if (call.reply.kind === 'check-in') {
       // Silence is never a request for help: a check-in may give none, however long the silence.
       const { object, usage } = await model!.generateObject({ ...request, schema: checkInSchema });
-      return { words: object.words.trim(), usage, askedForHelp: false, gives: { hintLevel: object.hintLevel, namesMistake: false }, mayHint: false };
+      return { words: object.words.trim(), usage, phase, askedForHelp: false, gives: { hintLevel: object.hintLevel, namesMistake: false }, mayHint: false };
     }
     const { text, usage } = await model!.streamText(request);
-    return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: false };
+    return { words: text.trim(), usage, phase, gives: { hintLevel: 'none', namesMistake: false }, mayHint: false };
   }
 
   /** Whether help could have slipped into an attempt's words, so they get the check before they're said. */
@@ -623,7 +632,24 @@ export function createInterviewer(options: InterviewerOptions) {
     return !declinedHelp && (heard === 'stuck' || failedAttempts >= helpRules.failedAttemptsBeforeOffer);
   }
 
-  /** Writes a reply's words, checked where help could slip: a rejected attempt is written once more, then given up for a safe line. */
+  /**
+   * Whether an attempt offered to move on from a phase the candidate's turn already left: its prompt was built
+   * before the turn moved the round. A yes to their own request to move on is no such offer.
+   */
+  function writtenForOldPhase(written: Written) {
+    return (
+      written.phase !== round.snapshot().phase &&
+      written.kind === 'offer-next-phase' &&
+      written.heard !== 'asking-to-move-on' &&
+      written.heard !== 'agreeing'
+    );
+  }
+
+  /**
+   * Writes a reply's words, checked where help could slip: a rejected attempt is written once more, then given up
+   * for a safe line. An offer written for the phase the turn left is written again for the new one first, apart
+   * from those two tries; only a turn that moves the round can cost that call.
+   */
   async function compose(call: Call) {
     const rejected: Rejection[] = [];
     for (let tries = 0; tries < 2; tries++) {
@@ -631,6 +657,11 @@ export function createInterviewer(options: InterviewerOptions) {
       if (call.controller.signal.aborted) throw new ModelError('aborted');
       const first = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
       noteTurn(call, first.heard, first.observed);
+      if (!rejected.includes('written-for-old-phase') && writtenForOldPhase(first)) {
+        rejected.push('written-for-old-phase');
+        tries--;
+        continue;
+      }
       const staysQuiet = first.kind === 'stay-quiet';
       if (!first.words && !staysQuiet) throw new ModelError('bad-output', 'The reply was empty');
       // Labels the reply gives itself already rule it out: no need to wait on the check.
@@ -730,7 +761,9 @@ export function createInterviewer(options: InterviewerOptions) {
         logCall(call, 'spoken', said);
         const { observed, kind } = written;
         // Besides the candidate's own words, the round moves when the interviewer begins the follow-ups; never on its other questions.
-        if (observed?.asks === 'follow-up' && call.observed?.movesTo === 'stays') moveTo('follow-up');
+        // Their own move this turn wins, unless it was to Complexity, which the follow-ups come after.
+        const theirMove = call.observed?.movesTo ?? 'stays';
+        if (observed?.asks === 'follow-up' && (theirMove === 'stays' || nextPhase(theirMove) === 'follow-up')) moveTo('follow-up');
         say(written.words, kind && turnKinds[kind]);
         noteSaid(written.words, kind, observed);
       },
