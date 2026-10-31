@@ -1434,3 +1434,39 @@ describe('a reply for the phase the turn moved to', () => {
     expect(helpers.model.requests).toHaveLength(1);
   });
 });
+
+describe("the candidate's own questions and offers", () => {
+  async function turns(script: ModelScript['interviewer-reply'], said: string[]) {
+    const helpers = await afterIntro(script);
+    for (const text of said) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+    return helpers;
+  }
+
+  it('tells the model to answer a question put to it inside a turn first, whatever the turn mainly is', async () => {
+    const helpers = await turns(
+      [reply('acknowledgement', "No need, that's clear.", { heard: 'answering-interviewer' })],
+      ['two pointers from both ends: too big, move right; too small, move left. do you want me to briefly explain why this works?'],
+    );
+
+    expect(helpers.model.requests[0]!.messages[0]!.text).toContain('If their turn asks you something');
+  });
+
+  it('asks for nothing by saying yes to their offer: the trace they offered stays their own', async () => {
+    const helpers = await turns(
+      [
+        reply('answer', 'Yes, go ahead and trace it.', { heard: 'asking-to-move-on', movesTo: 'test', saysCodeDone: true, asks: 'trace-example' }),
+        reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', checkedCode: true }),
+      ],
+      ['i think this works, do u want me to trace with an example?', '[5, 1, 5] with target 10: seen[5] = 0, seen[1] = 1, then 10 - 5 is in seen, so [0, 2]'],
+    );
+
+    const record = helpers.interviewer.record();
+    expect(record.asked).toEqual([]);
+    expect(record.checks).toEqual([{ lineId: 't4', by: 'candidate' }]);
+  });
+});

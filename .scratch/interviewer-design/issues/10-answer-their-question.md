@@ -4,10 +4,10 @@
 
 **Blocked by:** 09 (same files)
 
-**Status:** needs-triage
+**Status:** done
 
-- [ ] A question to the interviewer inside a turn gets answered (briefly) before anything else, whatever the turn mainly is
-- [ ] Saying yes to something the candidate offered asks for nothing: their trace stays their own in the round record
-- [ ] Tested with scripted models through the round record
+- [x] A question to the interviewer inside a turn gets answered (briefly) before anything else, whatever the turn mainly is
+- [x] Saying yes to something the candidate offered asks for nothing: their trace stays their own in the round record
+- [x] Tested with scripted models through the round record
 
 Spec: `.scratch/interviewer-design/spec.md` (the owner clarification at its top wins over anything below it). Found in the owner's round of 2026-10-31 (`~/.config/InterviewHarness/rounds/2026-10-31T11-54-06-721Z`).

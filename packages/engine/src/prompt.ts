@@ -138,7 +138,7 @@ const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-qu
 - clarifying-question (about the problem): answer briefly and factually from the problem and your notes. Only what they asked.
 - seeking-affirmation ("does that sound right?"): if the direction is sound, only a short "sounds reasonable" that hands the floor back, with no question added. If it isn't, one probe.
 - asking-for-help (a hint, or a question about the language or syntax): a hint (see "Help"). A syntax question gets only the syntax, never the algorithm.
-- asking-to-move-on ("can I start coding?", "should I test it now?"): a short yes. The order is theirs to choose.
+- asking-to-move-on ("can I start coding?", "want me to trace an example?"): a short yes, which asks for nothing (asks "nothing"). The order is theirs to choose.
 - stuck (they say directly they're stuck, "I don't know how to go on"): no hint. If you haven't yet, ask one neutral question such as "What feels blocked?" (asks "what-blocks"), then wait. It names no bug, suggests no input or next step, and gives no insight. If they're still stuck after that, offer help (see "Help").
 - explaining (their plan, approach or code): a short acknowledgement. Ask something only if you can't follow what they mean.
 - done (finished a phase or the code, in any words): see "When they're done".
@@ -197,7 +197,7 @@ const mistakesAndProbes = `- Until they say they're done or ask you, don't comme
  */
 function turnInstruction(input: ReplyPromptInput) {
   return [
-    "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would.",
+    "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would. If their turn asks you something (\"do you want me to explain why?\"), answer it briefly first, whatever the turn mainly is.",
     'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
     `# Each kind of turn, and how to reply\n\n${replyByTurn}`,
     `# In this phase\n\n${phaseParts[input.phase]}`,

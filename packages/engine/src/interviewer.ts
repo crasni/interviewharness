@@ -130,6 +130,9 @@ export const candidateTurns = [
 export type CandidateTurn = (typeof candidateTurns)[number];
 
 /** How the model labels its reply to a turn, in the words its schema uses. */
+/** Steps the candidate can offer to take themselves: a yes to their offer of one asks for nothing. */
+const theirSteps: readonly InterviewerAsk[] = ['trace-example', 'edge-case', 'complexity'];
+
 /** Turns where the candidate is still working something out: never probed. */
 const midWork: readonly CandidateTurn[] = ['thinking-aloud', 'murmur'];
 
@@ -226,7 +229,7 @@ const turnSchema: ObjectSchema<TurnWords> = {
       words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
       hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
       pointsOutMistake: { type: 'boolean', description: 'Whether your words say what or where a mistake in their code or approach is.' },
-      asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do.' },
+      asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do. Saying yes to something they offered to do asks for nothing.' },
     },
     required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'saysCodeDone', 'attemptFailed', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
     additionalProperties: false,
@@ -541,9 +544,11 @@ export function createInterviewer(options: InterviewerOptions) {
     call.stepAt = clock.now();
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
-      const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake, asks } = object;
+      const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake } = object;
       // Help comes only when asked for: in so many words, or by accepting the interviewer's offer.
       const askedForHelp = heard === 'asking-for-help' || (heard === 'agreeing' && lastAsk === 'offer-help');
+      // Saying yes to a step they offered ("want me to trace it?") asks for nothing: the step stays theirs.
+      const asks = heard === 'asking-to-move-on' && theirSteps.includes(object.asks) ? 'nothing' : object.asks;
       return {
         words: object.words.trim(),
         usage,
