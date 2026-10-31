@@ -84,7 +84,7 @@ Opens the last phase. Also the closing line said as written at a pause once the 
 
 ## Check-in
 
-Said after a few minutes with no talking or typing, as written: the model never writes a check-in. Neutral: no hint, no question about the work, nothing to do next.
+Said after a few minutes with no talking or typing. The model writes it in this tone; one of these is said as written when the model can't, or when its words gave help. Neutral: no hint, no mistake named, nothing to do next.
 
 - Take your time. I'm here if you want to talk it through.
 - No rush. Feel free to think out loud whenever you like.

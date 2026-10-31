@@ -54,11 +54,13 @@ describe('a scripted candidate', () => {
 
   it('sits through a long silence in round time, so the interviewer checks in', async () => {
     const candidate: ScriptedCandidate = { name: 'silent', about: 'Says nothing for three minutes.', steps: [{ silentFor: 3 * 60_000 }] };
-    const { played } = play(candidate, { 'interviewer-reply': ['Hi, take a look at the problem.'] });
+    const { played } = play(candidate, {
+      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'How is it going?', hintLevel: 'none' } }],
+    });
 
     const round = await played;
 
-    expect(round.record.transcript.map((l) => l.text)).toEqual(['Hi, take a look at the problem.', 'Take your time. Talk it through whenever you like.']);
+    expect(round.record.transcript.map((l) => l.text)).toEqual(['Hi, take a look at the problem.', 'How is it going?']);
     expect(round.record.elapsedMs).toBeGreaterThanOrEqual(3 * 60_000);
   });
 

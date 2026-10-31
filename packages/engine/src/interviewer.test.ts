@@ -87,6 +87,9 @@ const ack = (words: string, movesTo = 'stays') => reply('acknowledgement', words
 /** A reply that heard the candidate as done with the phase, and offers to move on. */
 const offer = (words: string) => reply('offer-next-phase', words, { heard: 'done' });
 
+/** A check-in as the model writes it: its words, and the hint rung it says they give. */
+const checkIn = (words: string, hintLevel = 'none') => ({ object: { words, hintLevel } });
+
 /** A help request, as the model hears it. */
 const help = { heard: 'asking-for-help' };
 
@@ -406,14 +409,14 @@ it('keeps replies short, cutting a long one at a sentence', async () => {
   expect(spoken()).toEqual([Array(6).fill(sentence).join(' ')]);
 });
 
-it('checks in after a long silence with a reviewed line, never waiting on the model', async () => {
-  const { wait, spoken, model } = await afterIntro();
+it('checks in after a long silence in words the model wrote', async () => {
+  const { wait, spoken, model } = await afterIntro([checkIn('Want to talk me through where you are?')]);
 
   wait(floorRulesForTest.checkInAfterIdle);
   await settle();
 
-  expect(spoken()).toEqual(['Take your time. Talk it through whenever you like.']);
-  expect(model.requests).toEqual([]);
+  expect(spoken()).toEqual(['Want to talk me through where you are?']);
+  expect(model.requests.map((r) => r.purpose)).toEqual(['interviewer-reply']);
 });
 
 it('keeps a record of the round for grading: lines with ids and times, phases, hints and the final code', async () => {
@@ -879,13 +882,31 @@ describe('help only when asked', () => {
   }
 
   it('gives a long silence only neutral check-ins, never a hint, however long it lasts', async () => {
-    const { wait, spoken, model, interviewer } = await afterIntro();
+    const { wait, spoken, modelCalls, interviewer } = await afterIntro(
+      [
+        checkIn('How is it going?'),
+        checkIn('Think about the values you have already seen.', 'nudge'),
+        checkIn('Maybe think about what you have seen so far?'),
+        checkIn('Still with me? Talk it through whenever you like.'),
+      ],
+      [verdict({ hintLevel: 'nudge' }), verdict()],
+    );
 
-    wait(8 * floorRulesForTest.checkInAfterIdle); // three check-ins: after 2.5, 5 and 10 more minutes
-    await settle();
+    // Three check-ins: after 2.5, 5 and 10 more minutes, each settled before the next is due.
+    for (const after of [1, 2, 4]) {
+      wait(after * floorRulesForTest.checkInAfterIdle);
+      await settle();
+      await settle();
+      wait(10_000);
+    }
 
-    expect(spoken()).toEqual(Array(3).fill('Take your time. Talk it through whenever you like.'));
-    expect(model.requests).toEqual([]);
+    // The second one's two drafts both gave a hint, so it fell back to a reviewed check-in line.
+    expect(spoken()).toEqual(['How is it going?', 'Take your time. Talk it through whenever you like.', 'Still with me? Talk it through whenever you like.']);
+    expect(modelCalls()).toMatchObject([
+      { reply: 'check-in', outcome: 'spoken' },
+      { reply: 'check-in', outcome: 'replaced', rejected: ['hint-unasked', 'hint-unasked'] },
+      { reply: 'check-in', outcome: 'spoken' },
+    ]);
     expect(interviewer.record().hints).toEqual([]);
   });
 
@@ -893,6 +914,7 @@ describe('help only when asked', () => {
     const helpers = await afterIntro([
       reply('answer', 'Think about what you have already seen.', { heard: 'stuck', hintLevel: 'nudge' }),
       reply('answer', 'What feels blocked?', { heard: 'stuck', asks: 'what-blocks' }),
+      checkIn('Take your time. Talk it through whenever you like.'),
     ], [verdict()]);
 
     await turn(helpers, "I'm stuck");
@@ -900,7 +922,10 @@ describe('help only when asked', () => {
     await settle();
 
     expect(helpers.spoken()).toEqual(['What feels blocked?', 'Take your time. Talk it through whenever you like.']);
-    expect(helpers.modelCalls()).toMatchObject([{ heard: 'stuck', rejected: ['hint-unasked'], hint: { askedForHelp: false, level: 'none' } }]);
+    expect(helpers.modelCalls()).toMatchObject([
+      { heard: 'stuck', rejected: ['hint-unasked'], hint: { askedForHelp: false, level: 'none' } },
+      { reply: 'check-in', outcome: 'spoken' },
+    ]);
     expect(helpers.interviewer.record().hints).toEqual([]);
   });
 
@@ -951,6 +976,7 @@ describe('help only when asked', () => {
       reply('acknowledgement', 'Sure.', { heard: 'declining' }),
       reply('answer', 'Want a hint now?', { attemptFailed: true, asks: 'offer-help' }),
       reply('acknowledgement', 'Okay.', { attemptFailed: true }),
+      checkIn('Take your time. Talk it through whenever you like.'),
     ]);
 
     await turn(helpers, 'got an empty list for [2, 7]');
@@ -1071,6 +1097,33 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(modelCalls()).toMatchObject([{ rejected: ['solution-leak'] }]);
   });
 
+  it('rejects a later check-in that names their mistake, though it claims to give no hint', async () => {
+    const { wait, spoken, modelCalls, model, interviewer } = await afterIntro(
+      [
+        checkIn('Want to talk me through where you are?'),
+        checkIn('Your loop returns the value instead of its index.'),
+        checkIn('Take your time. Shout if you want to talk it through.'),
+      ],
+      [verdict({ namesMistake: true }), verdict()],
+    );
+
+    wait(floorRulesForTest.checkInAfterIdle);
+    await settle();
+    wait(2 * floorRulesForTest.checkInAfterIdle + 10_000);
+    await settle();
+    await settle();
+
+    expect(spoken()).toEqual(['Want to talk me through where you are?', 'Take your time. Shout if you want to talk it through.']);
+    expect(model.requests.map((r) => r.purpose)).toEqual(['interviewer-reply', 'interviewer-reply', 'reply-check', 'interviewer-reply', 'reply-check']);
+    expect(modelCalls()).toMatchObject([
+      { reply: 'check-in', outcome: 'spoken' },
+      { reply: 'check-in', outcome: 'spoken', rejected: ['mistake-unasked'], hint: { level: 'none' } },
+    ]);
+    const record = interviewer.record();
+    expect(record.hints).toEqual([]);
+    expect(record.mistakes).toEqual([]);
+  });
+
   it('is not waited on for plain answers', async () => {
     const { interviewer, wait, model } = await afterIntro([answer('Yes, values can repeat.')]);
 
@@ -1127,7 +1180,7 @@ describe('time and closing', () => {
       { kind: 'time-reminder', minutesLeft: 15, line: 'Just so you know, we have about 15 minutes left.', speakingMs: expect.any(Number) },
       { kind: 'time-reminder', minutesLeft: 5, line: 'Just so you know, we have about 5 minutes left.', speakingMs: expect.any(Number) },
     ]);
-    expect(helpers.model.requests).toEqual([]);
+    expect(helpers.modelCalls().filter((c) => c.reply !== 'check-in')).toEqual([]);
   });
 
   it('never interrupts the candidate mid-work: it waits for a pause, then gives only the time actually left', async () => {
@@ -1152,7 +1205,11 @@ describe('time and closing', () => {
   it('closes at time with one reviewed line that turns to Wrap-up, but never ends the round by itself', async () => {
     const helpers = await afterIntro([answer('Sure, take a minute to finish.')]);
 
-    waitUntil(helpers, 50 * minute);
+    // Typing now and then, with pauses long enough for the time but too short for a check-in.
+    while (roundElapsed(helpers) < 50 * minute) {
+      helpers.interviewer.onSignal({ type: 'editor-activity' });
+      helpers.wait(minute);
+    }
 
     expect(timeEvents(helpers).map((e) => e.kind)).toEqual(['time-reminder', 'time-reminder', 'closing']);
     expect(timeEvents(helpers).at(-1)).toMatchObject({ line: "That's about time. Do you have any questions for me?" });

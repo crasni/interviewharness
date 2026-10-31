@@ -45,7 +45,7 @@ A short spoken reply after the candidate's turn ends ("Okay, that makes sense") 
 _Avoid_: Backchannel, reply
 
 **Check-in**:
-A neutral line from the interviewer after a long stretch with no talking or typing ("Take your time. I'm here if you want to talk it through."), said as written from the example lines. If the silence goes on, it checks in again, waiting twice as long each time; it never hints, and stops once the candidate declines help until they get back to work.
+A neutral line from the interviewer after a long stretch with no talking or typing ("Want to talk me through where you are?"), in words the model writes. If the silence goes on, it checks in again, waiting twice as long each time. It never hints or names a mistake: one that does is rejected (the second in a silence goes through the check) and a reviewed check-in line from the example lines is said instead. It stops once the candidate declines help, until they get back to work.
 _Avoid_: Nudge, prompt, reminder
 
 **Time reminder**:

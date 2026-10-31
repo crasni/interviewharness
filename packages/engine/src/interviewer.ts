@@ -56,7 +56,7 @@ const corrections: Record<Rejection, string> = {
 
 /**
  * The turns where help could slip into a reply (ADR 0019): its words get the check before they're said.
- * Also any reply that labels itself as help, and help asked for by accepting an offer of it.
+ * Also any reply that labels itself as help, help asked for by accepting an offer of it, and a second check-in in a silence.
  */
 const riskyTurns: readonly CandidateTurn[] = ['done', 'asking-for-help', 'stuck', 'seeking-affirmation'];
 
@@ -165,7 +165,7 @@ interface Written {
   askedForHelp?: boolean;
   /**
    * What the words give the candidate, for every kind of reply: the model's own labels, then the check's verdict
-   * once checked. A rejection reads only this, so a turn and the intro are judged alike.
+   * once checked. A rejection reads only this, so a turn, a check-in and the intro are judged alike.
    */
   gives: { hintLevel: HintLevel; namesMistake: boolean };
   /** Whether this reply may help: only when the candidate asked for help or accepted an offer of it. */
@@ -225,6 +225,30 @@ const turnSchema: ObjectSchema<TurnWords> = {
       );
     }
     return { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, kind, words, hintLevel, pointsOutMistake, asks };
+  },
+};
+
+/**
+ * A check-in comes back structured too, so the help in it can be checked like any other. Silence never asks
+ * for help, so a check-in that gives any is written again.
+ */
+const checkInSchema: ObjectSchema<{ words: string; hintLevel: HintLevel }> = {
+  name: 'say',
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      words: { type: 'string', description: 'What you say aloud.' },
+      hintLevel: { type: 'string', enum: [...hintLevels], description: 'The rung of the hint ladder your words give, or none.' },
+    },
+    required: ['words', 'hintLevel'],
+    additionalProperties: false,
+  },
+  parse(value) {
+    const { words, hintLevel } = (value ?? {}) as Record<string, unknown>;
+    if (typeof words !== 'string' || !oneOf(hintLevels, hintLevel)) {
+      throw new Error(`Expected words (a string) and hintLevel (${hintLevels.join(', ')})`);
+    }
+    return { words, hintLevel };
   },
 };
 
@@ -318,7 +342,7 @@ export function fallbackSituation(reply: Reply): Situation {
 
 /** Replies said as reviewed lines from the example lines, never written by the model: nothing it could add is called for. */
 function reviewedOnly(reply: Reply) {
-  return reply.kind === 'check-in' || reply.kind === 'time-reminder' || reply.kind === 'closing';
+  return reply.kind === 'time-reminder' || reply.kind === 'closing';
 }
 
 interface Call {
@@ -503,6 +527,11 @@ export function createInterviewer(options: InterviewerOptions) {
         mayHint: askedForHelp,
       };
     }
+    if (call.reply.kind === 'check-in') {
+      // Silence is never a request for help: a check-in may give none, however long the silence.
+      const { object, usage } = await model!.generateObject({ ...request, schema: checkInSchema });
+      return { words: object.words.trim(), usage, askedForHelp: false, gives: { hintLevel: object.hintLevel, namesMistake: false }, mayHint: false };
+    }
     const { text, usage } = await model!.streamText(request);
     return { words: text.trim(), usage, gives: { hintLevel: 'none', namesMistake: false }, mayHint: false };
   }
@@ -511,6 +540,7 @@ export function createInterviewer(options: InterviewerOptions) {
   function risky(call: Call, written: Written) {
     if (!written.words || call.reply.kind === 'intro') return false;
     if (written.gives.hintLevel !== 'none' || written.gives.namesMistake || written.askedForHelp) return true;
+    if (call.reply.kind === 'check-in') return call.reply.nth > 1;
     return written.heard !== undefined && riskyTurns.includes(written.heard);
   }
 
@@ -629,8 +659,7 @@ export function createInterviewer(options: InterviewerOptions) {
     abandon('aborted'); // a newer reply replaces one still being prepared
     // At time, the closing line turns the round to Wrap-up, as the start of the follow-ups turns it to Follow-up.
     if (reply.kind === 'closing') moveTo('wrap-up');
-    // A check-in, a time reminder and the closing are reviewed lines, never generated: silence or the clock
-    // alone is no reason to say more than that.
+    // A time reminder and the closing are reviewed lines, never generated: the clock alone is no reason to say more than that.
     if (!model || reviewedOnly(reply)) return sayFallback(fallbackSituation(reply), reply.kind === 'time-reminder' ? { minutes: reply.minutesLeft } : undefined);
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;

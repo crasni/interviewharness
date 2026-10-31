@@ -10,7 +10,7 @@ So on turns where help could slip in, the reply's words get **the check** before
 ## The decisions
 - **When it runs:** only where help could slip in, which keeps the usual reply to one call:
   - the candidate said they're done, asked for help, sounds stuck, or asked "does this look right?";
-  - a second check-in in a silence (since ADR 0017's 2026-10-31 amendment, check-ins are reviewed lines, so none reaches the check);
+  - a second check-in in a silence;
   - any reply that labels itself as help.
   A reply its own labels already rule out isn't checked; it's written again at once.
 - **Its verdict wins.** Its hint rung is what's recorded and graded, and its "names a mistake" replaces the reply's own. "Describes the solution" counts as a leak, next to the code n-gram guard, which can't catch a solution described in words.

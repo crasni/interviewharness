@@ -120,7 +120,9 @@ function instruction(input: ReplyPromptInput): string {
     case 'turn':
       return turnInstruction(input);
     case 'check-in':
-      return "The candidate has been quiet for a few minutes. Say one short, neutral line that you're here if they want to talk it through. No hint, no question about their work.";
+      return reply.nth === 1
+        ? 'The candidate has been quiet and idle for a few minutes. Check in with one short, neutral line, such as asking them to talk you through where they are. No hint, nothing about their code or what to try next: hintLevel "none".'
+        : 'The candidate is still quiet and idle after you checked in. Check in once more with one short, neutral line, different from the last. No hint, no mistake named, nothing about what to try next: hintLevel "none". Silence is never a request for help.';
     case 'time-reminder':
     case 'closing':
       throw new Error(`A ${reply.kind} is said as a reviewed line, never written by the model`);

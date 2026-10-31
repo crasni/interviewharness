@@ -33,7 +33,7 @@ Every reply to a turn comes back structured: what the candidate was doing (a **c
 
 The owner's candidate-led clarification: the interviewer never hints unasked.
 
-- **Silence** gets a check-in at most, and it is a reviewed line from the example lines, never words the model writes, so no silence however long can unlock a hint. Check-ins still wait twice as long each time (2.5, 5, 10 minutes).
+- **Silence** gets a check-in at most, in words the model writes, and no silence however long can unlock a hint: a check-in may give no hint and name no mistake. The second check-in in a silence goes through the check (ADR 0019); one that gives any help is written again, then replaced by a reviewed check-in line from the example lines. Check-ins still wait twice as long each time (2.5, 5, 10 minutes).
 - **A stuck candidate**, one who says so directly, gets one neutral question ("What feels blocked?") and then space. That question names no bug, suggests no input, prescribes no next step and gives no insight; a reply to a stuck turn that asks for a trace, an edge case or the complexity is written again.
 - **An offer of help** ("Want a hint?") comes only when the candidate says they're stuck or has said two attempts failed since the last hint. Any other offer is written again.
 - **Real help** comes only on request or an accepted offer, one rung at a time and kept to the obstacle: a syntax question never reveals the algorithm. It is checked like a help request (ADR 0019) and recorded as a hint.
