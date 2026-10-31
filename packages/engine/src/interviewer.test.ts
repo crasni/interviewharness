@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInterviewer, floorRules as floorRulesForTest, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, startRound } from './index.ts';
+import { createInterviewer, floorRules as floorRulesForTest, type InterviewerEvent, type ModelCallEntry, type Problem, replyRules, roundFacts, startRound } from './index.ts';
 import { fakeClock, fakeLog, type ModelScript, scriptedModel, testLines } from './test/fakes.ts';
 
 const problem: Problem = {
@@ -613,6 +613,83 @@ describe('the round so far, kept by the app', () => {
     // Found on the trace the interviewer asked for: the bug was still there when they said they were done.
     expect(record.mistakes).toEqual([{ lineId: 't4', foundBy: 'candidate-when-asked' }]);
     expect(model.requests.at(-1)!.messages[0]!.text).toContain('Times they checked their code: 0 on their own, 1 when you asked.');
+  });
+});
+
+describe('what the candidate did stays in the round when the interviewer’s words fail', () => {
+  // Their own check, in words the grader's backstop wouldn't catch: only the model's reading of the turn records it.
+  const ownCheck = 'with [5, 1, 5] and 10, seen of 5 is 0, then 5 again: oh, I return the value, not the index';
+  const observedCheck = { checkedCode: true, foundOwnMistake: true, movesTo: 'test' };
+
+  it('keeps the check and the mistake they found when both drafts of the reply are rejected', async () => {
+    const helpers = await afterIntro([
+      reply('answer', 'Right, you return the value.', { ...observedCheck, pointsOutMistake: true }),
+      reply('answer', 'Yes, the value instead of its index.', { ...observedCheck, pointsOutMistake: true }),
+    ]);
+    const { interviewer, wait, spoken, modelCalls } = helpers;
+
+    interviewer.onSignal({ type: 'said', text: ownCheck });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Could you walk me through it with a small example?']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'replaced', observed: { checkedCode: true, foundOwnMistake: true } }]);
+    const record = interviewer.record();
+    expect(record.checks).toEqual([{ lineId: 't2', by: 'candidate' }]);
+    expect(record.mistakes).toEqual([{ lineId: 't2', foundBy: 'candidate' }]);
+    expect(record.phases.at(-1)!.phase).toBe('test');
+    expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: true, doneWithMissedBug: false });
+  });
+
+  it('applies what was observed once, however many drafts the reply takes', async () => {
+    const { interviewer, wait, spoken } = await afterIntro([
+      reply('answer', 'Right, you return the value.', { ...observedCheck, pointsOutMistake: true }),
+      reply('acknowledgement', 'Okay.', observedCheck),
+    ]);
+
+    interviewer.onSignal({ type: 'said', text: ownCheck });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Okay.']);
+    const record = interviewer.record();
+    expect(record.checks).toEqual([{ lineId: 't2', by: 'candidate' }]);
+    expect(record.mistakes).toEqual([{ lineId: 't2', foundBy: 'candidate' }]);
+    expect(record.phases.map((p) => p.phase)).toEqual(['clarify', 'test']);
+  });
+
+  it('keeps what was observed about the turn when a barge-in drops its reply', async () => {
+    const { interviewer, wait, spoken, kinds } = await afterIntro([reply('answer', 'Nice, what did you find?', { ...observedCheck, heard: 'done' })], ['wait']);
+
+    interviewer.onSignal({ type: 'said', text: ownCheck });
+    wait(1_000);
+    await settle(); // the reply is written and waits on its check
+    interviewer.onSignal({ type: 'talk-start' });
+    await settle();
+
+    expect(kinds()).toContain('stop-preparing');
+    expect(spoken()).toEqual([]);
+    const record = interviewer.record();
+    expect(record.checks).toEqual([{ lineId: 't2', by: 'candidate' }]);
+    expect(record.mistakes).toEqual([{ lineId: 't2', foundBy: 'candidate' }]);
+  });
+
+  it('records nothing when the model fails to read the turn, leaving their own words as the evidence', async () => {
+    const { interviewer, wait, modelCalls } = await afterIntro([{ error: 'bad-output' }]);
+    const traced = 'Let me trace [5, 1, 5] with target 10: I get [0, 2].';
+
+    interviewer.onSignal({ type: 'said', text: traced });
+    wait(1_000);
+    await settle();
+
+    const record = interviewer.record();
+    expect(modelCalls()).toMatchObject([{ outcome: 'failed' }]);
+    expect(modelCalls()[0]!.observed).toBeUndefined();
+    expect(record.checks).toEqual([]);
+    expect(record.mistakes).toEqual([]);
+    expect(record.phases.map((p) => p.phase)).toEqual(['clarify']);
+    // The failed reading isn't evidence that they didn't test: their words still count.
+    expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: true });
   });
 });
 

@@ -257,7 +257,10 @@ export interface ModelCallEntry {
     hint?: { askedForHelp: boolean; level: HintLevel };
     /** Attempts thrown away before the words were said (or replaced), and why. */
     rejected?: Rejection[];
-    /** For a reply to a turn: what the model observed and what its words do, which the app keeps the round's state from. */
+    /**
+     * For a reply to a turn: what the model observed and what its words do, which the app keeps the round's state from.
+     * Also on a reply that was replaced or cut off after its first attempt: what was observed about the turn still counts.
+     */
     observed?: Observed;
     /** The check's verdict on the words that were said, when they were checked. It overrides the reply's own labels. */
     check?: CheckVerdict;
@@ -316,6 +319,8 @@ interface Call {
   controller: AbortController;
   /** The candidate's line it replies to, if any. */
   about: string | null;
+  /** What the first attempt observed about that line, applied to the round once, whatever becomes of the words. */
+  observed?: Observed;
 }
 
 /** When the round may still turn to the follow-up questions. */
@@ -367,6 +372,7 @@ export function createInterviewer(options: InterviewerOptions) {
         model: model!.identity,
         ms: now - call.startedAt,
         outcome,
+        ...(call.observed ? { observed: call.observed } : {}),
         ...extra,
       },
     });
@@ -519,6 +525,7 @@ export function createInterviewer(options: InterviewerOptions) {
       // A barge-in or the time limit may have ended this reply while the last attempt was checked.
       if (call.controller.signal.aborted) throw new ModelError('aborted');
       const first = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
+      noteTurn(call, first.observed);
       const staysQuiet = first.kind === 'stay-quiet';
       if (!first.words && !staysQuiet) throw new ModelError('bad-output', 'The reply was empty');
       // Labels the reply gives itself already rule it out: no need to wait on the check.
@@ -531,18 +538,28 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /**
-   * Keeps the books for a reply to a turn, from what the model observed: each time the candidate checked their
-   * code and who started it, mistakes and how they were found, and the phase their own words moved the round to.
-   * Returns the phase to move to, if any; the move comes before the words, so an accepted offer is settled first.
+   * Keeps the books for the candidate's turn, from what the model's first reading of it observed: each time they
+   * checked their code and who started it, mistakes and how they were found, and the phase their own words moved
+   * the round to. This is what the candidate did, so it stays whether or not the reply's words are ever said;
+   * applied once per turn, so a rewritten reply can't count it again. The move comes before the words, so an
+   * accepted offer is settled first.
    */
-  function noteTurn(about: string | null, observed: Observed): CodingPhase | null {
+  function noteTurn(call: Call, observed: Observed | undefined) {
+    // A reply already replaced (a barge-in, a newer turn, the time limit) has no say; nor has a second reading.
+    if (!observed || call.observed || pending !== call) return;
+    call.observed = observed;
+    const { about } = call;
     const asked = lastAsk === 'trace-example' || lastAsk === 'edge-case';
     if (about && observed.checkedCode) checks.push({ lineId: about, by: asked ? 'interviewer' : 'candidate' });
     // Found on a check the interviewer asked for, the mistake was still there when they said they were done.
     if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: asked ? 'candidate-when-asked' : 'candidate' });
-    // The round moves on the candidate's words, or when the interviewer begins the follow-ups; never on its other questions.
-    const to = observed.movesTo !== 'stays' ? observed.movesTo : observed.asks === 'follow-up' ? 'follow-up' : null;
-    return to === 'follow-up' && !followUpsOpen() ? null : to;
+    if (observed.movesTo !== 'stays') moveTo(observed.movesTo);
+  }
+
+  /** Moves the round to a phase, unless it's the follow-ups and they're no longer open. */
+  function moveTo(phase: CodingPhase) {
+    if (phase === 'follow-up' && !followUpsOpen()) return;
+    handle(floor.onSignal({ type: 'phase-reached', phase }));
   }
 
   /** Keeps the books for what the interviewer just said: what it asked, a mistake it named, a goodbye. */
@@ -586,8 +603,8 @@ export function createInterviewer(options: InterviewerOptions) {
           ...extra,
         });
         const { observed, kind } = written;
-        const to = observed ? noteTurn(call.about, observed) : null;
-        if (to) handle(floor.onSignal({ type: 'phase-reached', phase: to }));
+        // Besides the candidate's own words, the round moves when the interviewer begins the follow-ups; never on its other questions.
+        if (observed?.asks === 'follow-up' && call.observed?.movesTo === 'stays') moveTo('follow-up');
         say(written.words, kind && turnKinds[kind]);
         noteSaid(written.words, kind, observed);
       },
