@@ -31,8 +31,8 @@ export interface RoundSoFar {
   nextHint: keyof Problem['hintLadder'] | null;
   /** How many times the interviewer said what or where a mistake was. */
   mistakesPointedOut: number;
-  /** Examples the candidate walked through their code: on their own, and when the interviewer asked. */
-  traces: { own: number; asked: number };
+  /** Times the candidate checked their code (an input walked through, test cases, an edge case): on their own, and when the interviewer asked. */
+  checks: { own: number; asked: number };
   /** Follow-up questions asked, and whether another may be asked now (one is left and there's time). */
   followUps: { asked: number; open: boolean };
   saidGoodbye: boolean;
@@ -52,9 +52,6 @@ export interface ReplyPromptInput {
   /** Why the last attempt at these words was rejected, so this one avoids it. */
   correction?: string;
 }
-
-/** How much of the conversation each prompt carries; older lines are left out, and the round so far covers them. */
-const recentLines = 12;
 
 const rules = `You are the interviewer in a live mock coding interview. The candidate is practising, and you play one good, human interviewer who mostly listens.
 
@@ -84,8 +81,8 @@ function soFarBlock(soFar: RoundSoFar, phaseElapsedMs: number): string {
   const current = soFar.phases.at(-1)!.phase;
   const earlier = soFar.phases.slice(0, -1).map(({ phase, atMs }, i) => `${phase} ${minutes(soFar.phases[i + 1]!.atMs - atMs)} min`);
   const count = (n: number, one: string) => (n === 0 ? 'none' : n === 1 ? `one ${one}` : `${n} ${one}s`);
-  const traces = soFar.traces.own + soFar.traces.asked
-    ? `${soFar.traces.own} on their own, ${soFar.traces.asked} when you asked`
+  const checks = soFar.checks.own + soFar.checks.asked
+    ? `${soFar.checks.own} on their own, ${soFar.checks.asked} when you asked`
     : 'none yet';
   return [
     '# The round so far (kept by the app)',
@@ -94,7 +91,7 @@ function soFarBlock(soFar: RoundSoFar, phaseElapsedMs: number): string {
     `- Waiting on: ${soFar.offered ? `their answer to your offer to move on to ${soFar.offered}` : 'nothing'}.`,
     `- Hints given: ${soFar.hints.length ? soFar.hints.join(', ') : 'none'}. ${soFar.nextHint ? `Next rung, if they ask: ${soFar.nextHint}.` : 'Every rung is given.'}`,
     `- Mistakes you pointed out: ${count(soFar.mistakesPointedOut, 'time')}.`,
-    `- Examples they traced through their code: ${traces}.`,
+    `- Times they checked their code: ${checks}.`,
     `- Follow-up questions asked: ${count(soFar.followUps.asked, 'question')}${soFar.followUps.open ? '; another may be asked' : ''}.`,
     `- You've said goodbye: ${soFar.saidGoodbye ? 'yes' : 'no'}.`,
   ].join('\n');
@@ -129,6 +126,20 @@ const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-qu
 - declining or carrying on: a short acknowledgement; they keep going.
 - small-talk (logistics, "who are you?", "can you see my code?", thanks): a brief, natural reply.`;
 
+/**
+ * How the interviewer behaves in each phase: only the current phase's part goes into the prompt, so a
+ * small model isn't carrying goodbye rules while the candidate codes.
+ */
+const phaseParts: Record<CodingPhase, string> = {
+  clarify: "Answer their questions about the problem briefly and factually, from the problem and your notes. Don't volunteer constraints or edge cases they didn't ask about.",
+  approach: "Listen while they work out an approach. Don't evaluate it, and don't ask about complexity or edge cases: those are theirs to bring up.",
+  code: 'Stay quiet while they write code. Comment on it only when they say they are done or ask you about it.',
+  test: "They choose the examples to test with. Don't suggest inputs or edge cases; if they ask what to test, turn it back to them (\"what would you try?\").",
+  complexity: "Let them state the time and space complexity. If it's wrong, ask how they got it; don't correct it.",
+  'follow-up': 'You lead this phase: ask the follow-up questions one at a time and let them think. No hints toward a follow-up unless they ask for help.',
+  'wrap-up': "Answer their questions about the role or the interview briefly. Don't review how they did: feedback comes after the round.",
+};
+
 /** What to do when the candidate is done with the phase the round is in. */
 function whenDone({ phase, soFar }: ReplyPromptInput): string {
   const offer = soFar.nextPhase === 'follow-up'
@@ -159,9 +170,11 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
 function turnInstruction(input: ReplyPromptInput) {
   return [
     "The candidate just finished their turn. Understand what they meant, however they put it (typos, no question mark, half sentences), and reply the way a good human interviewer would.",
-    'First report what you observed about their turn (heard, movesTo, tracedExample, foundOwnMistake), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
+    'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
     `# Each kind of turn, and how to reply\n\n${replyByTurn}`,
+    `# In this phase\n\n${phaseParts[input.phase]}`,
     `# When they're done\n\n${whenDone(input)}`,
+    'movesTo is the phase their own words moved to, ahead or back: going back to Code to fix a bug after testing counts.',
     `# Hints\n\nOnly when they ask for help, or a small insight when they're stuck. Set hintLevel to the rung your words give, or "none".`,
   ].join('\n\n');
 }
@@ -199,8 +212,8 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     rules,
     `# The problem (the candidate sees this too)\n\n${input.problem.statement.trim()}`,
     `# Your notes on the problem (never shown to the candidate)\n\n${input.problem.notes}`,
-    hintLadder(input.problem),
-    followUps(input.problem),
+    input.phase === 'wrap-up' ? null : hintLadder(input.problem),
+    input.phase === 'follow-up' || input.soFar.nextPhase === 'follow-up' ? followUps(input.problem) : null,
     `# The reference solution\n\nNEVER reveal, quote or paraphrase this code, or describe its approach. It is only for you to judge the candidate's code against.\n\n\`\`\`${input.problem.reference.language}\n${input.problem.reference.code.trim()}\n\`\`\``,
     `# How you sound\n\nExamples of an interviewer's lines. Match their tone and length; don't repeat them word for word.\n\n${input.toneGuide.trim()}`,
   ]
@@ -208,7 +221,6 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     .join('\n\n');
 
   const conversation = input.transcript
-    .slice(-recentLines)
     .map((line) => `${line.who === 'candidate' ? 'Candidate' : 'You'} (${clock(line.atMs)}): ${line.text}`)
     .join('\n');
 
@@ -218,7 +230,7 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
 
   const user = [
     soFarBlock(input.soFar, input.phaseElapsedMs),
-    `Recent conversation:\n${conversation || '(nothing said yet)'}`,
+    `The conversation so far:\n${conversation || '(nothing said yet)'}`,
     code,
     `What to say now: ${instruction(input)}`,
     input.correction ? `Your last attempt was rejected: ${input.correction} Write it again.` : null,
@@ -227,5 +239,39 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     .filter(Boolean)
     .join('\n\n');
 
+  return { system, messages: [{ role: 'user', text: user }] };
+}
+
+export interface CheckPromptInput {
+  problem: Problem;
+  transcript: readonly TranscriptLine[];
+  code: CodeSnapshot | null;
+  /** The words the interviewer is about to say. */
+  words: string;
+}
+
+const checkRules = `You check one line that the interviewer in a mock coding interview is about to say, before it is said. The candidate must find their own mistakes and their own solution; help comes only in small steps, and only when they ask.
+
+Judge only what the words give the candidate, not what the interviewer meant:
+- namesMistake: the words say what or where a mistake in the candidate's code or approach is ("you return the value, not the index", "look at your return line"). Asking them to trace an input, without saying what will go wrong, is not naming it.
+- hintLevel: how much of the hint ladder the words give, or "none". A question that only asks them to explain or trace is "none".
+- describesSolution: the words describe steps or ideas of the reference solution that the candidate hasn't already said themselves.`;
+
+/** The prompt for the check (ADR 0019): a second, separate look at a reply's words before they are said. */
+export function buildCheckPrompt(input: CheckPromptInput): { system: string; messages: ModelMessage[] } {
+  const system = [
+    checkRules,
+    hintLadder(input.problem),
+    `# The reference solution\n\n\`\`\`${input.problem.reference.language}\n${input.problem.reference.code.trim()}\n\`\`\``,
+  ].join('\n\n');
+  const said = input.transcript
+    .filter((line) => line.who === 'candidate')
+    .map((line) => `- ${line.text}`)
+    .join('\n');
+  const user = [
+    `What the candidate has said:\n${said || '(nothing yet)'}`,
+    input.code?.text.trim() ? `Their code:\n\`\`\`\n${input.code.text.trimEnd()}\n\`\`\`` : 'Their code: (empty)',
+    `The line to check:\n${input.words}`,
+  ].join('\n\n');
   return { system, messages: [{ role: 'user', text: user }] };
 }

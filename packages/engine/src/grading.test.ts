@@ -30,7 +30,7 @@ function record(overrides: Partial<RoundRecord> = {}): RoundRecord {
       { phase: 'test', atMs: 1_400_000 },
     ],
     hints: [],
-    traces: [],
+    checks: [],
     mistakes: [],
     asked: [],
     code: { language: 'python', text: 'def two_sum(nums, target):\n    ...' },
@@ -103,9 +103,9 @@ describe('grading a round', () => {
     expect(await grade(['nudge', 'question', 'concrete'])).toBe(1);
   });
 
-  it('caps testing when the round never reached Test or traced an example', async () => {
+  it('caps testing at mixed when the candidate never checked their code, and nothing was found wrong with it', async () => {
     const model = scriptedModel({ grading: [sample([4, 4, 4, 4]), sample([4, 4, 4, 4]), sample([4, 4, 4, 4])], 'feedback-prose': [prose] });
-    // Never reached Test, and never traced an example (t4 is left out).
+    // Never reached Test, and never checked the code (t4 is left out); nothing was found wrong with it.
     const untested = record({
       phases: [{ phase: 'clarify', atMs: 0 }, { phase: 'approach', atMs: 120_000 }, { phase: 'code', atMs: 400_000 }],
       transcript: record().transcript.slice(0, 3),
@@ -116,21 +116,37 @@ describe('grading a round', () => {
     expect(feedback.areas.testing.score).toBe(2);
   });
 
-  it('caps testing when the only traces were ones the interviewer asked for, and tells the grader who started each', async () => {
-    const model = scriptedModel({ grading: [sample([4, 4, 4, 4]), sample([4, 4, 4, 4]), sample([4, 4, 4, 4])], 'feedback-prose': [prose] });
-    const askedOnly = record({
-      traces: [{ lineId: 't4', by: 'interviewer' }],
-      mistakes: [{ lineId: 't3', foundBy: 'interviewer' }],
-      asked: [{ lineId: 't1', asks: 'trace-example' }],
-    });
+  const allStrong = () => scriptedModel({ grading: [sample([4, 4, 4, 4]), sample([4, 4, 4, 4]), sample([4, 4, 4, 4])], 'feedback-prose': [prose] });
+
+  it('caps testing at mixed when the only checks were ones the interviewer asked for, and tells the grader who started each', async () => {
+    const model = allStrong();
+    const askedOnly = record({ checks: [{ lineId: 't4', by: 'interviewer' }], asked: [{ lineId: 't1', asks: 'trace-example' }] });
 
     const feedback = await gradeRound({ model: model.model, problem, record: askedOnly, rough: false });
 
     expect(feedback.areas.testing.score).toBe(2);
     const graded = model.requests.find((r) => r.purpose === 'grading')!.messages.at(-1)!.text;
-    expect(graded).toContain('Checked their code on their own: no.');
-    expect(graded).toContain('Examples traced through the code: when the interviewer asked t4.');
-    expect(graded).toContain('Mistakes found in their code or approach: pointed out by the interviewer t3.');
+    expect(graded).toContain('Checked their code: yes. On their own: no.');
+    expect(graded).toContain('Times they checked their code: when the interviewer asked t4.');
+  });
+
+  it('caps testing at weak when they said done with a bug they never caught themselves', async () => {
+    const model = allStrong();
+    const missedBug = record({ checks: [{ lineId: 't4', by: 'interviewer' }], mistakes: [{ lineId: 't4', foundBy: 'candidate-when-asked' }] });
+
+    const feedback = await gradeRound({ model: model.model, problem, record: missedBug, rough: false });
+
+    expect(feedback.areas.testing.score).toBe(1);
+    const graded = model.requests.find((r) => r.purpose === 'grading')!.messages.at(-1)!.text;
+    expect(graded).toContain('Mistakes found in their code or approach: by the candidate, on a check the interviewer asked for t4.');
+  });
+
+  it('leaves testing to the grader when they checked on their own, even if they missed something', async () => {
+    const ownCheck = record({ checks: [{ lineId: 't4', by: 'candidate' }], mistakes: [{ lineId: 't3', foundBy: 'interviewer' }] });
+
+    const feedback = await gradeRound({ model: allStrong().model, problem, record: ownCheck, rough: false });
+
+    expect(feedback.areas.testing.score).toBe(4);
   });
 
   it('writes why, what went well and what to fix, each point at the time of its evidence', async () => {
@@ -166,14 +182,17 @@ describe('the facts of a round', () => {
       deepestHint: 'nudge',
       tested: true,
       testedOnOwn: true,
+      doneWithMissedBug: false,
     });
   });
 });
 
-it('counts walking an example through the code as testing, even without reaching Test', () => {
-  const traced = record({ phases: [{ phase: 'clarify', atMs: 0 }, { phase: 'code', atMs: 400_000 }] }); // t4 traces [5, 1, 5]
+it('counts checking the code against values as testing, and reaching Test without it as not', () => {
+  const traced = record({ phases: [{ phase: 'clarify', atMs: 0 }, { phase: 'code', atMs: 400_000 }] }); // t4 checks [5, 1, 5]
   const untraced = record({ phases: traced.phases, transcript: traced.transcript.slice(0, 3) });
 
   expect(roundFacts(traced).tested).toBe(true);
   expect(roundFacts(untraced).tested).toBe(false);
+  // Reaching Test is only a phase: with no example walked through, nothing was tested.
+  expect(roundFacts(record({ transcript: traced.transcript.slice(0, 3) })).tested).toBe(false);
 });

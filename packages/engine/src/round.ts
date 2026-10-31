@@ -16,6 +16,8 @@ export interface Round {
   snapshot(): RoundSnapshot;
   /** Moves to the next phase; stays put in the last one. Returns the phase now in progress. */
   advancePhase(): CodingPhase;
+  /** Moves to any phase, earlier or later (the candidate went back to fix their code). */
+  moveTo(phase: CodingPhase): void;
 }
 
 const minute = 60_000;
@@ -61,6 +63,11 @@ export function startRound(kind: RoundKind, clock: Clock): Round {
         phaseStartedAt = clock.now();
       }
       return phase;
+    },
+    moveTo(to) {
+      if (to === phase) return;
+      phase = to;
+      phaseStartedAt = clock.now();
     },
   };
 }

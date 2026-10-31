@@ -18,7 +18,8 @@ test('the interviewer opens the round with an intro', async () => {
 /** A round whose interviewer hears the candidate as done and offers to move on, then replies with `then`. */
 async function offered(then: ReturnType<typeof turnReply.ack>) {
   ({ app, window } = await launchIntoRoom({
-    model: { 'interviewer-reply': [longIntro, turnReply.offer('Want to talk through your approach?'), then] },
+    // Hearing them as done makes the offer a risky reply, so it's checked before it's said.
+    model: { 'interviewer-reply': [longIntro, turnReply.offer('Want to talk through your approach?'), then], 'reply-check': [turnReply.passes] },
   }));
   await say("I think that's it.");
   await expect(window.getByTestId('subtitle')).toHaveText('Want to talk through your approach?');

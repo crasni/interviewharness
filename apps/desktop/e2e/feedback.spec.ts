@@ -37,7 +37,7 @@ const prose = {
 async function playRound(grading: NonNullable<ModelScript['grading']>) {
   ({ app, window, dataDir } = await launchApp({
     model: {
-      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'Yes, values can repeat.', heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', movesTo: 'stays', tracedExample: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' } }],
+      'interviewer-reply': ['Hi, take a look at the problem.', { object: { words: 'Yes, values can repeat.', heard: 'clarifying-question', kind: 'answer', hintLevel: 'none', movesTo: 'stays', checkedCode: false, foundOwnMistake: false, pointsOutMistake: false, asks: 'nothing' } }],
       grading,
       'feedback-prose': [prose],
     },
@@ -69,7 +69,7 @@ test('the Feedback is written from the round: a verdict, why, and points at thei
 
   const scale = feedbackScreen().getByRole('list', { name: 'Verdict' });
   await expect(scale.getByRole('listitem')).toHaveText(['Strong hire', 'Hire', 'Lean hire', 'Lean no hire', 'No hire', 'Strong no hire']);
-  // Solid everywhere, but the round never reached Test, so testing is capped: 3 + 3 + 2 + 3.
+  // Solid everywhere, but the code was never checked, so testing is capped at mixed: 3 + 3 + 2 + 3.
   await expect(scale.locator('[aria-current="true"]')).toHaveText('Lean hire');
   await expect(feedbackScreen().getByRole('region', { name: 'Why' })).toContainText('You asked the right question early');
   const wentWell = feedbackScreen().getByRole('region', { name: 'What went well' }).getByRole('listitem');

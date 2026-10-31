@@ -11,7 +11,7 @@ One complete mock interview with an interviewer, from start to verdict, of one k
 _Avoid_: Session, interview, mode
 
 **Phase**:
-One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Follow-up, Wrap-up. Follow-up (the problem's follow-up questions) happens only when the candidate finishes early. Feedback comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
+One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Follow-up, Wrap-up. Follow-up (the problem's follow-up questions) happens only when the candidate finishes early. The phase follows what the candidate is doing, ahead or back. Feedback comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
 _Avoid_: Step, stage, section
 
 **Interviewer**:
@@ -21,6 +21,10 @@ _Avoid_: Bot, assistant, persona
 **Candidate**:
 The person practising in a round.
 _Avoid_: User, interviewee, student
+
+**Check**:
+A second, separate look at the interviewer's words before they're said, on turns where help could slip in: do they name a mistake, give a hint, or describe the solution? Its verdict, not the interviewer's own label, is what's recorded and graded.
+_Avoid_: Guardrail, filter, review
 
 ### Turn-taking
 

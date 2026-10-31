@@ -26,7 +26,10 @@ _The owner's answers, 2026-10-30, after the Two sum round where the interviewer 
 5. **Phases follow the candidate both ways.** Going back is allowed, e.g. from Test to Code to fix a bug. The interviewer's own questions never move the phase. (Changes ADR 0018's "forward only".)
 6. **Memory.** The whole conversation goes into every prompt, plus the round-so-far block. No more 12-line window.
 7. **Prompt.** Rules that always apply, plus a short part for the current phase only.
-8. **Grading.** Testing is at most 1 when the candidate never traced or tested at all, even when asked, and at most 2 when they only traced what the interviewer asked for.
+8. **Grading.** Any checking the candidate starts counts: walking an input through, test cases, edge cases.
+   - Without checking of their own, testing is at most 2.
+   - It's at most 1 only when they said "done" with a bug they never caught themselves.
+   - This was changed after grilling: "never tested at all → 1" was too harsh for correct code.
 9. **Testing the interviewer.** A fake-candidate suite, run by hand before a release, never in CI (no network in tests).
    - It runs against ChatGPT for now.
    - The fake candidates are: stuck, fishing for the answer, has a bug, finishes early, silent, and rambling.

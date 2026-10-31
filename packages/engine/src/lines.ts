@@ -12,6 +12,7 @@ export const SITUATIONS = [
   'move-on',
   'wrap-up',
   'check-in',
+  'walk-through',
 ] as const;
 export type Situation = (typeof SITUATIONS)[number];
 

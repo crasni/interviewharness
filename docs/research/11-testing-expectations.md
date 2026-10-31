@@ -36,4 +36,4 @@ A bug the interviewer had to point out counts mainly against testing. It counts 
 
 Testing is capped at 2 in code when the candidate never checked their code on their own (ADR 0018). Coding and problem solving get no cap for an interviewer-found bug: how much it costs depends on the bug, so that's left to the grader, who is told who found it.
 
-**Open:** the sources put a candidate who never tests at all at 1, but the current cap for a round that never reached Test is 2. That's the owner's call.
+Any checking the candidate starts counts, not only tracing. The cap is 1 only when they said "done" with a bug they never caught themselves, the bottom of the rubrics. Correct code never checked stays at most 2 (the owner's decision, 2026-10-30, ADR 0019).

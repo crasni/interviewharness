@@ -89,3 +89,11 @@ Said once after a few minutes with no talking or typing. Neutral: never a hint.
 - Want to talk me through where you are?
 - How's it going? Feel free to think out loud.
 - Where are you at with it?
+
+## Walk through
+
+Said when every reply the AI wrote gave away too much: a safe line that helps with nothing, and hands the floor back.
+
+- Could you walk me through it with a small example?
+- Talk me through your thinking so far.
+- Walk me through what your code does, step by step.

@@ -1,4 +1,4 @@
-import { CODING_PHASES } from '@interviewharness/core';
+import { CODING_PHASES, type CodingPhase } from '@interviewharness/core';
 import {
   type CodeSnapshot,
   createFloorManager,
@@ -20,7 +20,7 @@ import {
 } from './model.ts';
 import type { HintLadder, Problem } from './problem.ts';
 import type { GradingEntry, RecordLine, RoundRecord } from './grading.ts';
-import { buildReplyPrompt, type RoundSoFar } from './prompt.ts';
+import { buildCheckPrompt, buildReplyPrompt, type RoundSoFar } from './prompt.ts';
 import { quotesSolution } from './solution-guard.ts';
 import { type Clock, codingRoundMs, type LaterPhase, nextPhase, type Round } from './round.ts';
 
@@ -32,6 +32,8 @@ export const replyRules = {
   maxOutputTokens: 300,
   /** Words beyond this are cut at the last whole sentence: an interviewer never lectures. */
   maxWords: 60,
+  /** A cap on the check's answer: three short fields. */
+  checkMaxOutputTokens: 100,
 };
 
 /** How much help a reply gave: none, or a rung of the problem's hint ladder. */
@@ -48,7 +50,41 @@ const corrections: Record<Rejection, string> = {
     "it said what or where their mistake is, which they didn't ask for. Ask them to trace a small input instead, and let them find it.",
   'hint-skipped-rung': 'it gave more help than the next rung of the hint ladder. Give only that rung.',
   'hint-too-concrete': "it gave the concrete hint when they hadn't asked for help. Give a smaller insight, or none.",
-  'solution-leak': 'it quoted the reference solution. Never quote or describe its code.',
+  'solution-leak': 'it gave away part of the solution. Never quote or describe the solution, its code or its steps.',
+};
+
+/**
+ * The turns where help could slip into a reply (ADR 0019): its words get the check before they're said.
+ * Also any reply that labels itself as help, and a second check-in in a silence.
+ */
+const riskyTurns: readonly CandidateTurn[] = ['done', 'asking-for-help', 'stuck', 'seeking-affirmation'];
+
+/** The check's verdict on a reply's words, judged apart from writing them: what they give the candidate. */
+export interface CheckVerdict {
+  namesMistake: boolean;
+  hintLevel: HintLevel;
+  describesSolution: boolean;
+}
+
+const checkSchema: ObjectSchema<CheckVerdict> = {
+  name: 'verdict',
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      namesMistake: { type: 'boolean', description: "Whether the words say what or where a mistake in the candidate's code or approach is." },
+      hintLevel: { type: 'string', enum: [...hintLevels], description: 'How much of the hint ladder the words give, or none.' },
+      describesSolution: { type: 'boolean', description: "Whether the words describe steps or ideas of the solution the candidate hasn't said themselves." },
+    },
+    required: ['namesMistake', 'hintLevel', 'describesSolution'],
+    additionalProperties: false,
+  },
+  parse(value) {
+    const { namesMistake, hintLevel, describesSolution } = (value ?? {}) as Record<string, unknown>;
+    if (typeof namesMistake !== 'boolean' || !oneOf(hintLevels, hintLevel) || typeof describesSolution !== 'boolean') {
+      throw new Error(`Expected namesMistake and describesSolution (true or false) and hintLevel (${hintLevels.join(', ')})`);
+    }
+    return { namesMistake, hintLevel, describesSolution };
+  },
 };
 
 /**
@@ -87,9 +123,9 @@ type TurnKindName = keyof typeof turnKinds;
 export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'other'] as const;
 export type InterviewerAsk = (typeof interviewerAsks)[number];
 
-/** Where the candidate's own words take the round: a later phase, or nowhere. */
-type Move = 'stays' | LaterPhase;
-const moves: readonly Move[] = ['stays', ...(CODING_PHASES.slice(1) as LaterPhase[])];
+/** Where the candidate's own words take the round: another phase, ahead or back, or nowhere. */
+type Move = 'stays' | CodingPhase;
+const moves: readonly Move[] = ['stays', ...CODING_PHASES];
 
 /**
  * A reply to the candidate's turn, structured so code can keep the round's state (ADR 0018). First what the
@@ -99,7 +135,7 @@ const moves: readonly Move[] = ['stays', ...(CODING_PHASES.slice(1) as LaterPhas
 interface TurnWords {
   heard: CandidateTurn;
   movesTo: Move;
-  tracedExample: boolean;
+  checkedCode: boolean;
   foundOwnMistake: boolean;
   kind: TurnKindName;
   words: string;
@@ -109,7 +145,22 @@ interface TurnWords {
 }
 
 /** What the model observed about a turn, and what its reply does: the app keeps the round's books from these. */
-type Observed = Pick<TurnWords, 'movesTo' | 'tracedExample' | 'foundOwnMistake' | 'pointsOutMistake' | 'asks'>;
+type Observed = Pick<TurnWords, 'movesTo' | 'checkedCode' | 'foundOwnMistake' | 'pointsOutMistake' | 'asks'>;
+
+/** One attempt at a reply's words, with what the model says they do and, once checked, the check's verdict. */
+interface Written {
+  words: string;
+  usage: ModelUsage;
+  /** For a reply to a turn: what the candidate was doing, the reply's kind and what the model observed. */
+  heard?: CandidateTurn;
+  kind?: TurnKindName;
+  observed?: Observed;
+  /** The help the words give. Absent for the intro, which never helps. */
+  hint?: { askedForHelp: boolean; level: HintLevel };
+  /** How much help this reply may give: any (asked for), small (stuck, or a later check-in) or none. */
+  mayHint: 'any' | 'small' | 'none';
+  check?: CheckVerdict;
+}
 
 const oneOf = <T extends string>(values: readonly T[], value: unknown): value is T => values.includes(value as T);
 
@@ -122,9 +173,12 @@ const turnSchema: ObjectSchema<TurnWords> = {
       movesTo: {
         type: 'string',
         enum: [...moves],
-        description: 'The later phase the candidate started, or asked to move to, with this turn (saying yes to your offer counts); "stays" otherwise. Only their own words count, never your questions.',
+        description: 'The phase the candidate moved to, or asked to move to, with this turn, ahead or back (saying yes to your offer counts; going back to fix their code after testing counts); "stays" otherwise. Only their own words count, never your questions.',
       },
-      tracedExample: { type: 'boolean', description: 'Whether the candidate walked a concrete input through their code in this turn.' },
+      checkedCode: {
+        type: 'boolean',
+        description: 'Whether the candidate checked their code in this turn: walked an input through it, gave test cases with what it returns, or said what it does on an edge case.',
+      },
       foundOwnMistake: { type: 'boolean', description: 'Whether the candidate spotted a mistake in their own code or approach in this turn, without you pointing it out.' },
       kind: { type: 'string', enum: Object.keys(turnKinds), description: 'The kind of reply that fits.' },
       words: { type: 'string', description: 'What you say aloud; empty if you stay quiet.' },
@@ -132,15 +186,15 @@ const turnSchema: ObjectSchema<TurnWords> = {
       pointsOutMistake: { type: 'boolean', description: 'Whether your words say what or where a mistake in their code or approach is.' },
       asks: { type: 'string', enum: [...interviewerAsks], description: 'What your words ask the candidate to do.' },
     },
-    required: ['heard', 'movesTo', 'tracedExample', 'foundOwnMistake', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
+    required: ['heard', 'movesTo', 'checkedCode', 'foundOwnMistake', 'kind', 'words', 'hintLevel', 'pointsOutMistake', 'asks'],
     additionalProperties: false,
   },
   parse(value) {
-    const { heard, movesTo, tracedExample, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
+    const { heard, movesTo, checkedCode, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks } = (value ?? {}) as Record<string, unknown>;
     if (
       !oneOf(candidateTurns, heard) ||
       !oneOf(moves, movesTo) ||
-      typeof tracedExample !== 'boolean' ||
+      typeof checkedCode !== 'boolean' ||
       typeof foundOwnMistake !== 'boolean' ||
       !oneOf(Object.keys(turnKinds) as TurnKindName[], kind) ||
       typeof words !== 'string' ||
@@ -149,10 +203,10 @@ const turnSchema: ObjectSchema<TurnWords> = {
       !oneOf(interviewerAsks, asks)
     ) {
       throw new Error(
-        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), tracedExample and foundOwnMistake (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
+        `Expected heard (${candidateTurns.join(', ')}), movesTo (${moves.join(', ')}), checkedCode and foundOwnMistake (true or false), kind (${Object.keys(turnKinds).join(', ')}), words (a string), hintLevel (${hintLevels.join(', ')}), pointsOutMistake (true or false) and asks (${interviewerAsks.join(', ')})`,
       );
     }
-    return { heard, movesTo, tracedExample, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks };
+    return { heard, movesTo, checkedCode, foundOwnMistake, kind, words, hintLevel, pointsOutMistake, asks };
   },
 };
 
@@ -205,6 +259,8 @@ export interface ModelCallEntry {
     rejected?: Rejection[];
     /** For a reply to a turn: what the model observed and what its words do, which the app keeps the round's state from. */
     observed?: Observed;
+    /** The check's verdict on the words that were said, when they were checked. It overrides the reply's own labels. */
+    check?: CheckVerdict;
   };
 }
 
@@ -234,6 +290,11 @@ export interface InterviewerOptions {
   onEvent: (event: InterviewerEvent) => void;
 }
 
+/** The example-lines situation whose line is said when every attempt at a reply was rejected: for a turn, a safe line that helps with nothing. */
+export function replacedSituation(reply: Reply): Situation {
+  return reply.kind === 'turn' ? 'walk-through' : fallbackSituation(reply);
+}
+
 /** The example-lines situation whose line is said when the model can't give the words for a reply. */
 export function fallbackSituation(reply: Reply): Situation {
   switch (reply.kind) {
@@ -250,6 +311,8 @@ interface Call {
   id: number;
   reply: Reply;
   startedAt: number;
+  /** When the model call now running began: the reply, then its check, each get the time limit. */
+  stepAt: number;
   controller: AbortController;
   /** The candidate's line it replies to, if any. */
   about: string | null;
@@ -276,7 +339,7 @@ export function createInterviewer(options: InterviewerOptions) {
   const transcript: RecordLine[] = [];
   const phases: RoundRecord['phases'] = [{ phase: round.snapshot().phase, atMs: 0 }];
   const hints: RoundRecord['hints'] = [];
-  const traces: RoundRecord['traces'] = [];
+  const checks: RoundRecord['checks'] = [];
   const mistakes: RoundRecord['mistakes'] = [];
   const asked: RoundRecord['asked'] = [];
   // The phase offered and not yet answered; what the interviewer's last spoken reply asked, and whether it named a mistake.
@@ -355,14 +418,14 @@ export function createInterviewer(options: InterviewerOptions) {
       hints,
       nextHint: nextHint(),
       mistakesPointedOut: mistakes.filter((m) => m.foundBy === 'interviewer').length,
-      traces: { own: traces.filter((t) => t.by === 'candidate').length, asked: traces.filter((t) => t.by === 'interviewer').length },
+      checks: { own: checks.filter((t) => t.by === 'candidate').length, asked: checks.filter((t) => t.by === 'interviewer').length },
       followUps: { asked: asked.filter((a) => a.asks === 'follow-up').length, open: followUpsOpen() },
       saidGoodbye,
     };
   }
 
   /** One attempt at a reply's words. An answer comes back structured, with the help it gave. */
-  async function attempt(call: Call, correction: string | undefined) {
+  async function attempt(call: Call, correction: string | undefined): Promise<Written> {
     const { phase, phaseElapsedMs } = round.snapshot();
     const prompt = buildReplyPrompt({
       reply: call.reply,
@@ -376,57 +439,90 @@ export function createInterviewer(options: InterviewerOptions) {
       correction,
     });
     const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
+    call.stepAt = clock.now();
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
       const askedForHelp = object.heard === 'asking-for-help';
-      const { movesTo, tracedExample, foundOwnMistake, pointsOutMistake, asks } = object;
+      const { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks } = object;
       return {
         words: object.words.trim(),
         usage,
         heard: object.heard,
         kind: object.kind,
-        observed: { movesTo, tracedExample, foundOwnMistake, pointsOutMistake, asks },
+        observed: { movesTo, checkedCode, foundOwnMistake, pointsOutMistake, asks },
         hint: { askedForHelp, level: object.hintLevel },
         // Help comes only when asked for, or, a little at a time, when they're stuck: never the answer.
         mayHint: askedForHelp ? 'any' : object.heard === 'stuck' ? 'small' : 'none',
-      } as const;
+      };
     }
     if (call.reply.kind === 'check-in') {
       const { object, usage } = await model!.generateObject({ ...request, schema: checkInSchema });
       // The first check-in in a silence only checks in; later ones may offer a small insight if they're stuck.
       const mayHint = call.reply.nth > 1 ? 'small' : 'none';
-      return { words: object.words.trim(), usage, hint: { askedForHelp: false, level: object.hintLevel }, mayHint } as const;
+      return { words: object.words.trim(), usage, hint: { askedForHelp: false, level: object.hintLevel }, mayHint };
     }
     const { text, usage } = await model!.streamText(request);
-    return { words: text.trim(), usage, mayHint: 'none' } as const;
+    return { words: text.trim(), usage, mayHint: 'none' };
+  }
+
+  /** Whether help could have slipped into an attempt's words, so they get the check before they're said. */
+  function risky(call: Call, written: Written) {
+    if (!written.words || !written.hint) return false;
+    if (written.hint.level !== 'none' || written.observed?.pointsOutMistake) return true;
+    if (call.reply.kind === 'check-in') return call.reply.nth > 1;
+    return written.heard !== undefined && riskyTurns.includes(written.heard);
+  }
+
+  /**
+   * The check (ADR 0019): the same model, asked apart from writing the words, what they give the candidate.
+   * Its verdict replaces the attempt's own labels, which a model judging its own words gets wrong when it matters.
+   */
+  async function checked(call: Call, written: Written): Promise<Written> {
+    if (!risky(call, written)) return written;
+    call.stepAt = clock.now();
+    const prompt = buildCheckPrompt({ problem: options.problem, transcript, code, words: written.words });
+    const { object: check, usage } = await model!.generateObject({
+      purpose: 'reply-check',
+      ...prompt,
+      schema: checkSchema,
+      signal: call.controller.signal,
+      maxOutputTokens: replyRules.checkMaxOutputTokens,
+    });
+    const both = { inputTokens: written.usage.inputTokens + usage.inputTokens, outputTokens: written.usage.outputTokens + usage.outputTokens };
+    const hint = { ...written.hint!, level: check.hintLevel };
+    const observed = written.observed && { ...written.observed, pointsOutMistake: check.namesMistake };
+    return { ...written, usage: both, hint, ...(observed ? { observed } : {}), check };
   }
 
   /**
    * What's wrong with an attempt's words, if anything: help that wasn't asked for (or, when they're stuck,
    * more than a small insight), a mistake named unasked, help that skips a rung, or a leak of the solution.
    */
-  function rejection(written: Awaited<ReturnType<typeof attempt>>): Rejection | null {
+  function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
-    if ('observed' in written && written.observed?.pointsOutMistake && written.mayHint !== 'any') return 'mistake-unasked';
-    const level = 'hint' in written && written.hint ? written.hint.level : 'none';
+    if (written.observed?.pointsOutMistake && written.mayHint !== 'any') return 'mistake-unasked';
+    const level = written.hint?.level ?? 'none';
     if (level !== 'none') {
       if (written.mayHint === 'none') return 'hint-unasked';
       if (written.mayHint === 'small' && level === 'concrete') return 'hint-too-concrete';
       const allowed = Math.max(1, rungs.indexOf(nextHint() ?? 'concrete') + 1);
       if (hintLevels.indexOf(level) > allowed) return 'hint-skipped-rung';
     }
+    if (written.check?.describesSolution) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
   }
 
-  /** Writes a reply's words: a rejected attempt is written once more, and then given up for the fallback line. */
+  /** Writes a reply's words, checked where help could slip: a rejected attempt is written once more, then given up for a safe line. */
   async function compose(call: Call) {
     const rejected: Rejection[] = [];
     for (let tries = 0; tries < 2; tries++) {
       // A barge-in or the time limit may have ended this reply while the last attempt was checked.
       if (call.controller.signal.aborted) throw new ModelError('aborted');
-      const written = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
-      const staysQuiet = 'kind' in written && written.kind === 'stay-quiet';
-      if (!written.words && !staysQuiet) throw new ModelError('bad-output', 'The reply was empty');
+      const first = await attempt(call, rejected.length ? corrections[rejected.at(-1)!] : undefined);
+      const staysQuiet = first.kind === 'stay-quiet';
+      if (!first.words && !staysQuiet) throw new ModelError('bad-output', 'The reply was empty');
+      // Labels the reply gives itself already rule it out: no need to wait on the check.
+      const written = rejection(first) ? first : await checked(call, first);
       const problem = rejection(written);
       if (!problem) return { written: { ...written, words: capped(written.words) }, rejected };
       rejected.push(problem);
@@ -435,15 +531,15 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   /**
-   * Keeps the books for a reply to a turn, from what the model observed: the examples the candidate traced
-   * and who started them, mistakes and who found them, and the phase their own words moved the round to.
+   * Keeps the books for a reply to a turn, from what the model observed: each time the candidate checked their
+   * code and who started it, mistakes and how they were found, and the phase their own words moved the round to.
    * Returns the phase to move to, if any; the move comes before the words, so an accepted offer is settled first.
    */
-  function noteTurn(about: string | null, observed: Observed): LaterPhase | null {
-    if (about && observed.tracedExample) {
-      traces.push({ lineId: about, by: lastAsk === 'trace-example' || lastAsk === 'edge-case' ? 'interviewer' : 'candidate' });
-    }
-    if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: 'candidate' });
+  function noteTurn(about: string | null, observed: Observed): CodingPhase | null {
+    const asked = lastAsk === 'trace-example' || lastAsk === 'edge-case';
+    if (about && observed.checkedCode) checks.push({ lineId: about, by: asked ? 'interviewer' : 'candidate' });
+    // Found on a check the interviewer asked for, the mistake was still there when they said they were done.
+    if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: asked ? 'candidate-when-asked' : 'candidate' });
     // The round moves on the candidate's words, or when the interviewer begins the follow-ups; never on its other questions.
     const to = observed.movesTo !== 'stays' ? observed.movesTo : observed.asks === 'follow-up' ? 'follow-up' : null;
     return to === 'follow-up' && !followUpsOpen() ? null : to;
@@ -465,7 +561,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (!model) return say(lines.next(fallbackSituation(reply)));
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
-    const call: Call = { id: ++calls, reply, startedAt: clock.now(), controller: new AbortController(), about };
+    const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
     pending = call;
     compose(call).then(
       ({ written, rejected }) => {
@@ -474,7 +570,7 @@ export function createInterviewer(options: InterviewerOptions) {
         const extra = rejected.length ? { rejected } : {};
         if (!written) {
           logCall(call, 'replaced', extra);
-          return say(lines.next(fallbackSituation(reply)));
+          return say(lines.next(replacedSituation(reply)));
         }
         if (written.hint && written.hint.level !== 'none') {
           hints.push(written.hint.level);
@@ -482,14 +578,14 @@ export function createInterviewer(options: InterviewerOptions) {
         }
         logCall(call, 'spoken', {
           usage: written.usage,
-          ...('heard' in written && written.heard ? { heard: written.heard } : {}),
-          ...('kind' in written && written.kind ? { turnReply: written.kind } : {}),
+          ...(written.heard ? { heard: written.heard } : {}),
+          ...(written.kind ? { turnReply: written.kind } : {}),
           ...(written.hint ? { hint: written.hint } : {}),
-          ...('observed' in written && written.observed ? { observed: written.observed } : {}),
+          ...(written.observed ? { observed: written.observed } : {}),
+          ...(written.check ? { check: written.check } : {}),
           ...extra,
         });
-        const observed = 'observed' in written ? written.observed : undefined;
-        const kind = 'kind' in written ? written.kind : undefined;
+        const { observed, kind } = written;
         const to = observed ? noteTurn(call.about, observed) : null;
         if (to) handle(floor.onSignal({ type: 'phase-reached', phase: to }));
         say(written.words, kind && turnKinds[kind]);
@@ -514,7 +610,7 @@ export function createInterviewer(options: InterviewerOptions) {
       if (signal.type === 'round-end' && signal.code) code = signal.code;
       if (signal.type === 'round-end') abandon('aborted');
       handle(floor.onSignal(signal));
-      if (signal.type === 'tick' && pending && clock.now() - pending.startedAt >= replyRules.timeout) {
+      if (signal.type === 'tick' && pending && clock.now() - pending.stepAt >= replyRules.timeout) {
         const { reply } = pending;
         abandon('failed', 'timeout');
         fallBack(reply, 'timeout');
@@ -528,7 +624,7 @@ export function createInterviewer(options: InterviewerOptions) {
         transcript: [...transcript],
         phases: [...phases],
         hints: [...hints],
-        traces: [...traces],
+        checks: [...checks],
         mistakes: [...mistakes],
         asked: [...asked],
         code,

@@ -1,3 +1,4 @@
+import type { CodingPhase } from '@interviewharness/core';
 import type { LineBook } from './lines.ts';
 import { createPhaseGuide, type PhaseState } from './phases.ts';
 import type { Clock, LaterPhase, Round } from './round.ts';
@@ -19,10 +20,10 @@ export type Signal =
    */
   | { type: 'words'; line: string; as?: TurnReplyKind }
   /**
-   * The conversation is in a later phase than the round's: the candidate moved on, or asked to and the
-   * interviewer agreed, or the interviewer began the follow-up questions. Never the interviewer's own questions.
+   * The conversation is in another phase than the round's, ahead or back: the candidate moved there, or asked
+   * to and the interviewer agreed, or the interviewer began the follow-up questions. Never the interviewer's own questions.
    */
-  | { type: 'phase-reached'; phase: LaterPhase };
+  | { type: 'phase-reached'; phase: CodingPhase };
 
 /** The editor's contents at a moment: the code and its language. */
 export interface CodeSnapshot {
@@ -79,8 +80,8 @@ export type Decision =
   | { kind: 'done-speaking' }
   /** A suggestion to move on is off the table: the candidate carried on, or never answered. */
   | { kind: 'suggestion-withdrawn' }
-  /** The round followed the conversation into `phase`; any pending suggestion is gone with it. */
-  | { kind: 'phase-moved'; phase: LaterPhase };
+  /** The round followed the conversation into `phase`, ahead or back; any pending suggestion is gone with it. */
+  | { kind: 'phase-moved'; phase: CodingPhase };
 
 /** What the Floor Manager knew when it decided. */
 export interface FloorState extends PhaseState {

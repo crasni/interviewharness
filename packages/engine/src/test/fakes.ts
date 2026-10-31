@@ -25,6 +25,9 @@ export function fakeLog<Entry = RoundLogEntry>() {
 
 export function testLines() {
   return createLineBook(`
+## Walk through
+- Could you walk me through it with a small example?
+
 ## Backchannel
 - Mm-hm.
 - Okay.

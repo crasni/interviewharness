@@ -19,10 +19,13 @@ export interface RoundRecord {
   phases: { phase: CodingPhase; atMs: number }[];
   /** Each hint rung given, in order. */
   hints: Exclude<HintLevel, 'none'>[];
-  /** Each example the candidate walked through their code, and who started it: they did, or the interviewer asked. */
-  traces: { lineId: string; by: 'candidate' | 'interviewer' }[];
-  /** Each mistake in the candidate's code or approach that was found, and who found it. */
-  mistakes: { lineId: string; foundBy: 'candidate' | 'interviewer' }[];
+  /** Each time the candidate checked their code (an input walked through, test cases, an edge case), and who started it. */
+  checks: { lineId: string; by: 'candidate' | 'interviewer' }[];
+  /**
+   * Each mistake in the candidate's code or approach that was found, and how: by the candidate on their own, by the
+   * candidate on a check the interviewer asked for, or pointed out by the interviewer.
+   */
+  mistakes: { lineId: string; foundBy: 'candidate' | 'candidate-when-asked' | 'interviewer' }[];
   /** What the interviewer's lines asked the candidate to do, when they asked anything. */
   asked: { lineId: string; asks: Exclude<InterviewerAsk, 'nothing'> }[];
   code: CodeSnapshot | null;
@@ -34,10 +37,12 @@ export interface RoundFacts {
   timeInPhaseMs: Partial<Record<CodingPhase, number>>;
   hints: Exclude<HintLevel, 'none'>[];
   deepestHint: HintLevel;
-  /** Reached the Test phase, or walked an example through the code. */
+  /** Checked their code at all, on their own or when asked. */
   tested: boolean;
-  /** Walked an example through the code on their own initiative, not because the interviewer asked. */
+  /** Checked their code on their own initiative, not because the interviewer asked. */
   testedOnOwn: boolean;
+  /** Said they were done with a mistake still in the code, which only the interviewer's check or words brought out. */
+  doneWithMissedBug: boolean;
 }
 
 export interface FeedbackPoint {
@@ -65,16 +70,22 @@ const hintOrder: HintLevel[] = ['none', 'nudge', 'question', 'concrete'];
 /** The highest problem-solving score left after each hint rung: every rung asked for costs more. */
 const problemSolvingCap: Record<HintLevel, AreaScore> = { none: 4, nudge: 3, question: 2, concrete: 1 };
 /**
- * The highest testing score when the candidate never checked their code on their own: they didn't test, or
- * traced only what the interviewer asked for. Interviewers expect the candidate to start the checking
- * (docs/research/11-testing-expectations.md).
+ * The highest testing scores when the candidate never checked their code on their own. Interviewers expect the
+ * candidate to start the checking (docs/research/11-testing-expectations.md): code never checked is mixed at
+ * best, and saying "done" with a bug they never caught is weak.
  */
 const notSelfTestedCap: AreaScore = 2;
+const missedBugCap: AreaScore = 1;
 /** How many times the round is graded; the median per area stands in for a low temperature, which some plans reject. */
 const gradingSamples = 3;
 
-/** Words that walk a concrete example through the code: "let me trace [5, 1, 5]", "walking through with target 10". */
-const tracesAnExample = (text: string) => /\b(trac(e|ing)|walk(ing)? (it |this |that )?through|dry.?run|step(ping)? through)\b/i.test(text) && /\d|\[/.test(text);
+/**
+ * Words that check the code against concrete values: "let me trace [5, 1, 5]", "walking through with target 10",
+ * "test case: [3, 3] gives [0, 1]", "for an empty list it returns []". A backstop for what the model's books missed.
+ */
+const checksTheCode = (text: string) =>
+  /\b(trac(e|ing)|walk(ing)? (it |this |that )?through|dry.?run|step(ping)? through|test(ing)? (it |this )?(case|with|on)|edge case|for (an? )?(empty|input|example))\b/i.test(text) &&
+  /\d|\[/.test(text);
 
 export function roundFacts(record: RoundRecord): RoundFacts {
   const timeInPhaseMs: RoundFacts['timeInPhaseMs'] = {};
@@ -82,17 +93,19 @@ export function roundFacts(record: RoundRecord): RoundFacts {
     const end = record.phases[i + 1]?.atMs ?? record.elapsedMs;
     timeInPhaseMs[phase] = (timeInPhaseMs[phase] ?? 0) + (end - atMs);
   });
-  const phasesReached = record.phases.map((p) => p.phase);
-  const askedFor = new Set(record.traces.filter((t) => t.by === 'interviewer').map((t) => t.lineId));
-  const candidateTraces = record.transcript.filter((line) => line.who === 'candidate' && tracesAnExample(line.text));
+  // A phase gone back to (Code again, to fix a bug) counts once; its time adds up.
+  const phasesReached = [...new Set(record.phases.map((p) => p.phase))];
+  const askedFor = new Set(record.checks.filter((t) => t.by === 'interviewer').map((t) => t.lineId));
+  const candidateChecks = record.transcript.filter((line) => line.who === 'candidate' && checksTheCode(line.text));
   return {
     phasesReached,
     timeInPhaseMs,
     hints: record.hints,
     deepestHint: record.hints.reduce<HintLevel>((deepest, hint) => (hintOrder.indexOf(hint) > hintOrder.indexOf(deepest) ? hint : deepest), 'none'),
-    tested: phasesReached.includes('test') || record.traces.length > 0 || candidateTraces.length > 0,
+    tested: record.checks.length > 0 || candidateChecks.length > 0,
     // The interviewer's book says who started each trace; a trace in words it missed counts as their own.
-    testedOnOwn: record.traces.some((t) => t.by === 'candidate') || candidateTraces.some((line) => !askedFor.has(line.id)),
+    testedOnOwn: record.checks.some((t) => t.by === 'candidate') || candidateChecks.some((line) => !askedFor.has(line.id)),
+    doneWithMissedBug: record.mistakes.some((m) => m.foundBy !== 'candidate'),
   };
 }
 
@@ -178,6 +191,12 @@ const proseSchema: ObjectSchema<Prose> = {
   },
 };
 
+const foundBy: Record<RoundRecord['mistakes'][number]['foundBy'], string> = {
+  candidate: 'by the candidate on their own',
+  'candidate-when-asked': 'by the candidate, on a check the interviewer asked for',
+  interviewer: 'pointed out by the interviewer',
+};
+
 /** Lines from the round's books, grouped by what they were: "on their own t15; when the interviewer asked t13". */
 function lineList<T extends { lineId: string }>(entries: T[], group: (entry: T) => string) {
   if (!entries.length) return 'none';
@@ -202,9 +221,9 @@ function roundForPrompt(problem: Problem, record: RoundRecord, facts: RoundFacts
       `Length: ${minutes(record.elapsedMs)}.`,
       `Phases reached: ${facts.phasesReached.map((p) => `${p} (${minutes(facts.timeInPhaseMs[p])})`).join(', ')}.`,
       `Hints the candidate asked for: ${facts.hints.length ? facts.hints.join(', ') : 'none'}.`,
-      `Reached Test: ${facts.tested ? 'yes' : 'no'}. Checked their code on their own: ${facts.testedOnOwn ? 'yes' : 'no'}.`,
-      `Examples traced through the code: ${lineList(record.traces, (t) => t.by === 'candidate' ? 'on their own' : 'when the interviewer asked')}.`,
-      `Mistakes found in their code or approach: ${lineList(record.mistakes, (m) => m.foundBy === 'candidate' ? 'by the candidate' : 'pointed out by the interviewer')}.`,
+      `Checked their code: ${facts.tested ? 'yes' : 'no'}. On their own: ${facts.testedOnOwn ? 'yes' : 'no'}.`,
+      `Times they checked their code: ${lineList(record.checks, (t) => (t.by === 'candidate' ? 'on their own' : 'when the interviewer asked'))}.`,
+      `Mistakes found in their code or approach: ${lineList(record.mistakes, (m) => foundBy[m.foundBy])}.`,
       `The interviewer asked for: ${lineList(record.asked, (a) => a.asks)}.`,
     ].join('\n'),
     `# The conversation (id, time, who: words)\n\n${record.transcript.map((l) => `${l.id} ${clock(l.atMs)} ${l.who}: ${l.text}`).join('\n') || '(nothing was said)'}`,
@@ -215,7 +234,7 @@ function roundForPrompt(problem: Problem, record: RoundRecord, facts: RoundFacts
 const graderRules = `You grade a mock coding interview the way a fair, experienced interviewer would. Score each area on a four-step scale: 1 weak, 2 mixed, 3 solid, 4 strong.
 - Problem solving: understanding the problem, finding and justifying an approach, and answering any follow-up questions.
 - Coding: correct, clear code that matches the approach.
-- Testing: checking the code with examples and edge cases they choose themselves, and finding their own bugs. A trace the interviewer asked for counts for little; a bug the interviewer had to point out counts against it.
+- Testing: checking the code themselves (walking an input through it, test cases with expected results, edge cases), and finding their own bugs. A check the interviewer asked for counts for little. Correct code never checked is mixed, not weak; saying "done" with a bug they never caught is weak.
 - Communication: explaining their thinking, asking good questions, taking input.
 The candidate types their words for now: ignore typos, spelling and terse phrasing. Lines about the mock itself ("who are you?", "can I start?") aren't graded.
 The facts say who started each trace and who found each mistake: credit the candidate only for what they started.
@@ -284,7 +303,7 @@ export async function gradeRound({
 /** One sample made trustworthy: evidence that names no line dropped, a score left without evidence lowered, caps applied. */
 function checked(sample: Graded, ids: Set<string>, facts: RoundFacts): Graded {
   const caps: Partial<Record<Area, AreaScore>> = { problemSolving: problemSolvingCap[facts.deepestHint] };
-  if (!facts.testedOnOwn) caps.testing = notSelfTestedCap;
+  if (!facts.testedOnOwn) caps.testing = facts.doneWithMissedBug ? missedBugCap : notSelfTestedCap;
   return Object.fromEntries(
     AREAS.map((area) => {
       const evidence = sample[area].evidence.filter((id) => ids.has(id));
