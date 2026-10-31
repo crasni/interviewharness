@@ -8,7 +8,7 @@ const problem: Problem = {
   statement: '# Two sum\n\nFind two positions whose values add up to `target`.',
   notes: 'Key idea: a map from value to position.',
   hintLadder: { nudge: 'Think about what you have seen.', question: 'Which value completes the pair?', concrete: 'Map each value to its position.' },
-  followUps: ['What if the list were sorted?'],
+  followUps: ['What if the list were sorted?', 'What if there could be several valid pairs?'],
   reference: {
     language: 'python',
     code: 'def two_sum(nums, target):\n    seen = {}\n    for i, value in enumerate(nums):\n        if target - value in seen:\n            return [seen[target - value], i]\n        seen[value] = i\n',
@@ -1289,5 +1289,107 @@ describe('time and closing', () => {
 
     expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.', 'Small and friendly; we pair a lot.', 'Yes, values can repeat.']);
     expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'quiet-after-goodbye', turnReply: 'goodbye' });
+  });
+});
+
+describe('a wrong answer gets one probe', () => {
+  /** A grader that scores every area strong, so only the caps in code lower it. */
+  const strongGrader = () => {
+    const strong = { score: 4, evidence: ['t2'] };
+    const sample = { object: { problemSolving: strong, coding: strong, testing: strong, communication: strong } };
+    return scriptedModel({ grading: [sample, sample, sample], 'feedback-prose': [{ object: { why: 'Fine.', wentWell: [], toFix: [] } }] });
+  };
+
+  async function turns(script: ModelScript['interviewer-reply'], checks: ModelScript['reply-check'], said: string[]) {
+    const helpers = await afterIntro(script, checks);
+    for (const text of said) {
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+      helpers.wait(5_000);
+    }
+    return helpers;
+  }
+
+  /** A probe: one short neutral question that makes them check a handed-over answer themselves. */
+  const probe = (words: string, observed: Observed = {}) => reply('answer', words, { heard: 'answering-interviewer', asks: 'probe', ...observed });
+
+  it('asks one neutral question about a wrong follow-up answer, then moves on to the next follow-up whatever they say', async () => {
+    const helpers = await turns(
+      [
+        ack('Okay.', 'complexity'),
+        reply('answer', 'What if the list were sorted?', { heard: 'done', asks: 'follow-up' }),
+        probe('Which positions does that give back: the sorted ones or the original ones?'),
+        probe('And is that what the caller wants?'),
+        reply('answer', 'What if there could be several valid pairs?', { heard: 'answering-interviewer', asks: 'follow-up' }),
+      ],
+      [verdict(), verdict()],
+      ['on to complexity', 'O(n) time and space, done', 'sort it in place, then two pointers, return l and r', 'the sorted ones, I think that is fine'],
+    );
+
+    expect(helpers.spoken()).toEqual([
+      'Okay.',
+      'What if the list were sorted?',
+      'Which positions does that give back: the sorted ones or the original ones?',
+      'What if there could be several valid pairs?',
+    ]);
+    // The probe is checked like any reply where help could slip in; a second probe in a row is written again unchecked.
+    expect(helpers.model.requests.filter((r) => r.purpose === 'reply-check')).toHaveLength(2);
+    expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'spoken', rejected: ['probe-repeated'] });
+    expect(helpers.interviewer.record().asked).toEqual([
+      { lineId: 't5', asks: 'follow-up' },
+      { lineId: 't7', asks: 'probe' },
+      { lineId: 't9', asks: 'follow-up' },
+    ]);
+    const prompts = helpers.model.requests.filter((r) => r.purpose === 'interviewer-reply');
+    expect(prompts.at(-2)!.messages[0]!.text).toContain('# Mistakes, probes and staying quiet');
+    expect(prompts.at(-2)!.messages[0]!.text).toContain('Your last line was a probe');
+  });
+
+  it('writes a probe again when the check finds it names the mistake or the fix', async () => {
+    const helpers = await turns(
+      [
+        probe("Sorting loses the original positions, so you'd need to keep them alongside."),
+        probe('Which positions does that give back: the sorted ones or the original ones?'),
+      ],
+      [verdict({ namesMistake: true }), verdict()],
+      ['sort it in place, then two pointers, return l and r'],
+    );
+
+    expect(helpers.spoken()).toEqual(['Which positions does that give back: the sorted ones or the original ones?']);
+    expect(helpers.modelCalls()).toMatchObject([{ outcome: 'spoken', rejected: ['mistake-unasked'] }]);
+    const check = helpers.model.requests.find((r) => r.purpose === 'reply-check')!;
+    expect(check.system).toContain('A probe');
+  });
+
+  it('never probes while they are still working something out', async () => {
+    const helpers = await turns(
+      [probe('What does seen hold after index 1?', { heard: 'thinking-aloud' }), reply('backchannel', 'Mm-hm.', { heard: 'thinking-aloud' })],
+      [],
+      ['so seen[5] = 0, then seen[1] = 0, hmm, let me keep going'],
+    );
+
+    expect(helpers.modelCalls()).toMatchObject([{ outcome: 'spoken', rejected: ['probe-mid-work'] }]);
+    expect(helpers.interviewer.record().asked).toEqual([]);
+  });
+
+  it('does not credit a mistake found right after a probe as their own, nor count it as a missed bug', async () => {
+    const helpers = await turns(
+      [
+        probe('What does seen hold by the time the loop ends?', { heard: 'done', saysCodeDone: true }),
+        reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer', foundOwnMistake: true }),
+      ],
+      [verdict()],
+      ["done, it's O(n) time and O(1) space", 'oh, seen can hold every value, so O(n) space'],
+    );
+
+    const record = helpers.interviewer.record();
+    expect(record.mistakes).toEqual([{ lineId: 't4', foundBy: 'candidate-after-probe' }]);
+    expect(roundFacts(record).doneWithMissedBug).toBe(false);
+    const grader = strongGrader();
+    const feedback = await gradeRound({ model: grader.model, problem, record, rough: false });
+    // Never checked their code on their own, so mixed at best; the probe doesn't make it a missed bug.
+    expect(feedback.areas.testing.score).toBe(2);
+    expect(grader.requests[0]!.messages[0]!.text).toContain("by the candidate, right after the interviewer's probe t4");
   });
 });

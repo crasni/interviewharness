@@ -49,6 +49,8 @@ export type Rejection =
   | 'offer-unasked'
   | 'step-unasked'
   | 'what-blocks-repeated'
+  | 'probe-repeated'
+  | 'probe-mid-work'
   | 'solution-leak';
 
 const corrections: Record<Rejection, string> = {
@@ -60,12 +62,15 @@ const corrections: Record<Rejection, string> = {
   'step-unasked': 'it told them what to try next. Ask at most one neutral question, such as what feels blocked, and leave the next step to them.',
   'what-blocks-repeated':
     "it asked again what feels blocked, which you already asked. Don't ask it twice: if they're still stuck, offer help in a short question, or just acknowledge.",
+  'probe-repeated':
+    "it probed their answer again, right after your last probe. One probe per answer: accept what they said and move on, fixed or not.",
+  'probe-mid-work': "it probed while they're still working it out. Wait until they hand the answer over: stay quiet or give a backchannel.",
   'solution-leak': 'it gave away part of the solution. Never quote or describe the solution, its code or its steps.',
 };
 
 /**
  * The turns where help could slip into a reply (ADR 0019): its words get the check before they're said.
- * Also any reply that labels itself as help, help asked for by accepting an offer of it, and a second check-in in a silence.
+ * Also any reply that labels itself as help, help asked for by accepting an offer of it, a probe, and a second check-in in a silence.
  */
 const riskyTurns: readonly CandidateTurn[] = ['done', 'asking-for-help', 'stuck', 'seeking-affirmation'];
 
@@ -119,6 +124,9 @@ export const candidateTurns = [
 export type CandidateTurn = (typeof candidateTurns)[number];
 
 /** How the model labels its reply to a turn, in the words its schema uses. */
+/** Turns where the candidate is still working something out: never probed. */
+const midWork: readonly CandidateTurn[] = ['thinking-aloud', 'murmur'];
+
 const turnKinds = {
   answer: 'answer',
   acknowledgement: 'ack',
@@ -131,9 +139,10 @@ type TurnKindName = keyof typeof turnKinds;
 
 /**
  * What the interviewer's words ask the candidate to do, so the round knows who started a test or a follow-up.
- * Also the one neutral question to a stuck candidate (what-blocks), and an offer of help.
+ * Also the one neutral question to a stuck candidate (what-blocks), an offer of help, and a probe: one neutral
+ * question that makes them check an answer they handed over that looks wrong.
  */
-export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'what-blocks', 'offer-help', 'other'] as const;
+export const interviewerAsks = ['nothing', 'trace-example', 'edge-case', 'complexity', 'follow-up', 'what-blocks', 'offer-help', 'probe', 'other'] as const;
 export type InterviewerAsk = (typeof interviewerAsks)[number];
 
 /** Where the candidate's own words take the round: another phase, ahead or back, or nowhere. */
@@ -502,6 +511,7 @@ export function createInterviewer(options: InterviewerOptions) {
       followUps: { asked: asked.filter((a) => a.asks === 'follow-up').length, open: followUpsOpen() },
       help: { askedWhatBlocks, offer: declinedHelp ? 'declined' : lastAsk === 'offer-help' ? 'waiting' : 'none', failedAttempts },
       saidGoodbye,
+      probed: lastAsk === 'probe',
     };
   }
 
@@ -550,6 +560,7 @@ export function createInterviewer(options: InterviewerOptions) {
   function risky(call: Call, written: Written) {
     if (!written.words || call.reply.kind === 'intro') return false;
     if (written.gives.hintLevel !== 'none' || written.gives.namesMistake || written.askedForHelp) return true;
+    if (written.observed?.asks === 'probe') return true;
     if (call.reply.kind === 'check-in') return call.reply.nth > 1;
     return written.heard !== undefined && riskyTurns.includes(written.heard);
   }
@@ -578,7 +589,7 @@ export function createInterviewer(options: InterviewerOptions) {
   /**
    * What's wrong with an attempt's words, if anything: help that wasn't asked for, a mistake named unasked, help
    * that skips a rung, an offer of help too soon, a step prescribed to a stuck candidate, asking again what feels
-   * blocked, or a leak of the solution.
+   * blocked, a second probe in a row or one mid-work, or a leak of the solution.
    */
   function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
@@ -597,6 +608,9 @@ export function createInterviewer(options: InterviewerOptions) {
     if (written.heard === 'stuck' && !written.mayHint && (asks === 'trace-example' || asks === 'edge-case' || asks === 'complexity')) {
       return 'step-unasked';
     }
+    // One probe per answer, and only once they've handed it over.
+    if (asks === 'probe' && lastAsk === 'probe') return 'probe-repeated';
+    if (asks === 'probe' && written.heard && midWork.includes(written.heard)) return 'probe-mid-work';
     if (written.check?.describesSolution) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
   }
@@ -641,12 +655,15 @@ export function createInterviewer(options: InterviewerOptions) {
     call.observed = observed;
     const { about } = call;
     const asked = lastAsk === 'trace-example' || lastAsk === 'edge-case';
+    const probed = lastAsk === 'probe';
     if (observed.attemptFailed) failedAttempts += 1;
     if (heard === 'declining' && lastAsk === 'offer-help') declinedHelp = true;
     if (heard === 'stuck' || heard === 'asking-for-help') declinedHelp = false;
     if (about && observed.checkedCode) checks.push({ lineId: about, by: asked ? 'interviewer' : 'candidate' });
     if (about && observed.saysCodeDone) codeDone.push(about);
-    if (about && observed.foundOwnMistake && !lastPointedOut) mistakes.push({ lineId: about, foundBy: asked ? 'candidate-when-asked' : 'candidate' });
+    if (about && observed.foundOwnMistake && !lastPointedOut) {
+      mistakes.push({ lineId: about, foundBy: probed ? 'candidate-after-probe' : asked ? 'candidate-when-asked' : 'candidate' });
+    }
     if (observed.movesTo !== 'stays') moveTo(observed.movesTo);
   }
 

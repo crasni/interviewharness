@@ -4,14 +4,14 @@
 
 **Blocked by:** None
 
-**Status:** needs-triage
+**Status:** done
 
-- [ ] A probe points them at a constraint they already agreed to ("Where does the data live while you sort it?") or asks what one step produces ("What does seen hold after index 1?"). It never says the answer is wrong, what the fix is, or what the right answer is
-- [ ] One probe per answer: after their reply, the interviewer moves on whether or not they fixed it. Never while they're mid-work; never for a valid answer that differs from the reference
-- [ ] The rules about mistakes, probing and staying quiet live in one prompt section instead of being repeated across the rules, the reply-by-turn list, the phase parts and "When they're done"; the prompt gets no longer overall
-- [ ] A probe is its own ask (`asks: "probe"`). The check runs on it, and the check's rules say a probe is not naming the mistake; a reply that names the mistake or the fix is still rejected
-- [ ] The round records each probe. A mistake the candidate finds right after a probe isn't credited as found on their own, and doesn't trigger the missed-bug cap; caps and the verdict table are otherwise unchanged. The grader is told which corrections followed a probe
-- [ ] ADR 0017 (answering-the-interviewer row) and ADR 0019 (probes are checked) are amended; GLOSSARY gains "Probe"
-- [ ] Tested through the public Interviewer with scripted models: a wrong follow-up answer gets one probe then the next follow-up; a probe that names the fix is rejected; a correction after a probe isn't credited as own
+- [x] A probe points them at a constraint they already agreed to ("Where does the data live while you sort it?") or asks what one step produces ("What does seen hold after index 1?"). It never says the answer is wrong, what the fix is, or what the right answer is
+- [x] One probe per answer: after their reply, the interviewer moves on whether or not they fixed it. Never while they're mid-work; never for a valid answer that differs from the reference
+- [x] The rules about mistakes, probing and staying quiet live in one prompt section instead of being repeated across the rules, the reply-by-turn list, the phase parts and "When they're done"; the prompt gets no longer overall
+- [x] A probe is its own ask (`asks: "probe"`). The check runs on it, and the check's rules say a probe is not naming the mistake; a reply that names the mistake or the fix is still rejected
+- [x] The round records each probe. A mistake the candidate finds right after a probe isn't credited as found on their own, and doesn't trigger the missed-bug cap; caps and the verdict table are otherwise unchanged. The grader is told which corrections followed a probe
+- [x] ADR 0017 (answering-the-interviewer row) and ADR 0019 (probes are checked) are amended; GLOSSARY gains "Probe"
+- [x] Tested through the public Interviewer with scripted models: a wrong follow-up answer gets one probe then the next follow-up; a probe that names the fix is rejected; a correction after a probe isn't credited as own
 
 Spec: `.scratch/interviewer-design/spec.md` (the owner clarification at its top wins over anything below it). Found in the owner's round of 2026-10-31 (`~/.config/InterviewHarness/rounds/2026-10-31T11-54-06-721Z`).

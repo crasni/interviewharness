@@ -23,9 +23,10 @@ export interface RoundRecord {
   checks: { lineId: string; by: 'candidate' | 'interviewer' }[];
   /**
    * Each mistake in the candidate's code or approach that was found, and how: by the candidate on their own, by the
-   * candidate on a check the interviewer asked for, or pointed out by the interviewer.
+   * candidate on a check the interviewer asked for, by the candidate right after the interviewer's probe, or pointed
+   * out by the interviewer.
    */
-  mistakes: { lineId: string; foundBy: 'candidate' | 'candidate-when-asked' | 'interviewer' }[];
+  mistakes: { lineId: string; foundBy: 'candidate' | 'candidate-when-asked' | 'candidate-after-probe' | 'interviewer' }[];
   /** The candidate's lines that said their code was done (not just an explanation or a step finished). */
   codeDone: string[];
   /** What the interviewer's lines asked the candidate to do, when they asked anything. */
@@ -45,7 +46,8 @@ export interface RoundFacts {
   testedOnOwn: boolean;
   /**
    * Said their code was done with a mistake still in it, which only the interviewer's check or words brought out
-   * afterwards. Help with a bug asked for before any "done" is help, not finished work with a missed bug.
+   * afterwards. Help with a bug asked for before any "done" is help, not finished work with a missed bug, and a
+   * mistake they found right after a probe is one they caught, not a missed bug.
    */
   doneWithMissedBug: boolean;
 }
@@ -112,7 +114,9 @@ export function roundFacts(record: RoundRecord): RoundFacts {
     tested: record.checks.length > 0 || candidateChecks.length > 0,
     // The interviewer's book says who started each trace; a trace in words it missed counts as their own.
     testedOnOwn: record.checks.some((t) => t.by === 'candidate') || candidateChecks.some((line) => !askedFor.has(line.id)),
-    doneWithMissedBug: record.mistakes.some((m) => m.foundBy !== 'candidate' && (order.get(m.lineId) ?? -Infinity) > firstDone),
+    doneWithMissedBug: record.mistakes.some(
+      (m) => (m.foundBy === 'candidate-when-asked' || m.foundBy === 'interviewer') && (order.get(m.lineId) ?? -Infinity) > firstDone,
+    ),
   };
 }
 
@@ -201,6 +205,7 @@ const proseSchema: ObjectSchema<Prose> = {
 const foundBy: Record<RoundRecord['mistakes'][number]['foundBy'], string> = {
   candidate: 'by the candidate on their own',
   'candidate-when-asked': 'by the candidate, on a check the interviewer asked for',
+  'candidate-after-probe': "by the candidate, right after the interviewer's probe",
   interviewer: 'pointed out by the interviewer',
 };
 

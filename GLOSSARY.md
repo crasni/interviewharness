@@ -70,6 +70,10 @@ _Avoid_: Clue, hints left
 The interviewer asking whether the candidate wants a hint ("Want a hint?"), without giving one. Made only when the candidate says they're stuck or after two failed attempts since the last hint, and not again once they decline, until they say they're stuck or ask (ADR 0017). Accepting it counts as asking for help.
 _Avoid_: Hint, suggestion, nudge
 
+**Probe**:
+One short, neutral question about an answer the candidate handed over that looks wrong or ignores a constraint they agreed to, so they check it themselves ("Where does the data live while you sort it?", "What does seen hold after index 1?"). It never says the answer is wrong, the fix or the right answer, and goes through the check. One per answer: after their reply the interviewer moves on, fixed or not. Never asked mid-work, or for a valid answer that differs from the reference. A mistake found right after a probe isn't credited as found on their own (ADR 0017).
+_Avoid_: Hint, nudge, follow-up
+
 **Failed attempt**:
 Something the candidate says they tried that didn't work: a trace or a run gave the wrong result, or an idea fell through. Counted since the last hint, to decide when an offer of help may come.
 _Avoid_: Mistake, error, wrong answer

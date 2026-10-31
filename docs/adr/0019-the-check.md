@@ -1,5 +1,7 @@
 # The check: help is judged apart from writing the words
 
+_Amended 2026-10-31 (owner's round): probes are checked too. See "When it runs" below and ADR 0017's "One probe for a wrong answer"._
+
 ADR 0018 had the model label its own reply: the hint rung it gives, and whether it names a mistake. Research says a model judging its own words is least reliable exactly when it matters (Huang et al., ICLR 2024). Prompt-only withholding leaks: CS50's Duck shows code up to a quarter of the time despite being told not to. The systems that withhold reliably either fine-tune, let code pick the move (StratL), or check the reply separately (Daheim et al., EMNLP 2024). The owner settled the details in grilling (`.scratch/interviewer-check/grilling.md`).
 
 So on turns where help could slip in, the reply's words get **the check** before they're said. It's a second, separate call to the same model, which sees the candidate's lines, their code, the hint ladder, the reference solution and the words alone, and answers three things:
@@ -11,6 +13,7 @@ So on turns where help could slip in, the reply's words get **the check** before
 - **When it runs:** only where help could slip in, which keeps the usual reply to one call:
   - the candidate said they're done, asked for help, sounds stuck, or asked "does this look right?";
   - a second check-in in a silence;
+  - a probe (`asks: "probe"`): one neutral question about a wrong answer they handed over. The check is told a probe that points at a constraint or asks what one step gives is not naming the mistake; one that says the answer is wrong, where the mistake is or what the fix is still names it, and is written again;
   - any reply that labels itself as help.
   A reply its own labels already rule out isn't checked; it's written again at once.
 - **Its verdict wins.** Its hint rung is what's recorded and graded, and its "names a mistake" replaces the reply's own. "Describes the solution" counts as a leak, next to the code n-gram guard, which can't catch a solution described in words.
