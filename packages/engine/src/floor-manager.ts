@@ -1,7 +1,7 @@
 import type { CodingPhase } from '@interviewharness/core';
 import type { LineBook } from './lines.ts';
 import { createPhaseGuide, type PhaseState } from './phases.ts';
-import { type Clock, codingRoundMs, type LaterPhase, type Round } from './round.ts';
+import type { Clock, LaterPhase, Round } from './round.ts';
 
 /** Something the candidate did, or the passing of time. */
 export type Signal =
@@ -206,7 +206,7 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
       sinceBackchannelMs: lastBackchannelAt === null ? null : now - lastBackchannelAt,
       idleMs: now - activeAt,
       checkIns,
-      roundLeftMs: codingRoundMs - round.snapshot().elapsedMs,
+      roundLeftMs: round.timeLeftMs(),
       ...phases.state(now),
     };
   }
@@ -333,9 +333,8 @@ export function createFloorManager({ clock, round, lines, log, skipsPhase, check
    * one, so they hear only the time actually left. At time, one closing line; the round still ends only on End round.
    */
   function timeToMention(now: number): Reply | null {
-    const { phase, elapsedMs } = round.snapshot();
-    if (now - activeAt < timeRules.pauseBeforeTime || phase === 'wrap-up' || closed || !keepsTime()) return null;
-    const left = codingRoundMs - elapsedMs;
+    if (now - activeAt < timeRules.pauseBeforeTime || round.snapshot().phase === 'wrap-up' || closed || !keepsTime()) return null;
+    const left = round.timeLeftMs();
     if (left <= 0) {
       closed = true;
       return { kind: 'closing' };

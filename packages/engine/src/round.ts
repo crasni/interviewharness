@@ -14,6 +14,8 @@ export interface RoundSnapshot {
 
 export interface Round {
   snapshot(): RoundSnapshot;
+  /** Time left in the round; below zero once it has run over. */
+  timeLeftMs(): number;
   /** Moves to the next phase; stays put in the last one. Returns the phase now in progress. */
   advancePhase(): CodingPhase;
   /** Moves to any phase, earlier or later (the candidate went back to fix their code). */
@@ -56,6 +58,7 @@ export function startRound(kind: RoundKind, clock: Clock): Round {
       elapsedMs: clock.now() - startedAt,
       phaseElapsedMs: clock.now() - phaseStartedAt,
     }),
+    timeLeftMs: () => codingRoundMs - (clock.now() - startedAt),
     advancePhase() {
       const next = nextPhase(phase);
       if (next) {

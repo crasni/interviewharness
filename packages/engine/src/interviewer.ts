@@ -354,7 +354,7 @@ export function createInterviewer(options: InterviewerOptions) {
   const { clock, round, lines, log, model, onEvent } = options;
   const followUpsOpen = () =>
     asked.filter((a) => a.asks === 'follow-up').length < options.problem.followUps.length &&
-    codingRoundMs - round.snapshot().elapsedMs >= followUpRules.minTimeLeft;
+    round.timeLeftMs() >= followUpRules.minTimeLeft;
   const skipsPhase = (phase: LaterPhase) => phase === 'follow-up' && !followUpsOpen();
   // Declined help stops check-ins too, until the candidate gets back to work or asks again. After goodbye,
   // neither silence nor the clock gets another word.
