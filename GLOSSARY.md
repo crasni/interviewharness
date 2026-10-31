@@ -71,7 +71,7 @@ The interviewer asking whether the candidate wants a hint ("Want a hint?"), with
 _Avoid_: Hint, suggestion, nudge
 
 **Probe**:
-One short, neutral question about an answer the candidate handed over that looks wrong or ignores a constraint they agreed to, so they check it themselves ("Where does the data live while you sort it?", "What does seen hold after index 1?"). It never says the answer is wrong, the fix or the right answer, and goes through the check. One per answer: after their reply the interviewer moves on, fixed or not. Never asked mid-work, or for a valid answer that differs from the reference. A mistake found right after a probe isn't credited as found on their own (ADR 0017).
+One short, neutral question about an answer the candidate handed over that looks wrong or ignores a constraint they agreed to, so they check it themselves ("Where does the data live while you sort it?", "What does seen hold after index 1?"). It never says the answer is wrong, the fix or the right answer, and goes through the check. In the interviewer's own words. One per answer, not per line: their reply to it gets none, fixed or not, though a new, different answer in the same turn may get its own; never more than two in a row. Never asked mid-work, or for a valid answer that differs from the reference. A mistake found right after a probe isn't credited as found on their own (ADR 0017).
 _Avoid_: Hint, nudge, follow-up
 
 **Failed attempt**:

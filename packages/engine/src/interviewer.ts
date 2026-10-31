@@ -66,8 +66,7 @@ const corrections: Record<Rejection, string> = {
   'step-unasked': 'it told them what to try next. Ask at most one neutral question, such as what feels blocked, and leave the next step to them.',
   'what-blocks-repeated':
     "it asked again what feels blocked, which you already asked. Don't ask it twice: if they're still stuck, offer help in a short question, or just acknowledge.",
-  'probe-repeated':
-    "it probed their answer again, right after your last probe. One probe per answer: accept what they said and move on, fixed or not.",
+  'probe-repeated': 'it was a third probe in a row. Accept what they said and move on, fixed or not.',
   'probe-mid-work': "it probed while they're still working it out. Wait until they hand the answer over: stay quiet or give a backchannel.",
   'written-for-old-phase':
     "it was written for the phase before their turn moved the round on. Reply for the phase they're in now, as \"The round so far\" says.",
@@ -394,6 +393,12 @@ export const helpRules = {
   failedAttemptsBeforeOffer: 2,
 };
 
+/** How far probes may go before they turn into an interrogation. */
+export const probeRules = {
+  /** Probes in a row, each about a different answer, before the interviewer must accept what it hears and move on. */
+  maxInARow: 2,
+};
+
 /** When the round may still turn to the follow-up questions. */
 export const followUpRules = {
   /** Time a follow-up needs: with less left in the round, it goes straight to Wrap-up. */
@@ -433,6 +438,7 @@ export function createInterviewer(options: InterviewerOptions) {
   let offered: LaterPhase | null = null;
   let lastAsk: InterviewerAsk = 'nothing';
   let lastPointedOut = false;
+  let probesInARow = 0;
   let saidGoodbye = false;
   // Help around an impasse: whether the interviewer asked what's blocking them, whether the candidate declined
   // its offer of help, and the attempts they said failed since the last hint.
@@ -522,7 +528,7 @@ export function createInterviewer(options: InterviewerOptions) {
       followUps: { asked: asked.filter((a) => a.asks === 'follow-up').length, open: followUpsOpen() },
       help: { askedWhatBlocks, offer: declinedHelp ? 'declined' : lastAsk === 'offer-help' ? 'waiting' : 'none', failedAttempts },
       saidGoodbye,
-      probed: lastAsk === 'probe',
+      probesInARow,
     };
   }
 
@@ -603,7 +609,7 @@ export function createInterviewer(options: InterviewerOptions) {
   /**
    * What's wrong with an attempt's words, if anything: help that wasn't asked for, a mistake named unasked, help
    * that skips a rung, an offer of help too soon, a step prescribed to a stuck candidate, asking again what feels
-   * blocked, a second probe in a row or one mid-work, or a leak of the solution.
+   * blocked, a probe past the limit in a row or one mid-work, or a leak of the solution.
    */
   function rejection(written: Written): Rejection | null {
     // Naming the mistake takes the finding of it away from the candidate: it's help, so only when asked for.
@@ -622,8 +628,9 @@ export function createInterviewer(options: InterviewerOptions) {
     if (written.heard === 'stuck' && !written.mayHint && (asks === 'trace-example' || asks === 'edge-case' || asks === 'complexity')) {
       return 'step-unasked';
     }
-    // One probe per answer, and only once they've handed it over.
-    if (asks === 'probe' && lastAsk === 'probe') return 'probe-repeated';
+    // One probe per answer, and only once they've handed it over. Which answer a probe is about is the model's to
+    // tell; the limit in a row is the app's, so probing can't turn into an interrogation.
+    if (asks === 'probe' && probesInARow >= probeRules.maxInARow) return 'probe-repeated';
     if (asks === 'probe' && written.heard && midWork.includes(written.heard)) return 'probe-mid-work';
     if (written.check?.describesSolution) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
@@ -714,6 +721,7 @@ export function createInterviewer(options: InterviewerOptions) {
     const said = transcript.at(-1);
     if (!said || said.who !== 'interviewer' || said.text !== words) return; // quiet, a backchannel, or dropped
     lastAsk = observed?.asks ?? 'nothing';
+    probesInARow = lastAsk === 'probe' ? probesInARow + 1 : 0;
     lastPointedOut = observed?.pointsOutMistake ?? false;
     if (observed && observed.asks !== 'nothing') asked.push({ lineId: said.id, asks: observed.asks });
     if (observed?.asks === 'what-blocks') askedWhatBlocks = true;

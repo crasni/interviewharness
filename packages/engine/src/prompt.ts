@@ -41,8 +41,8 @@ export interface RoundSoFar {
    */
   help: { askedWhatBlocks: boolean; offer: 'none' | 'waiting' | 'declined'; failedAttempts: number };
   saidGoodbye: boolean;
-  /** Whether the interviewer's last line was a probe, so this turn is the answer to it. */
-  probed: boolean;
+  /** How many of the interviewer's last lines in a row were probes: this turn holds the reply to the last one. */
+  probesInARow: number;
 }
 
 export interface ReplyPromptInput {
@@ -94,7 +94,7 @@ function soFarBlock(soFar: RoundSoFar, phaseElapsedMs: number): string {
     `- Time: ${minutes(soFar.elapsedMs)} of ${minutes(soFar.roundMs)} minutes.`,
     `- Phase: ${phaseNames[current]}, ${minutes(phaseElapsedMs)} min in.${earlier.length ? ` Before: ${earlier.join(', ')}.` : ''}`,
     `- Waiting on: ${soFar.offered ? `their answer to your offer to move on to ${soFar.offered}` : 'nothing'}.`,
-    soFar.probed ? '- Your last line was a probe: accept their answer and move on, fixed or not.' : null,
+    probeLine(soFar.probesInARow),
     `- Hints given: ${soFar.hints.length ? soFar.hints.join(', ') : 'none'}. ${soFar.nextHint ? `Next rung, if they ask: ${soFar.nextHint}.` : 'Every rung is given.'}`,
     `- Mistakes you pointed out: ${count(soFar.mistakesPointedOut, 'time')}.`,
     `- Times they checked their code: ${checks}.`,
@@ -104,6 +104,11 @@ function soFarBlock(soFar: RoundSoFar, phaseElapsedMs: number): string {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function probeLine(probesInARow: number): string | null {
+  if (probesInARow === 0) return null;
+  return probesInARow === 1 ? '- Your last line was a probe: their reply to it gets no probe.' : '- Your last two lines were probes: no probe now.';
 }
 
 function helpLine({ askedWhatBlocks, offer, failedAttempts }: RoundSoFar['help']): string {
@@ -188,8 +193,8 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
 const mistakesAndProbes = `- Until they say they're done or ask you, don't comment on their code or probe.
 - Don't grade answers mid-round: no "great", "correct" or "that's wrong". A neutral "okay" is fine.
 - A mistake is theirs to find: never say what or where it is, the fix or the right answer, unless they ask for help or accept your offer.
-- When they hand over an answer (to your question, a trace, their complexity, an approach they ask about) that's wrong or ignores a constraint they agreed to, ask one short neutral question so they check it themselves (asks "probe"): point at the constraint ("Where does the data live while you sort it?") or ask what one step gives ("What does seen hold after index 1?").
-- One probe per answer: whatever they say back, accept it and move on, fixed or not. An answer that works but differs from your reference gets no probe.`;
+- When they hand over an answer (to your question, a trace, their complexity, an approach they ask about) that's wrong or ignores a constraint they agreed to, ask one short neutral question in your own words so they check it themselves (asks "probe"): what one step of their own trace or code gives, or how their answer meets that constraint.
+- One probe per answer: whatever they say back to it, accept it, fixed or not; only a new, different answer may get its own. An answer that works but differs from your reference gets none.`;
 
 /**
  * The candidate finished a turn. What they meant is the model's to understand, however they put it; what the
@@ -281,7 +286,7 @@ export interface CheckPromptInput {
 const checkRules = `You check one line that the interviewer in a mock coding interview is about to say, before it is said. The candidate must find their own mistakes and their own solution; help comes only in small steps, and only when they ask or accept an offer of it.
 
 Judge only what the words give the candidate, not what the interviewer meant:
-- namesMistake: the words say that something is wrong, or what or where a mistake in the candidate's code or approach is, or what the fix is ("you return the value, not the index", "look at your return line", "sorting loses the positions"). Asking them to trace an input, without saying what will go wrong, is not naming it. A probe, one neutral question that points at a constraint they agreed to or asks what one step gives ("Where does the data live while you sort it?", "What does seen hold after index 1?"), is not naming it either.
+- namesMistake: the words say that something is wrong, or what or where a mistake in the candidate's code or approach is, or what the fix is ("you return the value, not the index", "look at your return line", "sorting loses the positions"). Asking them to trace an input, without saying what will go wrong, is not naming it. A probe, one neutral question that asks what one step of their trace gives or how their answer meets a constraint they agreed to, is not naming it either.
 - hintLevel: how much of the hint ladder the words give, or "none". A question that only asks them to explain or trace is "none".
 - describesSolution: the words describe steps or ideas of the reference solution that the candidate hasn't already said themselves.`;
 

@@ -1320,7 +1320,6 @@ describe('a wrong answer gets one probe', () => {
         ack('Okay.', 'complexity'),
         reply('answer', 'What if the list were sorted?', { heard: 'done', asks: 'follow-up' }),
         probe('Which positions does that give back: the sorted ones or the original ones?'),
-        probe('And is that what the caller wants?'),
         reply('answer', 'What if there could be several valid pairs?', { heard: 'answering-interviewer', asks: 'follow-up' }),
       ],
       [verdict(), verdict()],
@@ -1333,17 +1332,62 @@ describe('a wrong answer gets one probe', () => {
       'Which positions does that give back: the sorted ones or the original ones?',
       'What if there could be several valid pairs?',
     ]);
-    // The probe is checked like any reply where help could slip in; a second probe in a row is written again unchecked.
+    // The probe is checked like any reply where help could slip in.
     expect(helpers.model.requests.filter((r) => r.purpose === 'reply-check')).toHaveLength(2);
-    expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'spoken', rejected: ['probe-repeated'] });
     expect(helpers.interviewer.record().asked).toEqual([
       { lineId: 't5', asks: 'follow-up' },
       { lineId: 't7', asks: 'probe' },
       { lineId: 't9', asks: 'follow-up' },
     ]);
     const prompts = helpers.model.requests.filter((r) => r.purpose === 'interviewer-reply');
-    expect(prompts.at(-2)!.messages[0]!.text).toContain('# Mistakes, probes and staying quiet');
-    expect(prompts.at(-2)!.messages[0]!.text).toContain('Your last line was a probe');
+    expect(prompts.at(-1)!.messages[0]!.text).toContain('# Mistakes, probes and staying quiet');
+    expect(prompts.at(-1)!.messages[0]!.text).toContain('Your last line was a probe: their reply to it gets no probe.');
+  });
+
+  it('may probe a new, different answer given in the same turn as the reply to a probe', async () => {
+    const helpers = await turns(
+      [
+        probe('Okay. What does your trace give for the second number?'),
+        probe('How much can the dictionary hold as the input grows?'),
+      ],
+      [verdict(), verdict()],
+      ['i=1: seen[1] = 0, so it returns [0, 2]', "oh, seen[1] = 1, I wrote 0 by mistake. and it's O(n) time and O(1) space"],
+    );
+
+    expect(helpers.spoken()).toEqual(['Okay. What does your trace give for the second number?', 'How much can the dictionary hold as the input grows?']);
+    expect(helpers.modelCalls()).toMatchObject([{ outcome: 'spoken' }, { outcome: 'spoken' }]);
+    expect(helpers.modelCalls()[1]!.rejected).toBeUndefined();
+  });
+
+  it('describes what a probe does without example probes from a problem, so its words are its own', async () => {
+    const helpers = await turns([probe('Okay. What does your trace give for the second number?')], [verdict()], ['i=1: seen[1] = 0, so it returns [0, 2]']);
+
+    const [written, checked] = ['interviewer-reply', 'reply-check'].map((purpose) => helpers.model.requests.find((r) => r.purpose === purpose)!);
+    for (const request of [written!, checked!]) {
+      const prompt = request.system + request.messages[0]!.text;
+      expect(prompt).not.toContain('What does seen hold');
+      expect(prompt).not.toContain('Where does the data live');
+    }
+    expect(written!.messages[0]!.text).toContain('in your own words');
+  });
+
+  it('never probes more than twice in a row: a third probe is written again', async () => {
+    const helpers = await turns(
+      [
+        probe('Okay. What does your trace give for the second number?'),
+        probe('How much can the dictionary hold as the input grows?'),
+        probe('And what does that make the space?'),
+        reply('acknowledgement', 'Okay.', { heard: 'answering-interviewer' }),
+      ],
+      [verdict(), verdict()],
+      ['it returns [0, 2]', "seen[1] = 1, my slip. and it's O(1) space", 'it holds one entry per number'],
+    );
+
+    expect(helpers.spoken().at(-1)).toBe('Okay.');
+    expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'spoken', rejected: ['probe-repeated'] });
+    // The model is told before it writes that no probe is left.
+    const prompts = helpers.model.requests.filter((r) => r.purpose === 'interviewer-reply');
+    expect(prompts.at(-1)!.messages[0]!.text).toContain('Your last two lines were probes: no probe now.');
   });
 
   it('writes a probe again when the check finds it names the mistake or the fix', async () => {
