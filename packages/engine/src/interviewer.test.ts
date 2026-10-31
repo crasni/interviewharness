@@ -1269,5 +1269,25 @@ describe('time and closing', () => {
     waitUntil(helpers, 50 * minute);
 
     expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.']);
+    // The log says the words were held back, not spoken.
+    expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'quiet-after-goodbye', heard: 'small-talk', turnReply: 'acknowledgement' });
+  });
+
+  it('answers a real question after the goodbye, about the problem or to the interviewer, but never says goodbye twice', async () => {
+    const helpers = await doneEarly([
+      reply('goodbye', 'Thanks for your time. Take care.', { heard: 'declining' }),
+      reply('answer', 'Small and friendly; we pair a lot.', { heard: 'small-talk' }),
+      reply('answer', 'Yes, values can repeat.', { heard: 'clarifying-question' }),
+      reply('goodbye', 'Bye now, take care!', { heard: 'small-talk' }),
+    ]);
+    for (const text of ["what's the team like?", 'oh, could the values repeat?', 'bye!']) {
+      helpers.wait(5_000);
+      helpers.interviewer.onSignal({ type: 'said', text });
+      helpers.wait(1_000);
+      await settle();
+    }
+
+    expect(helpers.spoken()).toEqual(['Okay.', 'Thanks for your time. Take care.', 'Small and friendly; we pair a lot.', 'Yes, values can repeat.']);
+    expect(helpers.modelCalls().at(-1)).toMatchObject({ outcome: 'quiet-after-goodbye', turnReply: 'goodbye' });
   });
 });

@@ -174,7 +174,7 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
         : `No follow-up is left, or time is short: ${offer}.`;
     case 'wrap-up':
       return soFar.saidGoodbye
-        ? 'You have said goodbye already: never again. If they say thanks or bye, stay-quiet. Answer only a real question.'
+        ? 'You have said goodbye already: never again. If they say thanks or bye, stay-quiet. Answer any real question, about the problem or to you ("what\'s the team like?"), briefly (kind "answer").'
         : 'Ask once whether they have questions for you, and answer them briefly. When they have nothing more, say goodbye once (kind "goodbye").';
     default:
       return `When they're done with this phase, ${offer}.`;

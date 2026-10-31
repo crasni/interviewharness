@@ -275,9 +275,10 @@ export interface ModelCallEntry {
      * spoken: its words were said. failed: an error or the time limit; the fallback line was said.
      * replaced: every attempt was rejected (see `rejected`), so the fallback line was said.
      * aborted: a barge-in, a newer reply or the round's end made it pointless. late-reply-dropped: words
-     * arrived after the call was already aborted or timed out, and were thrown away.
+     * arrived after the call was already aborted or timed out, and were thrown away. quiet-after-goodbye: the
+     * interviewer had said goodbye and the turn asked no real question, so its words were held back unsaid.
      */
-    outcome: 'spoken' | 'failed' | 'replaced' | 'aborted' | 'late-reply-dropped';
+    outcome: 'spoken' | 'failed' | 'replaced' | 'aborted' | 'late-reply-dropped' | 'quiet-after-goodbye';
     error?: ModelErrorKind;
     usage?: ModelUsage;
     /** For a reply to a turn: what the model heard the candidate doing, and the kind of reply it chose. */
@@ -687,14 +688,7 @@ export function createInterviewer(options: InterviewerOptions) {
           return sayFallback(replacedSituation(reply));
         }
         const level = written.gives.hintLevel;
-        if (level !== 'none') {
-          hints.push(level);
-          hintsGiven = Math.max(hintsGiven, rungs.indexOf(level) + 1);
-          // Help reached them: a new impasse starts from here.
-          askedWhatBlocks = false;
-          failedAttempts = 0;
-        }
-        logCall(call, 'spoken', {
+        const said = {
           usage: written.usage,
           ...(written.heard ? { heard: written.heard } : {}),
           ...(written.kind ? { turnReply: written.kind } : {}),
@@ -702,12 +696,24 @@ export function createInterviewer(options: InterviewerOptions) {
           ...(written.observed ? { observed: written.observed } : {}),
           ...(written.check ? { check: written.check } : {}),
           ...extra,
-        });
+        };
+        // After the goodbye only a real question gets an answer: thanks, bye or a second goodbye doesn't reopen
+        // the round. Decided before anything is logged or counted, since these words are never said.
+        if (saidGoodbye && written.kind !== 'answer') {
+          logCall(call, 'quiet-after-goodbye', said);
+          return say('', 'quiet');
+        }
+        if (level !== 'none') {
+          hints.push(level);
+          hintsGiven = Math.max(hintsGiven, rungs.indexOf(level) + 1);
+          // Help reached them: a new impasse starts from here.
+          askedWhatBlocks = false;
+          failedAttempts = 0;
+        }
+        logCall(call, 'spoken', said);
         const { observed, kind } = written;
         // Besides the candidate's own words, the round moves when the interviewer begins the follow-ups; never on its other questions.
         if (observed?.asks === 'follow-up' && call.observed?.movesTo === 'stays') moveTo('follow-up');
-        // After the goodbye only a real question gets an answer: thanks or bye doesn't reopen the round.
-        if (saidGoodbye && (kind === 'goodbye' || written.heard !== 'clarifying-question')) return say('', 'quiet');
         say(written.words, kind && turnKinds[kind]);
         noteSaid(written.words, kind, observed);
       },
