@@ -24,6 +24,7 @@ import { openrouterProvider } from '@earendil-works/pi-ai/providers/openrouter';
 import { type Model, ModelError, type ModelErrorKind, type ModelRequest } from '@interviewharness/engine';
 import { type ChatGPTLoginConfig, chatgptOAuth } from './chatgpt-login.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
+import { type OpenRouterLoginConfig, openrouterOAuth } from './openrouter-login.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
 export type ProviderName = 'chatgpt' | 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
@@ -125,6 +126,8 @@ export interface ProvidersOptions {
   serverAddress?: () => string;
   /** Tests send a provider's requests to a fake server on loopback with this. */
   baseUrls?: Partial<Record<PiProviderName, string>>;
+  /** Tests point the OpenRouter sign-in at a fake server on loopback with this. */
+  openRouterSignIn?: OpenRouterLoginConfig;
 }
 
 export interface ChatGPTLoginOptions {
@@ -132,6 +135,12 @@ export interface ChatGPTLoginOptions {
   openBrowser: (url: string) => void | Promise<void>;
   /** A stable UUID for this installation, which OpenAI asks for. */
   deviceId: string;
+  signal?: AbortSignal;
+}
+
+export interface OpenRouterSignInOptions {
+  /** Opens OpenRouter's sign-in page in the candidate's browser. */
+  openBrowser: (url: string) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
@@ -167,8 +176,8 @@ export function createProviders(options: ProvidersOptions): Providers {
     }),
   );
   models.setProvider({ ...googleProvider(), auth: savedKeyOnly('Gemini API key') });
-  // OpenRouter's own login is left out too: a pasted key is the one way in.
-  models.setProvider({ ...openrouterProvider(), auth: savedKeyOnly('OpenRouter API key') });
+  // OpenRouter: a pasted key, or the key OpenRouter issues when the candidate signs in (our own flow, not pi-ai's).
+  models.setProvider({ ...openrouterProvider(), auth: { ...savedKeyOnly('OpenRouter API key'), oauth: openrouterOAuth(options.openRouterSignIn) } });
   models.setProvider(
     createProvider({ id: piProviderIds.server, name: 'OpenAI-compatible server', auth: savedKeyOnly('Server key', { optional: true }), models: [], api: openAICompletionsApi() }),
   );
@@ -224,38 +233,60 @@ export function createProviders(options: ProvidersOptions): Providers {
     });
   }
 
+  /**
+   * Signs in to a provider through the candidate's browser, which comes back to a listener on this machine:
+   * they never copy a code. The login is saved in `credentials` once it's done, and not before.
+   */
+  async function loginThroughBrowser(
+    id: string,
+    openBrowser: (url: string) => void | Promise<void>,
+    signal: AbortSignal | undefined,
+    loginOptions?: { agentName?: string; getDeviceId?: () => string },
+  ) {
+    // A browser that can't be opened ends the login at once, instead of leaving it waiting for nobody.
+    const login = new AbortController();
+    const stop = () => login.abort();
+    if (signal?.aborted) stop();
+    signal?.addEventListener('abort', stop, { once: true });
+    let browserFailed: unknown;
+    const interaction: AuthInteraction = {
+      signal: login.signal,
+      notify(event) {
+        if (event.type !== 'auth_url') return;
+        Promise.resolve()
+          .then(() => openBrowser(event.url))
+          .catch((error: unknown) => {
+            browserFailed = error;
+            stop();
+          });
+      },
+      prompt: () => Promise.reject(new Error('Our sign-in never asks for typed input')),
+    };
+    try {
+      await models.login(id, 'oauth', interaction, loginOptions);
+    } catch (error) {
+      throw browserFailed ?? error;
+    } finally {
+      signal?.removeEventListener('abort', stop);
+    }
+  }
+
   const providers = {
     /**
      * "Continue with ChatGPT": opens OpenAI's sign-in in the browser and waits for it to come back
      * to a listener on this machine. The candidate never copies a code. The login is saved in `credentials`.
      */
     async loginWithChatGPT({ openBrowser, deviceId, signal }: ChatGPTLoginOptions) {
-      // A browser that can't be opened ends the login at once, instead of leaving it waiting for nobody.
-      const login = new AbortController();
-      const stop = () => login.abort();
-      if (signal?.aborted) stop();
-      signal?.addEventListener('abort', stop, { once: true });
-      let browserFailed: unknown;
-      const interaction: AuthInteraction = {
-        signal: login.signal,
-        notify(event) {
-          if (event.type !== 'auth_url') return;
-          Promise.resolve()
-            .then(() => openBrowser(event.url))
-            .catch((error: unknown) => {
-              browserFailed = error;
-              stop();
-            });
-        },
-        prompt: () => Promise.reject(new Error('Our sign-in never asks for typed input')),
-      };
-      try {
-        await models.login(piProviderIds.chatgpt, 'oauth', interaction, { agentName: 'InterviewHarness', getDeviceId: () => deviceId });
-      } catch (error) {
-        throw browserFailed ?? error;
-      } finally {
-        signal?.removeEventListener('abort', stop);
-      }
+      await loginThroughBrowser(piProviderIds.chatgpt, openBrowser, signal, { agentName: 'InterviewHarness', getDeviceId: () => deviceId });
+    },
+
+    /**
+     * "Sign in with OpenRouter": opens OpenRouter's sign-in in the browser and waits for it to come back
+     * to a listener on this machine. The key OpenRouter issues is saved in `credentials`; nothing is if
+     * the sign-in is cancelled or fails.
+     */
+    async signInToOpenRouter({ openBrowser, signal }: OpenRouterSignInOptions) {
+      await loginThroughBrowser(piProviderIds.openrouter, openBrowser, signal);
     },
 
     /** Saves the key the candidate pasted for a provider, replacing any before it. */
@@ -271,6 +302,11 @@ export function createProviders(options: ProvidersOptions): Providers {
     /** Whether a provider has a saved login or key. */
     async isLoggedIn(provider: ProviderName) {
       return provider !== 'ollama' && (await credentials.read(piProviderIds[provider])) !== undefined;
+    },
+
+    /** Whether a provider's saved login came from signing in (ChatGPT, OpenRouter), not a pasted key. */
+    async isSignedIn(provider: ProviderName) {
+      return provider !== 'ollama' && (await credentials.read(piProviderIds[provider]))?.type === 'oauth';
     },
 
     /**
@@ -335,9 +371,11 @@ function withKey(credentials: CredentialStore, id: string, key: string): Credent
 
 export interface Providers {
   loginWithChatGPT(options: ChatGPTLoginOptions): Promise<void>;
+  signInToOpenRouter(options: OpenRouterSignInOptions): Promise<void>;
   saveKey(provider: KeyProviderName, key: string): Promise<void>;
   logout(provider: ProviderName): Promise<void>;
   isLoggedIn(provider: ProviderName): Promise<boolean>;
+  isSignedIn(provider: ProviderName): Promise<boolean>;
   listModels(provider: ProviderName, connection?: Connection): Promise<ModelListing[]>;
   model(choice: ModelChoice): Model;
   check(choice: ModelChoice, connection?: Connection, timeoutMs?: number): Promise<void>;
