@@ -158,6 +158,20 @@ export function validSettings(raw: unknown): Partial<Settings> {
   return valid as Partial<Settings>;
 }
 
+/**
+ * The valid part of `raw` as a change to `current`, with a pick refused (the one before it kept) unless it's
+ * one of your models as they'll be after the change. Feedback's "Same as interviewer" (null) is always allowed.
+ */
+export function validChanges(current: Settings, raw: unknown): Partial<Settings> {
+  const changes = validSettings(raw);
+  const yours = changes.yourModels ?? current.yourModels;
+  for (const slot of ['interviewerModel', 'feedbackModel'] as const) {
+    const picked = changes[slot];
+    if (picked && !yours.some((choice) => sameModel(choice, picked))) delete changes[slot];
+  }
+  return changes;
+}
+
 /** A model's name as one string, e.g. "chatgpt/gpt-5-mini"; a server's model names its server, e.g. "server/home/qwen3-8b". */
 export const modelKey = (choice: ModelChoice) =>
   choice.provider === 'server' ? `server/${choice.server}/${choice.model}` : `${choice.provider}/${choice.model}`;

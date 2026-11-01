@@ -1,7 +1,7 @@
 import { createProviders } from '@interviewharness/providers';
 import { fakeKeyServer, memoryCredentials } from '@interviewharness/providers/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defaultSettings, type Settings, validSettings } from '../shared/settings.ts';
+import { defaultSettings, type Settings, validChanges } from '../shared/settings.ts';
 import { modelChooser } from './model-choice.ts';
 import { serverConnections } from './server-connections.ts';
 
@@ -10,7 +10,7 @@ function memorySettings() {
   let values: Settings = { ...defaultSettings };
   return {
     values: () => values,
-    change: (changes: Partial<Settings>) => (values = { ...values, ...validSettings(changes) }),
+    change: (changes: Partial<Settings>) => (values = { ...values, ...validChanges(values, changes) }),
   };
 }
 
