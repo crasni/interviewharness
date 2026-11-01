@@ -86,6 +86,32 @@ describe('settings.json', () => {
     expect(onDisk(dir)).toEqual({ ...defaultSettings, version: 3, textSize: 'small', theme: 'dark', voice: 'calm' });
   });
 
+
+  it('picks only one of your models for the interviewer and the Feedback', () => {
+    const file = openSettingsFile(tempDir());
+    const yours = { provider: 'chatgpt', model: 'gpt-5-mini' };
+    const notYours = { provider: 'openai', model: 'gpt-5.5' };
+    file.change({ yourModels: [yours] });
+
+    file.change({ interviewerModel: notYours, feedbackModel: notYours });
+    expect(file.values()).toMatchObject({ interviewerModel: null, feedbackModel: null });
+
+    file.change({ interviewerModel: yours, feedbackModel: yours });
+    expect(file.values()).toMatchObject({ interviewerModel: yours, feedbackModel: yours });
+
+    // A refused pick leaves the one before it; "Same as interviewer" is always allowed.
+    file.change({ interviewerModel: notYours, feedbackModel: null });
+    expect(file.values()).toMatchObject({ interviewerModel: yours, feedbackModel: null });
+  });
+
+  it('accepts a model added to your models and picked in the same change', () => {
+    const file = openSettingsFile(tempDir());
+    const added = { provider: 'ollama', model: 'qwen3:0.6b' };
+
+    file.change({ yourModels: [added], interviewerModel: added });
+
+    expect(file.values()).toMatchObject({ yourModels: [added], interviewerModel: added });
+  });
 });
 
 describe('settings migrations', () => {

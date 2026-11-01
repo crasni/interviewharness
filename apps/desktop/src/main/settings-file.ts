@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { defaultSettings, isModelChoice, type ModelChoice, type Settings, validSettings, withYourModel } from '../shared/settings.ts';
+import { defaultSettings, isModelChoice, type ModelChoice, type Settings, validChanges, validSettings, withYourModel } from '../shared/settings.ts';
 import { type WriteOptions, writeFileAtomically } from './atomic-write.ts';
 import { oneServerBecomesNamed } from './server-migration.ts';
 
@@ -84,9 +84,9 @@ export function openSettingsFile(dir: string, writeOptions: WriteOptions = {}) {
     /** Whether there was no settings file when the app started. */
     fresh,
     values: () => values,
-    /** Applies the valid part of `changes`, saves, and returns the settings now in force. */
+    /** Applies the valid part of `changes` (a slot picks only one of your models), saves, and returns the settings now in force. */
     change(changes: unknown): Settings {
-      values = { ...values, ...validSettings(changes) };
+      values = { ...values, ...validChanges(values, changes) };
       save();
       return values;
     },

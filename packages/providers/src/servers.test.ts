@@ -32,8 +32,8 @@ describe.each(formats)('a named server speaking the $format format', ({ format, 
   const home = (): Server => ({ id: 'home', name: 'Home', address: address(), format });
   const choice = { provider: 'server' as const, server: 'home', model: 'qwen2.5-7b-instruct' };
 
-  it('lists the models the server serves, as local', async () => {
-    expect(await providersWith([home()]).listModels('server', { server: 'home' })).toEqual([{ id: 'qwen2.5-7b-instruct', name: 'qwen2.5-7b-instruct', local: true, small: false }]);
+  it('lists the models the server serves', async () => {
+    expect(await providersWith([home()]).listModels('server', { server: 'home' })).toEqual([{ id: 'qwen2.5-7b-instruct', name: 'qwen2.5-7b-instruct', small: false }]);
   });
 
   it('streams a reply with no key at all, as local servers need none', async () => {

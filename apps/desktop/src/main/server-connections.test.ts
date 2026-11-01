@@ -1,7 +1,7 @@
 import { createProviders } from '@interviewharness/providers';
 import { fakeKeyServer, memoryCredentials } from '@interviewharness/providers/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defaultSettings, type Settings, validSettings } from '../shared/settings.ts';
+import { defaultSettings, type Settings, validChanges } from '../shared/settings.ts';
 import { modelChooser } from './model-choice.ts';
 import { serverConnections } from './server-connections.ts';
 
@@ -10,7 +10,7 @@ function memorySettings() {
   let values: Settings = { ...defaultSettings };
   return {
     values: () => values,
-    change: (changes: Partial<Settings>) => (values = { ...values, ...validSettings(changes) }),
+    change: (changes: Partial<Settings>) => (values = { ...values, ...validChanges(values, changes) }),
   };
 }
 
@@ -75,6 +75,25 @@ describe('adding a named server, checked before it is saved', () => {
     expect(fake.requests.at(-1)!.body.model).toBe('typed-model');
   });
 
+  it('added with no slot, its model is picked for the interviewer only when none is picked', async () => {
+    fake.reply({ text: 'OK' }, { text: 'OK' });
+
+    await servers.add({ name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+    await servers.add({ name: 'Work', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+
+    const home = { provider: 'server', server: 's1', model: 'qwen3-8b' };
+    expect(settings.values()).toMatchObject({ yourModels: [home, { provider: 'server', server: 's2', model: 'qwen3-8b' }], interviewerModel: home, feedbackModel: null });
+  });
+
+  it('editing it picks nothing, even with no interviewer picked', async () => {
+    fake.reply({ text: 'OK' }, { text: 'OK' });
+    await servers.add({ slot: 'feedback', name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+
+    await servers.edit({ server: 's1', name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'other-model' });
+
+    expect(settings.values()).toMatchObject({ interviewerModel: null, feedbackModel: { provider: 'server', server: 's1', model: 'qwen3-8b' } });
+  });
+
   it('saves nothing when the server does not answer', async () => {
     const address = `${fake.origin}/v1`;
     await fake.close();
@@ -135,6 +154,10 @@ describe('server errors name the field to fix', () => {
     expect(await servers.list({ address: fake.origin, format: 'anthropic' })).toMatchObject({ ok: true, models: [{ id: 'qwen3-8b' }] });
   });
 
+  it('a server that no longer exists, rather than its address', async () => {
+    expect(await servers.list({ server: 'gone' })).toEqual({ ok: false, error: "That server has been removed." });
+  });
+
   it('refuses a request the renderer made up', async () => {
     for (const made of [null, { name: 'x' }, { slot: 'interviewer', name: 'x', address: 'file:///etc', format: 'openai', model: 'm' }, { slot: 'interviewer', name: 'x', address: fake.origin, format: 'gemini', model: 'm' }, { slot: 'interviewer', name: 'x', address: fake.origin, format: 'openai', model: 'm', key: 'k'.repeat(501) }]) {
       expect(await servers.add(made)).toMatchObject({ ok: false });
@@ -168,6 +191,16 @@ describe('editing and removing a server', () => {
 
     expect(settings.values().servers[0]!.address).toBe(`${fake.origin}/v1`);
     expect(credentials.entries.get('server:s1')).toEqual({ type: 'api_key', key: 'old-key' });
+  });
+
+  it('never repeats the saved key, when an error quotes it', async () => {
+    const quoting = { status: 400, body: JSON.stringify({ error: { message: 'Bad request from old-key' } }) };
+    fake.reply(quoting);
+
+    const result = await servers.edit({ server: 's1', name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(JSON.stringify(result)).not.toContain('old-key');
   });
 
   it('removing it forgets its key and takes its models off your models and the slots', async () => {

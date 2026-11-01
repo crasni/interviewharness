@@ -53,8 +53,9 @@ export interface HarnessApi {
   /** Picking the interviewer's model. Logins stay in main; the renderer only learns whether one worked. */
   models: {
     /**
-     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. On success the choice
-     * is saved in settings (and announced through settings.onChange).
+     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. Its default model is then
+     * checked, and joins your models (and the interviewer, if none is picked) once it answers, announced
+     * through settings.onChange. If it doesn't answer, the sign-in is kept and the result says why.
      */
     continueWithChatGPT(): Promise<LoginResult>;
     /** Gives up on a login that is waiting for the browser. */
@@ -64,10 +65,13 @@ export interface HarnessApi {
     /** A provider's models, reached through an address or key not saved yet if given. */
     list(provider: ModelChoice['provider'], connection?: Connection): Promise<ModelList>;
     /**
-     * Checks that a model answers, then adds it to your models and picks it for its slot, saving the address
-     * and key it was reached with (announced through settings.onChange). Used to add a connection and to add a model.
+     * Checks that a model answers, then adds it to your models and picks it for its slot (with none, for the
+     * interviewer only if none is picked), saving the address and key it was reached with (announced through
+     * settings.onChange). Used to add a connection and to add a model.
      */
     connect(connection: ModelConnection): Promise<ConnectResult>;
+    /** Checks that a model answers through a new key, then saves the key in place of the old one. Your models and the picks stay as they are. */
+    replaceKey(replacement: KeyReplacement): Promise<ConnectResult>;
     /**
      * Forgets a provider's login or key, and removes its models from your models (announced through
      * settings.onChange). For a server, `server` names which one; the server itself is removed too.
@@ -101,7 +105,7 @@ export interface ServerSetup {
   key?: string;
   /** A model on the server, listed or typed, that's checked to answer. */
   model: string;
-  /** Picks the model for this slot too. */
+  /** Picks the model for this slot too. With none, a server added is the interviewer's only if none is picked. */
   slot?: Slot;
 }
 
@@ -142,11 +146,19 @@ export type Slot = 'interviewer' | 'feedback';
  * optional one) to reach it if they're new. Checked by main before anything is saved.
  */
 export interface ModelConnection extends Connection {
-  slot: Slot;
+  /** With none (a connection added in Settings), the model is the interviewer's only if none is picked yet. */
+  slot?: Slot;
   provider: ModelChoice['provider'];
   model: string;
   /** For a model on one of the candidate's saved servers: which. */
   server?: string;
+}
+
+/** A new key for a key provider already connected, and a model to check it with (which isn't added to your models). */
+export interface KeyReplacement {
+  provider: ModelChoice['provider'];
+  model: string;
+  key: string;
 }
 
 export type ConnectResult =
@@ -180,6 +192,7 @@ export const channels = {
   providers: 'models:providers',
   listModels: 'models:list',
   connect: 'models:connect',
+  replaceKey: 'models:replace-key',
   logout: 'models:logout',
   signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',

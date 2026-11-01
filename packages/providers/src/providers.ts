@@ -26,7 +26,7 @@ import { registerKeyProviders } from './key-provider-factories.ts';
 import { keyProviderTable, type TableKeyProviderName } from './key-providers.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
 import { type OpenRouterLoginConfig, openrouterOAuth } from './openrouter-login.ts';
-import { adoptOldServerKey, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
+import { adoptOldServerKey, resolveServer, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
 export type ProviderName = 'chatgpt' | 'ollama' | KeyProviderName | 'server';
@@ -55,8 +55,6 @@ export const smallModelParameters = 14e9;
 export interface ModelListing {
   id: string;
   name: string;
-  /** Runs on this computer (Ollama and other local servers). */
-  local: boolean;
   /** Counts as small (see `smallModelParameters`), so the Feedback it writes is marked rough. */
   small: boolean;
 }
@@ -74,16 +72,13 @@ const piProviderIds: Record<PiProviderName, string> = {
 
 /**
  * Auth from the key the candidate saved, and nowhere else: no environment variable, no other tool's
- * login. A server may need no key at all; local servers accept any.
+ * login. (A server, which may need no key, has its own: see servers.ts.)
  */
-function savedKeyOnly(name: string, { optional = false } = {}): ProviderAuth {
+function savedKeyOnly(name: string): ProviderAuth {
   return {
     apiKey: {
       name,
-      resolve: async ({ credential }) => {
-        if (credential?.key) return { auth: { apiKey: credential.key }, source: 'saved key' };
-        return optional ? { auth: { apiKey: 'none' }, source: 'no key' } : undefined;
-      },
+      resolve: async ({ credential }) => (credential?.key ? { auth: { apiKey: credential.key }, source: 'saved key' } : undefined),
     },
   };
 }
@@ -104,9 +99,6 @@ const ambientVariables = /^(OPENAI|PI|ANTHROPIC|GEMINI|GOOGLE|OPENROUTER)_/;
 function forgetAmbientVariables() {
   for (const name of Object.keys(process.env)) if (ambientVariables.test(name)) delete process.env[name];
 }
-
-/** The id a server being added is tried under, before it's saved with one of its own. */
-const newServer = 'new';
 
 /** How to reach a provider before it's saved: an address the candidate typed, a key they pasted. */
 export interface Connection {
@@ -207,25 +199,23 @@ export function createProviders(options: ProvidersOptions): Providers {
 
   /** A server as `connection` describes it (a saved one, maybe with a new address, format or key; or a new one), and its key. */
   async function reachServer(connection: Connection): Promise<{ server: Server; key: string | undefined }> {
-    const id = connection.server ?? newServer;
-    const saved = servers().find((each) => each.id === id);
-    if (!saved && !connection.address) throw new ModelError('other', 'No such server');
-    const server: Server = { id, name: saved?.name ?? '', address: connection.address ?? saved!.address, format: connection.format ?? saved?.format ?? 'openai' };
-    const stored = connection.key?.trim() ? undefined : await credentials.read(serverCredentialId(id));
+    const server = resolveServer(servers(), connection);
+    if (!server) throw new ModelError('other', 'No such server');
+    const stored = connection.key?.trim() ? undefined : await credentials.read(serverCredentialId(server.id));
     return { server, key: connection.key?.trim() || (stored?.type === 'api_key' ? stored.key : undefined) };
   }
 
   /** These providers, but reaching `provider` (or server `server`) through a connection that isn't saved yet. Nothing is saved by it. */
-  function withConnection(provider: ProviderName, connection: Connection = {}, server = connection.server ?? newServer): Providers {
+  function withConnection(provider: ProviderName, connection: Connection = {}, server = connection.server): Providers {
     if (!connection.address && !connection.key && !connection.format) return providers;
-    const { address, key, format } = connection;
+    const { address, key } = connection;
     if (provider === 'server') {
-      const saved = servers().find((each) => each.id === server);
-      const tried: Server = { id: server, name: saved?.name ?? '', address: address ?? saved?.address ?? '', format: format ?? saved?.format ?? 'openai' };
+      const tried = resolveServer(servers(), { ...connection, server });
+      if (!tried) throw new ModelError('other', 'No such server');
       return createProviders({
         ...options,
-        credentials: key ? withKey(credentials, serverCredentialId(server), key.trim()) : credentials,
-        servers: () => [...servers().filter((each) => each.id !== server), tried],
+        credentials: key ? withKey(credentials, serverCredentialId(tried.id), key.trim()) : credentials,
+        servers: () => [...servers().filter((each) => each.id !== tried.id), tried],
       });
     }
     return createProviders({
@@ -340,7 +330,7 @@ export function createProviders(options: ProvidersOptions): Providers {
       return models
         .getModels(piProviderIds[provider])
         .filter((model) => !/realtime/.test(model.id))
-        .map((model) => ({ id: model.id, name: model.name, local: false, small: false }))
+        .map((model) => ({ id: model.id, name: model.name, small: false }))
         .reverse();
     },
 
@@ -423,6 +413,8 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
       throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
     });
     if (!auth) throw new ModelError('auth', 'Not logged in');
+    // A provider's error may quote the key it was sent (a saved one too); it goes no further than this.
+    const unquoted = (message: string) => withoutSecret(message, auth.auth.apiKey);
     const stream = models.stream(
       model,
       { systemPrompt: request.system, messages, tools: extra.tools },
@@ -441,7 +433,7 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
     for await (const event of stream) {
       if (event.type === 'text_delta') onText?.(event.delta);
       if (event.type === 'error') {
-        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage);
+        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage && unquoted(event.error.errorMessage));
       }
       if (event.type === 'done') return event.message;
     }
@@ -490,6 +482,11 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
       }
     },
   };
+}
+
+/** `message` with `secret` (a key or token that was sent) taken out. Our placeholder for no key isn't one. */
+function withoutSecret(message: string, secret: string | undefined) {
+  return secret && secret !== 'none' ? message.replaceAll(secret, '…') : message;
 }
 
 /** The tool choice that forces one named tool, which each API spells its own way. */

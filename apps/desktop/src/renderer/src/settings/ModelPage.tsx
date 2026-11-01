@@ -119,7 +119,7 @@ export function ModelPage() {
           <div className="add-model-head">
             <p className="settings-hint">
               {catalog.length
-                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${adding === 'interviewer' ? 'interviewer' : 'Feedback'} model.`
+                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${adding === 'interviewer' ? 'Interviewer' : 'Feedback'} model.`
                 : 'Every model your connections offer is already yours. Add a connection below for more.'}
             </p>
             <button type="button" onClick={() => setAdding(null)}>
@@ -234,12 +234,15 @@ export function ModelPage() {
                 <p className="settings-hint">
                   {setup.editing
                     ? 'Changes are saved once a model on the server answers; that model joins your models.'
-                    : `${setup.replacing ? 'Paste the new key. ' : ''}The model you check here becomes the interviewer's model.`}
+                    : setup.replacing
+                      ? "Paste the new key. It's saved once the model answers through it; your models and picks stay as they are."
+                      : "The model you check here joins your models. It becomes the interviewer's model if none is picked yet."}
                 </p>
                 <ModelSetup
                   key={setup.editing?.id ?? setup.item.id}
                   item={setup.item}
                   editing={setup.editing}
+                  replacing={setup.replacing}
                   onDone={() => {
                     setSetup(null);
                     refresh();

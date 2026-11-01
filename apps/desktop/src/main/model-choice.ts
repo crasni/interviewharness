@@ -1,7 +1,7 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
-import { type Connection, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
-import type { ConnectResult, ModelConnection, ModelList } from '../shared/api.ts';
-import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
+import { type Connection, defaultChatGPTModel, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import type { ConnectResult, KeyReplacement, ModelConnection, ModelList } from '../shared/api.ts';
+import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterAdding, settingsAfterLogout, settingsAfterRemoving } from '../shared/settings.ts';
 import { plainServerError, serverConnections } from './server-connections.ts';
 
 /** Each provider as the candidate knows it. */
@@ -32,12 +32,42 @@ function isConnection(provider: ProviderName, value: unknown): value is Connecti
 function isModelConnection(value: unknown): value is ModelConnection {
   if (typeof value !== 'object' || value === null) return false;
   const { slot, provider, model, server, ...connection } = value as Record<string, unknown>;
-  if (slot !== 'interviewer' && slot !== 'feedback') return false;
+  if (slot !== undefined && slot !== 'interviewer' && slot !== 'feedback') return false;
   if (!isProviderName(provider)) return false;
   if (typeof model !== 'string' || !model || model.length > 200) return false;
   // A server's model is picked from a saved server (added through serverConnections), by its id.
   if (provider === 'server') return isServerId(server) && !Object.keys(connection).length;
   return server === undefined && isConnection(provider, value);
+}
+
+/** One check in the log: which model was asked for its short reply, and how it went. Never a key or a message that could quote one. */
+export interface CheckLogEntry {
+  check: { provider: ProviderName; model: string; server?: string; outcome: 'answered' | 'failed'; error?: ModelErrorKind; ms: number };
+}
+
+/** `providers`, with every check written to `log`. */
+function loggingChecks(providers: Providers, log: (entry: CheckLogEntry) => void): Providers {
+  return {
+    ...providers,
+    async check(choice, connection, timeoutMs) {
+      const startedAt = performance.now();
+      const which = { provider: choice.provider, model: choice.model, ...(choice.server ? { server: choice.server } : {}) };
+      try {
+        await providers.check(choice, connection, timeoutMs);
+      } catch (error) {
+        log({ check: { ...which, outcome: 'failed', error: modelErrorKind(error), ms: Math.round(performance.now() - startedAt) } });
+        throw error;
+      }
+      log({ check: { ...which, outcome: 'answered', ms: Math.round(performance.now() - startedAt) } });
+    },
+  };
+}
+
+function isKeyReplacement(value: unknown): value is KeyReplacement & { provider: KeyProviderName } {
+  if (typeof value !== 'object' || value === null) return false;
+  const { provider, model, key, ...rest } = value as Record<string, unknown>;
+  if (!isProviderName(provider) || !isKeyProvider(provider) || Object.keys(rest).length) return false;
+  return typeof model === 'string' && !!model && model.length <= 200 && typeof key === 'string' && !!key.trim() && key.length <= 500;
 }
 
 /**
@@ -46,17 +76,21 @@ function isModelConnection(value: unknown): value is ModelConnection {
  * Anything that fails leaves everything as it was, and says why in plain words.
  */
 export function modelChooser({
-  providers,
+  providers: unlogged,
   settings,
   encrypted = () => true,
+  log = () => {},
 }: {
   providers: Providers;
   settings: { values(): Settings; change(changes: Partial<Settings>): unknown };
   /** Whether saved keys are encrypted by the OS (not on Linux with no keyring). */
   encrypted?: () => boolean;
+  /** Where each check is recorded, with its provider and model and never a key. */
+  log?: (entry: CheckLogEntry) => void;
 }) {
+  const providers = loggingChecks(unlogged, log);
   const servers = serverConnections({ providers, settings, encrypted });
-  return {
+  const chooser = {
     /** The candidate's own servers: list, add, edit (each checked first). */
     servers,
 
@@ -71,6 +105,10 @@ export function modelChooser({
       }
     },
 
+    /**
+     * Adds a model to your models once it answers, saving the address or key it was reached with, and picks it
+     * for its slot. With no slot (a connection added in Settings), it's the interviewer's only if none is picked.
+     */
     async connect(request: unknown): Promise<ConnectResult> {
       if (!isModelConnection(request)) return { ok: false, error: "That model can't be picked." };
       const { slot, provider, model, key, address, server } = request;
@@ -88,10 +126,36 @@ export function modelChooser({
       const unencryptedNote = savesKey && !encrypted() && !settings.values().unencryptedLoginNoted;
       settings.change({
         ...(address && hasAddress(provider) ? { [addressSettings[provider]]: address } : {}),
-        yourModels: withYourModel(settings.values().yourModels, choice),
-        ...(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice }),
+        ...settingsAfterAdding(settings.values(), choice, slot),
         ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
       });
+      return { ok: true, unencryptedNote };
+    },
+
+    /**
+     * After signing in to ChatGPT: its default model is checked like any other, and joins your models (and the
+     * interviewer, if none is picked) only once it answers. If it doesn't, the sign-in stays and the reason is given.
+     */
+    async afterSignIn(): Promise<{ ok: true } | { ok: false; error: string }> {
+      const added = await chooser.connect({ provider: 'chatgpt', model: defaultChatGPTModel });
+      return added.ok ? { ok: true } : added;
+    },
+
+    /**
+     * Replaces a provider's saved key once `model` answers through the new one. Your models and both picks
+     * stay as they are; a refused key leaves the old one.
+     */
+    async replaceKey(request: unknown): Promise<ConnectResult> {
+      if (!isKeyReplacement(request)) return { ok: false, error: "That key can't be saved." };
+      const { provider, model, key } = request;
+      try {
+        await providers.check({ provider, model }, { key });
+      } catch (error) {
+        return { ok: false, error: plainError(modelErrorKind(error), request, error) };
+      }
+      await providers.saveKey(provider, key);
+      const unencryptedNote = !encrypted() && !settings.values().unencryptedLoginNoted;
+      if (unencryptedNote) settings.change({ unencryptedLoginNoted: true });
       return { ok: true, unencryptedNote };
     },
 
@@ -110,6 +174,7 @@ export function modelChooser({
       settings.change(settingsAfterLogout(settings.values(), provider));
     },
   };
+  return chooser;
 }
 
 /** Why a model didn't answer, or its models couldn't be listed, in words for the candidate. Never repeats a key. */

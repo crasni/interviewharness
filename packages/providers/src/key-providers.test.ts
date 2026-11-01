@@ -71,7 +71,7 @@ describe('the table of key providers', () => {
         const listed = await providersWith().listModels(provider.id);
 
         expect(listed.length).toBeGreaterThan(0);
-        expect(listed.every((m) => !m.local && !m.small)).toBe(true);
+        expect(listed.every((m) => !m.small)).toBe(true);
         if (provider.defaultModel) expect(listed.map((m) => m.id)).toContain(provider.defaultModel);
       });
 

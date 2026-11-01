@@ -152,6 +152,7 @@ ipcMain.handle(channels.providers, () => models.providers());
 ipcMain.handle(channels.listModels, (_event, provider: unknown, connection: unknown) => models.list(provider, connection));
 
 ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect(connection));
+ipcMain.handle(channels.replaceKey, (_event, replacement: unknown) => models.replaceKey(replacement));
 
 ipcMain.handle(channels.logout, (_event, provider: unknown, server: unknown) => models.logout(provider, server));
 ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));

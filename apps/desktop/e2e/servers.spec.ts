@@ -54,8 +54,13 @@ test('a named Anthropic-format server is checked, saved with its key kept out of
   const check = server.requests.find((request) => request.method === 'POST');
   expect(check?.path.split('?')[0]).toBe('/v1/messages');
   expect(check?.headers['x-api-key']).toBe('gw-secret');
-  await expect(picker(settings(), 'Interviewer model')).toHaveText(/claude-like-1 · Work gateway/);
-  await expect.poll(settingsFile).toMatchObject({ servers: [{ name: 'Work gateway', address: server.origin, format: 'anthropic' }] });
+  // Its model joins your models; the interviewer already had one, so that stays.
+  await expect(picker(settings(), 'Interviewer model')).toHaveText(/gpt-5-mini/);
+  await expect.poll(settingsFile).toMatchObject({
+    servers: [{ name: 'Work gateway', address: server.origin, format: 'anthropic' }],
+    yourModels: [{ provider: 'chatgpt' }, { provider: 'server', model: 'claude-like-1' }],
+    interviewerModel: { provider: 'chatgpt' },
+  });
   expect(readFileSync(join(dataDir, 'settings.json'), 'utf8')).not.toContain('gw-secret');
 });
 

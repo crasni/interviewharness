@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
-import type { ModelChoice, Providers, Server } from '@interviewharness/providers';
+import { type ModelChoice, type Providers, resolveServer, type Server } from '@interviewharness/providers';
 import { serverFormats } from '@interviewharness/providers/defaults';
 import type { ConnectResult, ModelList, ServerListing, ServerSetup } from '../shared/api.ts';
-import { isServerAddress, isServerId, isServerName, type Settings, settingsAfterRemovingServer, withYourModel } from '../shared/settings.ts';
+import { isServerAddress, isServerId, isServerName, type Settings, settingsAfterAdding, settingsAfterRemovingServer, withYourModel } from '../shared/settings.ts';
 
 const isFormat = (value: unknown): value is Server['format'] => (serverFormats as readonly unknown[]).includes(value);
 const isKey = (value: unknown): value is string | undefined => value === undefined || (typeof value === 'string' && value.length <= 500);
+/** What's wrong with an address that isn't a web address. */
+const addressError = 'Address: enter a web address starting with http:// or https://, e.g. http://localhost:1234/v1.';
 const isModelId = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 200;
 
 /** Checks a server's setup arriving over IPC, all but the fields the candidate types freely (named in plain errors instead). */
@@ -49,13 +51,16 @@ export function serverConnections({
     if (!isServerName(name)) return 'Name: give the server a name, so you can tell it apart.';
     const taken = settings.values().servers.some((each) => each.id !== server && each.name.trim().toLowerCase() === name.trim().toLowerCase());
     if (taken) return `Name: another server is called "${name.trim()}". Pick another name.`;
-    if (!isServerAddress(address)) return 'Address: enter a web address starting with http:// or https://, e.g. http://localhost:1234/v1.';
+    if (!isServerAddress(address)) return addressError;
     if (!isModelId(model)) return 'Model: pick a model, or type its id.';
     return null;
   }
 
-  /** Checks the model on the server as set up, then saves the server, its key and the model. */
-  async function save(request: ServerSetup, id: string): Promise<ConnectResult> {
+  /**
+   * Checks the model on the server as set up, then saves the server, its key and the model. A server added
+   * picks its model as `settingsAfterAdding` says; one edited picks nothing.
+   */
+  async function save(request: ServerSetup, id: string, editing: boolean): Promise<ConnectResult> {
     const wrong = fieldError(request);
     if (wrong) return { ok: false, error: wrong };
     const { slot, name, address, format, model } = request;
@@ -72,8 +77,7 @@ export function serverConnections({
     const saved = settings.values().servers;
     settings.change({
       servers: saved.some((each) => each.id === id) ? saved.map((each) => (each.id === id ? server : each)) : [...saved, server],
-      yourModels: withYourModel(settings.values().yourModels, choice),
-      ...(slot === 'interviewer' ? { interviewerModel: choice } : slot === 'feedback' ? { feedbackModel: choice } : {}),
+      ...(editing ? { yourModels: withYourModel(settings.values().yourModels, choice) } : settingsAfterAdding(settings.values(), choice, slot)),
       ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
     });
     return { ok: true, unencryptedNote };
@@ -83,23 +87,22 @@ export function serverConnections({
     /** A server's models: a saved one's, or through an address, format or key not saved yet. */
     async list(request: unknown): Promise<ModelList> {
       if (!isServerListing(request)) return { ok: false, error: "Those models can't be listed." };
-      const saved = settings.values().servers.find((each) => each.id === request.server);
-      const address = request.address ?? saved?.address;
-      const format = request.format ?? saved?.format ?? 'openai';
-      if (!isServerAddress(address)) return { ok: false, error: 'Address: enter a web address starting with http:// or https://, e.g. http://localhost:1234/v1.' };
+      const server = resolveServer(settings.values().servers, request);
+      if (!server) return { ok: false, error: 'That server has been removed.' };
+      if (!isServerAddress(server.address)) return { ok: false, error: addressError };
       try {
         return { ok: true, models: await providers.listModels('server', request) };
       } catch (error) {
         const key = request.key?.trim() || undefined;
-        return { ok: false, error: plainServerError(modelErrorKind(error), { address, format, key }, error, 'list') };
+        return { ok: false, error: plainServerError(modelErrorKind(error), { ...server, key }, error, 'list') };
       }
     },
 
-    /** Adds a server once a model on it answers; the model joins your models (and `slot`, if given). */
+    /** Adds a server once a model on it answers; the model joins your models and is picked (see `settingsAfterAdding`). */
     async add(request: unknown): Promise<ConnectResult> {
       if (!isServerSetup(request, false)) return { ok: false, error: "That server can't be added." };
       // Tried under a fresh id, so a refused key never touches another server's.
-      return save(request, newId());
+      return save(request, newId(), false);
     },
 
     /** Changes a server's name, address, format or key once a model on it answers. No key typed keeps the saved one. */
@@ -107,7 +110,7 @@ export function serverConnections({
       if (!isServerSetup(request, true) || !settings.values().servers.some((each) => each.id === request.server)) {
         return { ok: false, error: "That server can't be changed." };
       }
-      return save(request, request.server!);
+      return save(request, request.server!, true);
     },
 
     /** Forgets a server and its key, and takes its models off your models and the slots. */
@@ -121,7 +124,8 @@ export function serverConnections({
 
 /**
  * Why a server didn't answer, or its models couldn't be listed, starting with the field to fix
- * ("Address: …", "Key: …", "Model: …"). Never repeats a key.
+ * ("Address: …", "Key: …", "Model: …"). Never repeats a key: the providers take the key they sent out of
+ * their errors (a saved one too), and a key typed in is taken out here as well.
  */
 export function plainServerError(
   kind: ModelErrorKind,

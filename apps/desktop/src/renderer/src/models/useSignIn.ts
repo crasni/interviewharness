@@ -7,8 +7,8 @@ export type SignInProvider = 'chatgpt' | 'openrouter';
 
 /**
  * Signing in through the browser, from wherever it's offered: Continue with ChatGPT (the Start screen's
- * first step, or Settings → Model), or Sign in with OpenRouter. On ChatGPT's success main saves the choice
- * in settings, so the screen showing it moves on by itself; OpenRouter's only saves the key.
+ * first step, or Settings → Model), or Sign in with OpenRouter. On ChatGPT's success main adds its default
+ * model through settings, so the screen showing it moves on by itself; OpenRouter's only saves the key.
  */
 export function useSignIn({ provider = 'chatgpt', onUnencrypted }: { provider?: SignInProvider; onUnencrypted?: () => void } = {}) {
   const [step, setStep] = useState<LoginStep>({ name: 'idle' });

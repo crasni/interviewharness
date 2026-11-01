@@ -1,9 +1,9 @@
 import type { Model } from '@interviewharness/engine';
 import { scriptedModel } from '@interviewharness/engine/test';
-import { createProviders, defaultChatGPTModel, keyProviders, type ProviderName } from '@interviewharness/providers';
+import { createProviders, keyProviders, type ProviderName } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
 import type { LoginResult, ProviderStatus } from '../shared/api.ts';
-import { feedbackModel, modelKey, type Server, type Settings, withYourModel } from '../shared/settings.ts';
+import { feedbackModel, modelKey, type Server, type Settings } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
 import { modelChooser, providerNames } from './model-choice.ts';
 import { migratedServerId } from './server-migration.ts';
@@ -51,7 +51,8 @@ export function setUpModels({
     ollamaAddress: () => settings.values().ollamaAddress,
     servers: () => settings.values().servers,
   });
-  const chooser = modelChooser({ providers, settings, encrypted: () => credentials.encrypted() });
+  // Checks happen outside any round, so they go to the main process's log; a round's model calls go to its events.jsonl.
+  const chooser = modelChooser({ providers, settings, encrypted: () => credentials.encrypted(), log: (entry) => console.info(JSON.stringify(entry)) });
   // v0.1's one server became a named server (settings v1 → v2); its key follows it, once safeStorage is ready.
   const oldServerKeyMoved = settings.values().servers.some((server) => server.id === migratedServerId)
     ? app.whenReady().then(() => providers.adoptOldServerKey(migratedServerId)).catch((error: unknown) => console.error("Could not move v0.1's server key:", error))
@@ -105,14 +106,11 @@ export function setUpModels({
       // The browser had the candidate's attention; bring them back to the app.
       window()?.show();
       window()?.focus();
+      // The sign-in is kept either way; its default model joins your models only once it answers.
+      const added = await chooser.afterSignIn();
+      if (!added.ok) return { ok: false, cancelled: false, error: `Signed in. ${added.error}` };
       const unencryptedNote = !credentials.encrypted() && !settings.values().unencryptedLoginNoted;
-      // Signing in is ChatGPT's check: the login works, so its default model joins your models.
-      const choice = { provider: 'chatgpt', model: defaultChatGPTModel } as const;
-      settings.change({
-        yourModels: withYourModel(settings.values().yourModels, choice),
-        interviewerModel: choice,
-        ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
-      });
+      if (unencryptedNote) settings.change({ unencryptedLoginNoted: true });
       return { ok: true, unencryptedNote };
     },
 
@@ -171,6 +169,7 @@ export function setUpModels({
 
     list: chooser.list,
     connect: chooser.connect,
+    replaceKey: chooser.replaceKey,
     logout: chooser.removeConnection,
     removeModel: chooser.removeModel,
     listServer: chooser.servers.list,

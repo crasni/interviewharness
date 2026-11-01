@@ -1,6 +1,7 @@
 export { createProviders, defaultChatGPTModel, errorKind, keyProviders, smallModelParameters } from './providers.ts';
 export type { ChatGPTLoginOptions, KeyProviderName, OpenRouterSignInOptions, ModelChoice, ModelListing, ProviderName, Providers, ProvidersOptions, Connection } from './providers.ts';
 export { defaultOllamaAddress } from './ollama.ts';
+export { resolveServer } from './servers.ts';
 export type { Server, ServerFormat } from './servers.ts';
 export { keyProviderTable } from './key-providers.ts';
 export type { KeyProviderRow, TableKeyProviderName } from './key-providers.ts';

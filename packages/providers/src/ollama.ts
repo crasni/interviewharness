@@ -50,7 +50,7 @@ export async function ollamaModels(address: string, fetchFn: typeof fetch, small
     models.map(async (model) => {
       if (!(await details(address, model.name, fetchFn)).chats) return [];
       const parameters = parameterCount(model.details?.parameter_size);
-      return [{ id: model.name, name: model.name, local: true, small: parameters < smallBelow }];
+      return [{ id: model.name, name: model.name, small: parameters < smallBelow }];
     }),
   );
   return listed.flat();

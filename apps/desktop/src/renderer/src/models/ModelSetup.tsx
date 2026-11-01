@@ -53,6 +53,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'model' : 'models'}`;
 export function ModelSetup({
   item,
   editing,
+  replacing = false,
   onDone,
   onUnencrypted,
 }: {
@@ -60,6 +61,8 @@ export function ModelSetup({
   item?: AddableItem;
   /** With a server `item`: the saved server to edit. */
   editing?: Server;
+  /** With a key provider's `item`: replace its saved key, leaving your models and the picks as they are. */
+  replacing?: boolean;
   /** After a model is saved or a login comes back. */
   onDone?: () => void;
   /** A login or key was saved without encryption on this machine, which is said once. */
@@ -73,7 +76,10 @@ export function ModelSetup({
   const signInCopy = signIns[signInProvider];
   const login = useSignIn({ provider: signInProvider, onUnencrypted });
   const check = useConnect({ onUnencrypted });
-  const serverSetup = useServerSetup({ server: editing, onDone, onUnencrypted });
+  // The Start screen picks the interviewer's model; a connection added in Settings joins your models, and is
+  // the interviewer's only if none is picked yet (main decides).
+  const slot = item ? undefined : 'interviewer';
+  const serverSetup = useServerSetup({ server: editing, slot, onDone, onUnencrypted });
 
   // A sign-in already saved: then the row offers its models instead of signing in again.
   const [chatgpt, setChatgpt] = useState<{ signedIn: boolean; models: { value: string; label: string }[] }>({ signedIn: false, models: [] });
@@ -145,19 +151,24 @@ export function ModelSetup({
         ? {
             label: 'Use this model',
             ready: !!chatgptModel,
-            run: async () => (await check.connect({ slot: 'interviewer', provider: signInProvider, model: chatgptModel })) && onDone?.(),
+            run: async () => (await check.connect({ slot, provider: signInProvider, model: chatgptModel })) && onDone?.(),
           }
         : {
             label: signInCopy.button,
             ready: true,
-            // ChatGPT's sign-in picks its model; OpenRouter's then offers its models to pick from.
-            run: async () => (await login.start()) && (signInProvider === 'chatgpt' ? onDone?.() : await lookForSignIn()),
+            // ChatGPT's sign-in adds its default model once it answers; OpenRouter's then offers its models to pick
+            // from, as ChatGPT's does when its default model didn't answer (the sign-in is kept, the reason shown).
+            run: async () => {
+              const ok = await login.start();
+              if (ok && signInProvider === 'chatgpt') onDone?.();
+              else await lookForSignIn();
+            },
           }
       : way === 'ollama'
         ? {
             label: 'Use this model',
             ready: !!ollamaModel && !!ollama?.ok,
-            run: async () => (await check.connect({ slot: 'interviewer', provider: 'ollama', model: ollamaModel, address: ollamaAddress })) && onDone?.(),
+            run: async () => (await check.connect({ slot, provider: 'ollama', model: ollamaModel, address: ollamaAddress })) && onDone?.(),
           }
         : way === 'key' && server
           ? serverSetup.action
@@ -167,7 +178,8 @@ export function ModelSetup({
                 ready: !!provider && !!keyModel && !!key.trim(),
                 run: async () => {
                   if (!provider) return;
-                  if (await check.connect({ slot: 'interviewer', provider, model: keyModel, key })) onDone?.();
+                  const saved = replacing ? await check.replaceKey({ provider, model: keyModel, key }) : await check.connect({ slot, provider, model: keyModel, key });
+                  if (saved) onDone?.();
                 },
               }
             : null;

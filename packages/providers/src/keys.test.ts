@@ -118,7 +118,7 @@ describe('a model reached with an API key', () => {
     for (const provider of ['openai', 'anthropic', 'google', 'openrouter'] as const) {
       const listed = await providers.listModels(provider);
       expect(listed.length).toBeGreaterThan(0);
-      expect(listed.every((m) => !m.local && !m.small)).toBe(true);
+      expect(listed.every((m) => !m.small)).toBe(true);
     }
   });
 });

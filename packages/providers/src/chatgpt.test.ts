@@ -249,7 +249,6 @@ describe('Continue with ChatGPT', () => {
     const listed = await createProviders({ credentials: memoryCredentials(), appVersion: '0.1.0' }).listModels('chatgpt');
 
     expect(listed.map((m) => m.id)).toContain('gpt-5-mini');
-    expect(listed.every((m) => !m.local)).toBe(true);
   });
 
   it('logs out by forgetting the login', async () => {
