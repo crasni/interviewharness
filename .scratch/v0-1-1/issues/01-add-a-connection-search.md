@@ -6,10 +6,10 @@ Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] One list in both places, grouped by kind, searchable, keyboard-usable
-- [ ] Picking an item shows only its fields; the button checks and saves
-- [ ] Refused plans never appear, in the list or in search
-- [ ] The list scrolls inside its own region; the screen stays full height
-- [ ] End-to-end tests cover search, picking, and the Start screen path
+- [x] One list in both places, grouped by kind, searchable, keyboard-usable
+- [x] Picking an item shows only its fields; the button checks and saves
+- [x] Refused plans never appear, in the list or in search
+- [x] The list scrolls inside its own region; the screen stays full height
+- [x] End-to-end tests cover search, picking, and the Start screen path

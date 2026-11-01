@@ -2,7 +2,9 @@ import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { ProviderStatus, Slot } from '../../../shared/api.ts';
 import { choiceFromKey, feedbackModel, type ModelChoice, modelKey } from '../../../shared/settings.ts';
-import { type KeyProvider, ModelSetup } from '../models/ModelSetup.tsx';
+import { AddList, PickedHead } from '../models/AddList.tsx';
+import { type AddableItem, addable } from '../models/addable.ts';
+import { ModelSetup } from '../models/ModelSetup.tsx';
 import { useConnect } from '../models/useConnect.ts';
 import { Picker, type PickerGroup } from '../ui/Picker.tsx';
 import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
@@ -19,8 +21,11 @@ export function ModelPage() {
   const refresh = useCallback(() => void load(), [load]);
   const looking = useRefresh(load);
   const picking = useConnect();
-  /** The setup open below the connections: to add one, or to replace a key. */
-  const [setup, setSetup] = useState<{ provider?: KeyProvider } | null>(null);
+  /**
+   * The well open below the connections: what can be added, then the picked item's fields; or, to replace
+   * a key, that provider's fields alone.
+   */
+  const [setup, setSetup] = useState<{ item: AddableItem | null; replacing?: boolean } | null>(null);
   const interviewerId = useId();
   const feedbackId = useId();
   const addId = useId();
@@ -176,7 +181,7 @@ export function ModelPage() {
             Connections
           </h3>
           {!setup && (
-            <button type="button" className="primary with-icon" data-motion="grow" onClick={() => setSetup({})}>
+            <button type="button" className="primary with-icon" data-motion="grow" onClick={() => setSetup({ item: null })}>
               <Plus size={14} strokeWidth={2} aria-hidden />
               Add
             </button>
@@ -195,7 +200,7 @@ export function ModelPage() {
                 {p.provider !== 'ollama' && (
                   <>
                     {p.provider !== 'chatgpt' && p.provider !== 'server' && (
-                      <button type="button" onClick={() => setSetup({ provider: p.provider as KeyProvider })}>
+                      <button type="button" onClick={() => setSetup({ item: addable.find((item) => item.provider === p.provider) ?? null, replacing: true })}>
                         Replace
                       </button>
                     )}
@@ -209,23 +214,34 @@ export function ModelPage() {
           ))}
         </ul>
         {setup && (
-          <div className="connections-setup" role="group" aria-label={setup.provider ? 'Replace the key' : 'Add a connection'}>
-            <div className="connections-setup-head">
-              <p className="settings-hint">
-                {setup.provider ? 'Paste the new key. ' : ''}The model you check here becomes the interviewer's model.
-              </p>
-              <button type="button" onClick={() => setSetup(null)}>
-                Cancel
-              </button>
-            </div>
-            <ModelSetup
-              start={setup.provider ? 'key' : undefined}
-              provider={setup.provider}
-              onDone={() => {
-                setSetup(null);
-                refresh();
-              }}
-            />
+          <div className="connections-setup" role="group" aria-label={setup.replacing ? 'Replace the key' : 'Add a connection'}>
+            {setup.item ? (
+              <>
+                {/* Cancel goes back to the list, or closes the well when it opened on one key to replace. */}
+                <PickedHead item={setup.item} onCancel={() => setSetup(setup.replacing ? null : { item: null })} />
+                <p className="settings-hint">
+                  {setup.replacing ? 'Paste the new key. ' : ''}The model you check here becomes the interviewer's model.
+                </p>
+                <ModelSetup
+                  key={setup.item.id}
+                  item={setup.item}
+                  onDone={() => {
+                    setSetup(null);
+                    refresh();
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <div className="connections-setup-head">
+                  <p className="settings-hint">Pick what to add, or search for it by name.</p>
+                  <button type="button" onClick={() => setSetup(null)}>
+                    Cancel
+                  </button>
+                </div>
+                <AddList items={addable} onPick={(item) => setSetup({ item })} />
+              </>
+            )}
           </div>
         )}
       </section>

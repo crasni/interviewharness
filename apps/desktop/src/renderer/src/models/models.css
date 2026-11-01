@@ -130,3 +130,11 @@
   color: var(--ink);
   font-weight: var(--weight-medium);
 }
+
+/* One item's fields alone (Settings → Model's Add): no rows, just what it asks for. */
+.model-setup-one {
+  display: grid;
+  gap: var(--space-3);
+  min-height: 0;
+  overflow-y: auto;
+}

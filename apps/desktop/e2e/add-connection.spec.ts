@@ -1,0 +1,133 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fakeKeyServer } from '@interviewharness/providers/test';
+import { type ElectronApplication, expect, type Locator, type Page, test } from '@playwright/test';
+import { closeApp, launchApp, picker } from './launch.ts';
+
+let app: ElectronApplication;
+let window: Page;
+let dataDir: string;
+
+test.afterEach(async () => {
+  await closeApp(app);
+});
+
+const settings = () => window.getByRole('dialog', { name: 'Settings' });
+const step = () => window.getByRole('region', { name: 'Pick a model' });
+const well = () => settings().getByRole('group', { name: 'Add a connection' });
+const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
+const groupNames = (scope: Locator) => scope.getByRole('listbox').getByRole('group').evaluateAll((groups) => groups.map((g) => g.getAttribute('aria-label')));
+
+async function openAdd() {
+  await window.getByRole('button', { name: 'Settings' }).click();
+  await settings().getByRole('tab', { name: 'Model' }).click();
+  await settings().getByRole('button', { name: 'Add', exact: true }).click();
+}
+
+test('Add lists every kind of connection in groups, and typing filters across all of them', async () => {
+  ({ app, window, dataDir } = await launchApp());
+  await openAdd();
+
+  expect(await groupNames(well())).toEqual(['Plans you pay for', 'API keys', 'On this computer or your network']);
+  await expect(well().getByRole('option', { name: 'ChatGPT' })).toBeVisible();
+
+  // The search field has the keyboard as soon as the list opens.
+  await window.keyboard.type('open');
+  await expect(well().getByRole('option')).toHaveText(['ChatGPT', 'OpenAI', 'OpenRouter', 'OpenAI-compatible server']);
+  await well().getByRole('combobox', { name: 'Search' }).fill('lm studio');
+  await expect(well().getByRole('option')).toHaveText(['OpenAI-compatible server']);
+});
+
+test('plans the app can not use are not there, not even in search', async () => {
+  ({ app, window, dataDir } = await launchApp());
+  await openAdd();
+
+  for (const plan of ['Copilot', 'Gemini AI Pro', 'Claude Pro', 'Z.ai', 'Qwen']) {
+    await well().getByRole('combobox', { name: 'Search' }).fill(plan);
+    await expect(well().getByRole('option')).toHaveCount(0);
+    await expect(well()).toContainText('Nothing matches.');
+  }
+});
+
+test('picking an item from the keyboard shows only its fields, and Cancel goes back to the list', async () => {
+  ({ app, window, dataDir } = await launchApp());
+  await openAdd();
+
+  await window.keyboard.type('router');
+  await window.keyboard.press('Enter');
+
+  await expect(well().getByRole('heading', { name: 'OpenRouter' })).toBeVisible();
+  await expect(well().getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute('type', 'password');
+  await expect(picker(well(), 'Model')).toHaveText('OpenAI: GPT-6.1 Sol');
+  await expect(well().getByLabel('Server address')).toHaveCount(0);
+  await expect(well().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
+  await expect(well().getByRole('button', { name: 'Check and save' })).toBeDisabled();
+
+  await well().getByRole('button', { name: 'Cancel' }).click();
+  await expect(well().getByRole('option', { name: 'OpenRouter' })).toBeVisible();
+  await well().getByRole('button', { name: 'Cancel' }).click();
+  await expect(well()).toHaveCount(0);
+});
+
+test('a server picked from the list is checked before it is saved, then listed as a connection', async () => {
+  const server = await fakeKeyServer(['qwen2.5-7b-instruct']);
+  try {
+    ({ app, window, dataDir } = await launchApp());
+    await openAdd();
+    await well().getByRole('option', { name: 'OpenAI-compatible server' }).click();
+
+    await well().getByLabel('Server address').fill(`${server.origin}/v1`);
+    await well().getByRole('button', { name: 'Find models' }).click();
+    await expect(picker(well(), 'Model')).toHaveText('qwen2.5-7b-instruct');
+    server.reply({ text: 'OK' });
+    await well().getByRole('button', { name: 'Check and save' }).click();
+
+    await expect(well()).toHaveCount(0);
+    await expect(settings().getByRole('listitem').filter({ hasText: 'Server' })).toContainText(`${server.origin}/v1`);
+    await expect.poll(settingsFile).toMatchObject({ serverAddress: `${server.origin}/v1` });
+  } finally {
+    await server.close();
+  }
+});
+
+test('in a short window the list scrolls inside its own region, and the settings stay the window height', async () => {
+  ({ app, window, dataDir } = await launchApp());
+  await openAdd();
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(900, 420));
+
+  const list = well().getByRole('listbox');
+  await expect.poll(() => list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect(await list.evaluate((el) => el.ownerDocument.defaultView!.getComputedStyle(el).overflowY)).toBe('auto');
+  expect(await window.locator('html').evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+});
+
+test("the Start screen's API key row opens the same list, with only keys and servers", async () => {
+  const server = await fakeKeyServer(['qwen2.5-7b-instruct']);
+  try {
+    ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
+
+    await step().getByRole('radio', { name: /API key/ }).check();
+    expect(await groupNames(step())).toEqual(['API keys', 'On this computer or your network']);
+    await expect(step().getByRole('option', { name: 'ChatGPT' })).toHaveCount(0);
+    await expect(step().getByRole('option', { name: 'Ollama' })).toHaveCount(0);
+
+    await step().getByRole('combobox', { name: 'Search' }).fill('vllm');
+    await window.keyboard.press('Enter');
+    await step().getByLabel('Server address').fill(`${server.origin}/v1`);
+    await step().getByRole('button', { name: 'Find models' }).click();
+    await expect(picker(step(), 'Model')).toHaveText('qwen2.5-7b-instruct');
+
+    server.reply({ status: 401, body: JSON.stringify({ error: { message: 'Unauthorized' } }) });
+    await step().getByRole('button', { name: 'Check and save' }).click();
+    await expect(step().getByRole('alert')).toContainText('asks for a key');
+    expect(settingsFile().interviewerModel ?? null).toBeNull();
+
+    server.reply({ text: 'OK' });
+    await step().getByRole('button', { name: 'Check and save' }).click();
+
+    await expect(step()).toHaveCount(0);
+    await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'server', model: 'qwen2.5-7b-instruct' }, serverAddress: `${server.origin}/v1` });
+  } finally {
+    await server.close();
+  }
+});
