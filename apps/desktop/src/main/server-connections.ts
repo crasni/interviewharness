@@ -3,7 +3,7 @@ import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
 import type { ModelChoice, Providers, Server } from '@interviewharness/providers';
 import { serverFormats } from '@interviewharness/providers/defaults';
 import type { ConnectResult, ModelList, ServerListing, ServerSetup } from '../shared/api.ts';
-import { isServerAddress, isServerId, isServerName, type Settings, settingsAfterRemovingServer, withYourModel } from '../shared/settings.ts';
+import { isServerAddress, isServerId, isServerName, type Settings, settingsAfterAdding, settingsAfterRemovingServer, withYourModel } from '../shared/settings.ts';
 
 const isFormat = (value: unknown): value is Server['format'] => (serverFormats as readonly unknown[]).includes(value);
 const isKey = (value: unknown): value is string | undefined => value === undefined || (typeof value === 'string' && value.length <= 500);
@@ -54,8 +54,11 @@ export function serverConnections({
     return null;
   }
 
-  /** Checks the model on the server as set up, then saves the server, its key and the model. */
-  async function save(request: ServerSetup, id: string): Promise<ConnectResult> {
+  /**
+   * Checks the model on the server as set up, then saves the server, its key and the model. A server added
+   * picks its model as `settingsAfterAdding` says; one edited picks nothing.
+   */
+  async function save(request: ServerSetup, id: string, editing: boolean): Promise<ConnectResult> {
     const wrong = fieldError(request);
     if (wrong) return { ok: false, error: wrong };
     const { slot, name, address, format, model } = request;
@@ -72,8 +75,7 @@ export function serverConnections({
     const saved = settings.values().servers;
     settings.change({
       servers: saved.some((each) => each.id === id) ? saved.map((each) => (each.id === id ? server : each)) : [...saved, server],
-      yourModels: withYourModel(settings.values().yourModels, choice),
-      ...(slot === 'interviewer' ? { interviewerModel: choice } : slot === 'feedback' ? { feedbackModel: choice } : {}),
+      ...(editing ? { yourModels: withYourModel(settings.values().yourModels, choice) } : settingsAfterAdding(settings.values(), choice, slot)),
       ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
     });
     return { ok: true, unencryptedNote };
@@ -95,11 +97,11 @@ export function serverConnections({
       }
     },
 
-    /** Adds a server once a model on it answers; the model joins your models (and `slot`, if given). */
+    /** Adds a server once a model on it answers; the model joins your models and is picked (see `settingsAfterAdding`). */
     async add(request: unknown): Promise<ConnectResult> {
       if (!isServerSetup(request, false)) return { ok: false, error: "That server can't be added." };
       // Tried under a fresh id, so a refused key never touches another server's.
-      return save(request, newId());
+      return save(request, newId(), false);
     },
 
     /** Changes a server's name, address, format or key once a model on it answers. No key typed keeps the saved one. */
@@ -107,7 +109,7 @@ export function serverConnections({
       if (!isServerSetup(request, true) || !settings.values().servers.some((each) => each.id === request.server)) {
         return { ok: false, error: "That server can't be changed." };
       }
-      return save(request, request.server!);
+      return save(request, request.server!, true);
     },
 
     /** Forgets a server and its key, and takes its models off your models and the slots. */

@@ -1,7 +1,7 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
 import { type Connection, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import type { ConnectResult, KeyReplacement, ModelConnection, ModelList } from '../shared/api.ts';
-import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
+import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterAdding, settingsAfterLogout, settingsAfterRemoving } from '../shared/settings.ts';
 import { plainServerError, serverConnections } from './server-connections.ts';
 
 /** Each provider as the candidate knows it. */
@@ -32,7 +32,7 @@ function isConnection(provider: ProviderName, value: unknown): value is Connecti
 function isModelConnection(value: unknown): value is ModelConnection {
   if (typeof value !== 'object' || value === null) return false;
   const { slot, provider, model, server, ...connection } = value as Record<string, unknown>;
-  if (slot !== 'interviewer' && slot !== 'feedback') return false;
+  if (slot !== undefined && slot !== 'interviewer' && slot !== 'feedback') return false;
   if (!isProviderName(provider)) return false;
   if (typeof model !== 'string' || !model || model.length > 200) return false;
   // A server's model is picked from a saved server (added through serverConnections), by its id.
@@ -105,6 +105,10 @@ export function modelChooser({
       }
     },
 
+    /**
+     * Adds a model to your models once it answers, saving the address or key it was reached with, and picks it
+     * for its slot. With no slot (a connection added in Settings), it's the interviewer's only if none is picked.
+     */
     async connect(request: unknown): Promise<ConnectResult> {
       if (!isModelConnection(request)) return { ok: false, error: "That model can't be picked." };
       const { slot, provider, model, key, address, server } = request;
@@ -122,8 +126,7 @@ export function modelChooser({
       const unencryptedNote = savesKey && !encrypted() && !settings.values().unencryptedLoginNoted;
       settings.change({
         ...(address && hasAddress(provider) ? { [addressSettings[provider]]: address } : {}),
-        yourModels: withYourModel(settings.values().yourModels, choice),
-        ...(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice }),
+        ...settingsAfterAdding(settings.values(), choice, slot),
         ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
       });
       return { ok: true, unencryptedNote };

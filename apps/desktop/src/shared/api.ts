@@ -64,8 +64,9 @@ export interface HarnessApi {
     /** A provider's models, reached through an address or key not saved yet if given. */
     list(provider: ModelChoice['provider'], connection?: Connection): Promise<ModelList>;
     /**
-     * Checks that a model answers, then adds it to your models and picks it for its slot, saving the address
-     * and key it was reached with (announced through settings.onChange). Used to add a connection and to add a model.
+     * Checks that a model answers, then adds it to your models and picks it for its slot (with none, for the
+     * interviewer only if none is picked), saving the address and key it was reached with (announced through
+     * settings.onChange). Used to add a connection and to add a model.
      */
     connect(connection: ModelConnection): Promise<ConnectResult>;
     /** Checks that a model answers through a new key, then saves the key in place of the old one. Your models and the picks stay as they are. */
@@ -103,7 +104,7 @@ export interface ServerSetup {
   key?: string;
   /** A model on the server, listed or typed, that's checked to answer. */
   model: string;
-  /** Picks the model for this slot too. */
+  /** Picks the model for this slot too. With none, a server added is the interviewer's only if none is picked. */
   slot?: Slot;
 }
 
@@ -144,7 +145,8 @@ export type Slot = 'interviewer' | 'feedback';
  * optional one) to reach it if they're new. Checked by main before anything is saved.
  */
 export interface ModelConnection extends Connection {
-  slot: Slot;
+  /** With none (a connection added in Settings), the model is the interviewer's only if none is picked yet. */
+  slot?: Slot;
   provider: ModelChoice['provider'];
   model: string;
   /** For a model on one of the candidate's saved servers: which. */

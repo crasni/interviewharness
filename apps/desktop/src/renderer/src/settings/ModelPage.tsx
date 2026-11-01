@@ -236,7 +236,7 @@ export function ModelPage() {
                     ? 'Changes are saved once a model on the server answers; that model joins your models.'
                     : setup.replacing
                       ? "Paste the new key. It's saved once the model answers through it; your models and picks stay as they are."
-                      : "The model you check here becomes the interviewer's model."}
+                      : "The model you check here joins your models. It becomes the interviewer's model if none is picked yet."}
                 </p>
                 <ModelSetup
                   key={setup.editing?.id ?? setup.item.id}

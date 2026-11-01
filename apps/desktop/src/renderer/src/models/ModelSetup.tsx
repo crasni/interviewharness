@@ -76,7 +76,10 @@ export function ModelSetup({
   const signInCopy = signIns[signInProvider];
   const login = useSignIn({ provider: signInProvider, onUnencrypted });
   const check = useConnect({ onUnencrypted });
-  const serverSetup = useServerSetup({ server: editing, onDone, onUnencrypted });
+  // The Start screen picks the interviewer's model; a connection added in Settings joins your models, and is
+  // the interviewer's only if none is picked yet (main decides).
+  const slot = item ? undefined : 'interviewer';
+  const serverSetup = useServerSetup({ server: editing, slot, onDone, onUnencrypted });
 
   // A sign-in already saved: then the row offers its models instead of signing in again.
   const [chatgpt, setChatgpt] = useState<{ signedIn: boolean; models: { value: string; label: string }[] }>({ signedIn: false, models: [] });
@@ -148,7 +151,7 @@ export function ModelSetup({
         ? {
             label: 'Use this model',
             ready: !!chatgptModel,
-            run: async () => (await check.connect({ slot: 'interviewer', provider: signInProvider, model: chatgptModel })) && onDone?.(),
+            run: async () => (await check.connect({ slot, provider: signInProvider, model: chatgptModel })) && onDone?.(),
           }
         : {
             label: signInCopy.button,
@@ -160,7 +163,7 @@ export function ModelSetup({
         ? {
             label: 'Use this model',
             ready: !!ollamaModel && !!ollama?.ok,
-            run: async () => (await check.connect({ slot: 'interviewer', provider: 'ollama', model: ollamaModel, address: ollamaAddress })) && onDone?.(),
+            run: async () => (await check.connect({ slot, provider: 'ollama', model: ollamaModel, address: ollamaAddress })) && onDone?.(),
           }
         : way === 'key' && server
           ? serverSetup.action
@@ -170,7 +173,7 @@ export function ModelSetup({
                 ready: !!provider && !!keyModel && !!key.trim(),
                 run: async () => {
                   if (!provider) return;
-                  const saved = replacing ? await check.replaceKey({ provider, model: keyModel, key }) : await check.connect({ slot: 'interviewer', provider, model: keyModel, key });
+                  const saved = replacing ? await check.replaceKey({ provider, model: keyModel, key }) : await check.connect({ slot, provider, model: keyModel, key });
                   if (saved) onDone?.();
                 },
               }

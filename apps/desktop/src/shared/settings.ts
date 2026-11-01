@@ -184,6 +184,17 @@ export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
     ? models
     : [...models, { provider: choice.provider, model: choice.model, ...(choice.provider === 'server' ? { server: choice.server } : {}) }];
 
+/**
+ * What adding a model that answered changes: it joins your models, and is picked for `slot`. With no slot
+ * (a connection added in Settings, a sign-in), it's picked for the interviewer only when none is picked yet.
+ */
+export function settingsAfterAdding(settings: Settings, choice: ModelChoice, slot?: 'interviewer' | 'feedback'): Partial<Settings> {
+  const yourModels = withYourModel(settings.yourModels, choice);
+  if (slot === 'feedback') return { yourModels, feedbackModel: choice };
+  if (slot === 'interviewer' || !settings.interviewerModel) return { yourModels, interviewerModel: choice };
+  return { yourModels };
+}
+
 /** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
 export function choiceFromKey(key: string): ModelChoice | null {
   const slash = key.indexOf('/');

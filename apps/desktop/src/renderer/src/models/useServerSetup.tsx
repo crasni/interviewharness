@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from 'react';
-import type { ModelList, ServerSetup } from '../../../shared/api.ts';
+import type { ModelList, ServerSetup, Slot } from '../../../shared/api.ts';
 import type { Server } from '../../../shared/settings.ts';
 import { Picker } from '../ui/Picker.tsx';
 import type { ConnectStep } from './useConnect.ts';
@@ -29,7 +29,18 @@ function hostOf(address: string) {
  * a name, an address, its API format, a key if it needs one, and a model it lists or one typed in.
  * With `server`, edits that saved server (its key is never shown; an empty key keeps it).
  */
-export function useServerSetup({ server, onDone, onUnencrypted }: { server?: Server; onDone?: () => void; onUnencrypted?: () => void }) {
+export function useServerSetup({
+  server,
+  slot,
+  onDone,
+  onUnencrypted,
+}: {
+  server?: Server;
+  /** The slot a server added picks its model for; with none, the interviewer's only if none is picked yet. */
+  slot?: Slot;
+  onDone?: () => void;
+  onUnencrypted?: () => void;
+}) {
   const ids = { name: useId(), address: useId(), format: useId(), key: useId(), model: useId() };
   const [name, setName] = useState(server?.name ?? '');
   const [address, setAddress] = useState(server?.address ?? '');
@@ -67,7 +78,7 @@ export function useServerSetup({ server, onDone, onUnencrypted }: { server?: Ser
   async function run() {
     setStep({ name: 'checking' });
     const setup: ServerSetup = { name: name.trim() || hostOf(address), address: address.trim(), format, model: model.trim(), ...(key.trim() ? { key } : {}) };
-    const result = server ? await window.harness.models.editServer({ ...setup, server: server.id }) : await window.harness.models.addServer({ ...setup, slot: 'interviewer' });
+    const result = server ? await window.harness.models.editServer({ ...setup, server: server.id }) : await window.harness.models.addServer({ ...setup, ...(slot ? { slot } : {}) });
     setStep(result.ok ? { name: 'idle' } : { name: 'failed', error: result.error });
     if (result.ok && result.unencryptedNote) onUnencrypted?.();
     if (result.ok) onDone?.();

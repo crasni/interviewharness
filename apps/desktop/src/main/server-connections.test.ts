@@ -75,6 +75,25 @@ describe('adding a named server, checked before it is saved', () => {
     expect(fake.requests.at(-1)!.body.model).toBe('typed-model');
   });
 
+  it('added with no slot, its model is picked for the interviewer only when none is picked', async () => {
+    fake.reply({ text: 'OK' }, { text: 'OK' });
+
+    await servers.add({ name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+    await servers.add({ name: 'Work', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+
+    const home = { provider: 'server', server: 's1', model: 'qwen3-8b' };
+    expect(settings.values()).toMatchObject({ yourModels: [home, { provider: 'server', server: 's2', model: 'qwen3-8b' }], interviewerModel: home, feedbackModel: null });
+  });
+
+  it('editing it picks nothing, even with no interviewer picked', async () => {
+    fake.reply({ text: 'OK' }, { text: 'OK' });
+    await servers.add({ slot: 'feedback', name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+
+    await servers.edit({ server: 's1', name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'other-model' });
+
+    expect(settings.values()).toMatchObject({ interviewerModel: null, feedbackModel: { provider: 'server', server: 's1', model: 'qwen3-8b' } });
+  });
+
   it('saves nothing when the server does not answer', async () => {
     const address = `${fake.origin}/v1`;
     await fake.close();

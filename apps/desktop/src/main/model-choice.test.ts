@@ -129,6 +129,18 @@ describe('your models', () => {
     expect(settings.values().yourModels).toEqual([qwen, { provider: 'openrouter', model: 'z-ai/glm-5v-turbo' }]);
   });
 
+  it('a connection added with no slot picks its model for the interviewer only when none is picked', async () => {
+    const sonnet = { provider: 'anthropic', model: 'claude-sonnet-4-6' } as const;
+    const opus = { provider: 'anthropic', model: 'claude-opus-4-6' } as const;
+    cloud.reply({ text: 'OK' }, { text: 'OK' });
+
+    await chooser.connect({ provider: 'anthropic', model: sonnet.model, key: 'sk-ant-good' });
+    expect(settings.values()).toMatchObject({ yourModels: [sonnet], interviewerModel: sonnet, feedbackModel: null });
+
+    await chooser.connect({ provider: 'anthropic', model: opus.model, key: 'sk-ant-good' });
+    expect(settings.values()).toMatchObject({ yourModels: [sonnet, opus], interviewerModel: sonnet, feedbackModel: null });
+  });
+
   it('removing a model takes it off your models and unpicks it wherever it was picked', () => {
     const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
     settings.change({ yourModels: [qwen, sol], interviewerModel: qwen, feedbackModel: qwen });
