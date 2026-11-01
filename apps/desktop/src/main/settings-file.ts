@@ -1,15 +1,26 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { defaultSettings, type Settings, validSettings } from '../shared/settings.ts';
+import { defaultSettings, isModelChoice, type ModelChoice, type Settings, validSettings, withYourModel } from '../shared/settings.ts';
 import { type WriteOptions, writeFileAtomically } from './atomic-write.ts';
 
 /** The shape settings.json is written in. Bump it, and add a migration below, when a setting changes meaning. */
-export const settingsVersion = 1;
+export const settingsVersion = 2;
 
 type Migration = (raw: Record<string, unknown>) => Record<string, unknown>;
 
-/** Each migration takes a file of its key's version to the next version. None yet: version 1 is the first. */
-const settingsMigrations: Record<number, Migration> = {};
+/** v0.1 → v0.1.1: the models picked for the two slots become the first of your models. */
+const pickedModelsBecomeYourModels: Migration = (raw) => ({
+  ...raw,
+  yourModels: [raw.interviewerModel, raw.feedbackModel].filter(isModelChoice).reduce(withYourModel, [] as ModelChoice[]),
+});
+
+/** Version 1 → 2 in steps, each changing one thing. A step for another setting of v0.1.1 joins this list. */
+const toVersion2: Migration[] = [pickedModelsBecomeYourModels];
+
+/** Each migration takes a file of its key's version to the next version. */
+const settingsMigrations: Record<number, Migration> = {
+  1: (raw) => toVersion2.reduce((file, step) => step(file), raw),
+};
 
 /**
  * Brings a settings object up to `toVersion`, one version at a time. A file with no version is taken

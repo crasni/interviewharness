@@ -33,7 +33,9 @@ export type Settings = {
   /** Dragged sizes in px; null means the default size. */
   problemWidth: number | null;
   conversationHeight: number | null;
-  /** The model that writes the interviewer's words. A round can't start without one. Logins live in the credential store. */
+  /** Your models: every model the candidate added, each checked to answer when it was. The pickers list only these. */
+  yourModels: ModelChoice[];
+  /** The model that writes the interviewer's words, one of your models. A round can't start without one. Logins live in the credential store. */
   interviewerModel: ModelChoice | null;
   /** The model that writes the Feedback, if not the interviewer's (a stronger one, say). */
   feedbackModel: ModelChoice | null;
@@ -61,6 +63,7 @@ export const defaultSettings: Settings = {
   wrapLines: true,
   problemWidth: null,
   conversationHeight: null,
+  yourModels: [],
   interviewerModel: null,
   feedbackModel: null,
   smallModels: [],
@@ -89,12 +92,14 @@ export function isServerAddress(value: unknown): value is string {
     return false;
   }
 }
-const isModelChoice = (value: unknown): value is ModelChoice | null => {
-  if (value === null) return true;
-  if (typeof value !== 'object') return false;
+/** A well-formed model choice; nothing else rides along with it (a key, say). */
+export const isModelChoice = (value: unknown): value is ModelChoice => {
+  if (typeof value !== 'object' || value === null) return false;
   const { provider, model, ...rest } = value as Record<string, unknown>;
   return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && !Object.keys(rest).length;
 };
+
+const isPickedModel = (value: unknown): value is ModelChoice | null => value === null || isModelChoice(value);
 
 const isModelKeys = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((key) => typeof key === 'string' && key.includes('/'));
@@ -113,8 +118,9 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   wrapLines: isBoolean,
   problemWidth: isSize,
   conversationHeight: isSize,
-  interviewerModel: isModelChoice,
-  feedbackModel: isModelChoice,
+  yourModels: (value): value is ModelChoice[] => Array.isArray(value) && value.every(isModelChoice),
+  interviewerModel: isPickedModel,
+  feedbackModel: isPickedModel,
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
@@ -138,6 +144,12 @@ export function validSettings(raw: unknown): Partial<Settings> {
 /** A model's name as one string, e.g. "chatgpt/gpt-5-mini". */
 export const modelKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`;
 
+const sameModel = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;
+
+/** Your models with `choice` added at the end, unless it's already one of them. */
+export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
+  models.some((m) => sameModel(m, choice)) ? models : [...models, { provider: choice.provider, model: choice.model }];
+
 /** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
 export function choiceFromKey(key: string): ModelChoice | null {
   const slash = key.indexOf('/');
@@ -148,10 +160,17 @@ export function choiceFromKey(key: string): ModelChoice | null {
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
 export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;
 
-/** What logging out of a provider changes: models from it are no longer picked. */
-export function settingsAfterLogout(settings: Settings, provider: ModelChoice['provider']): Partial<Settings> {
-  const changes: Partial<Settings> = {};
-  if (settings.interviewerModel?.provider === provider) changes.interviewerModel = null;
-  if (settings.feedbackModel?.provider === provider) changes.feedbackModel = null;
+/** What removing some of your models changes: they leave your models, and are unpicked wherever they were picked. */
+export function settingsWithout(settings: Settings, removed: (choice: ModelChoice) => boolean): Partial<Settings> {
+  const changes: Partial<Settings> = { yourModels: settings.yourModels.filter((choice) => !removed(choice)) };
+  if (settings.interviewerModel && removed(settings.interviewerModel)) changes.interviewerModel = null;
+  if (settings.feedbackModel && removed(settings.feedbackModel)) changes.feedbackModel = null;
   return changes;
 }
+
+/** What logging out of a provider changes: its models leave your models, and are no longer picked. */
+export const settingsAfterLogout = (settings: Settings, provider: ModelChoice['provider']) =>
+  settingsWithout(settings, (choice) => choice.provider === provider);
+
+/** What removing one of your models changes. */
+export const settingsAfterRemoving = (settings: Settings, model: ModelChoice) => settingsWithout(settings, (choice) => sameModel(choice, model));

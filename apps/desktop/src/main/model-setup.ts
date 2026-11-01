@@ -3,9 +3,9 @@ import { scriptedModel } from '@interviewharness/engine/test';
 import { createProviders, defaultChatGPTModel, keyProviders, type ProviderName } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
 import type { LoginResult, ProviderStatus } from '../shared/api.ts';
-import { feedbackModel, modelKey, type Settings, settingsAfterLogout } from '../shared/settings.ts';
+import { feedbackModel, modelKey, type Settings, withYourModel } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
-import { isProviderName, modelChooser, providerNames } from './model-choice.ts';
+import { modelChooser, providerNames } from './model-choice.ts';
 
 /** The only page a login may open: OpenAI's sign-in. Anything else is refused, never handed to the browser. */
 const signInOrigin = 'https://auth.openai.com';
@@ -99,8 +99,11 @@ export function setUpModels({
       window()?.show();
       window()?.focus();
       const unencryptedNote = !credentials.encrypted() && !settings.values().unencryptedLoginNoted;
+      // Signing in is ChatGPT's check: the login works, so its default model joins your models.
+      const choice = { provider: 'chatgpt', model: defaultChatGPTModel } as const;
       settings.change({
-        interviewerModel: { provider: 'chatgpt', model: defaultChatGPTModel },
+        yourModels: withYourModel(settings.values().yourModels, choice),
+        interviewerModel: choice,
         ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
       });
       return { ok: true, unencryptedNote };
@@ -129,13 +132,8 @@ export function setUpModels({
 
     list: chooser.list,
     connect: chooser.connect,
-
-    async logout(provider: unknown) {
-      // The renderer is not trusted to name a provider that exists. Ollama has nothing to forget.
-      if (!isProviderName(provider) || provider === 'ollama') return;
-      await providers.logout(provider);
-      settings.change({ ...settingsAfterLogout(settings.values(), provider), ...(provider === 'server' ? { serverAddress: '' } : {}) });
-    },
+    logout: chooser.removeConnection,
+    removeModel: chooser.removeModel,
   };
 }
 

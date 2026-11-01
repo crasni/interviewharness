@@ -113,6 +113,51 @@
   width: 14px;
 }
 
+/* An option that can be removed: the option, and a Remove button that shows on the active row. */
+.picker-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--quick) var(--ease);
+}
+
+.picker-row[data-active='true'] {
+  background: var(--wash);
+}
+
+.picker-row .picker-option {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-row .picker-option[data-active='true'] {
+  background: none;
+}
+
+.picker-remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 28px;
+  margin-right: var(--space-1);
+  padding: 0;
+  color: var(--muted);
+  background: none;
+  border: none;
+  visibility: hidden;
+}
+
+.picker-row[data-active='true'] .picker-remove,
+.picker-remove:focus-visible {
+  visibility: visible;
+}
+
+.picker-remove:hover {
+  color: var(--ink);
+}
+
 .picker-empty {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);

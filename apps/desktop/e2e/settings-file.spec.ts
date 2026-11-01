@@ -36,7 +36,7 @@ async function relaunch() {
 
 test('settings are kept in settings.json in the data folder, and survive a restart', async () => {
   // Written just after launch, not before the window shows.
-  await expect.poll(settingsFile).toMatchObject({ version: 1, textSize: 'medium' });
+  await expect.poll(settingsFile).toMatchObject({ version: 2, textSize: 'medium' });
 
   await window.getByRole('button', { name: 'Settings' }).click();
   await window.getByRole('dialog', { name: 'Settings' }).getByText('Large', { exact: true }).click();
