@@ -7,6 +7,7 @@ describe('what can be added', () => {
   it('lists everything grouped by kind, in order, leaving out a group with nothing in it', () => {
     expect(names(searchAddable(addable, ''))).toEqual([
       ['Plans you pay for', ['ChatGPT']],
+      ['Sign in', ['OpenRouter']],
       ['API keys', ['OpenAI', 'Anthropic', 'Google', 'OpenRouter']],
       ['On this computer or your network', ['Ollama', 'OpenAI-compatible server']],
     ]);
@@ -15,6 +16,7 @@ describe('what can be added', () => {
   it('typing filters across every group, by name or by what else it is known as, ignoring case', () => {
     expect(names(searchAddable(addable, 'open'))).toEqual([
       ['Plans you pay for', ['ChatGPT']],
+      ['Sign in', ['OpenRouter']],
       ['API keys', ['OpenAI', 'OpenRouter']],
       ['On this computer or your network', ['OpenAI-compatible server']],
     ]);

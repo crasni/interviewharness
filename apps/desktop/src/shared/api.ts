@@ -70,6 +70,11 @@ export interface HarnessApi {
     connect(connection: ModelConnection): Promise<ConnectResult>;
     /** Forgets a provider's login or key (a server's address too), and removes its models from your models (announced through settings.onChange). */
     logout(provider: ModelChoice['provider']): Promise<void>;
+    /**
+     * Opens OpenRouter's sign-in in the browser and resolves once it comes back, with the key OpenRouter
+     * issues saved. Picks no model. Cancelled with cancelLogin.
+     */
+    signInToOpenRouter(): Promise<LoginResult>;
     /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
     removeModel(model: ModelChoice): Promise<void>;
   };
@@ -81,6 +86,8 @@ export interface ProviderStatus {
   name: string;
   /** Signed in, a key saved, or (Ollama, a server) answering at its address. */
   connected: boolean;
+  /** Connected by signing in (ChatGPT, OpenRouter) rather than with a pasted key. */
+  signedIn?: boolean;
   /** Its models, when connected. */
   models: ModelListing[];
   /** Why it isn't connected, when that's worth saying (Ollama not running). */
@@ -137,6 +144,7 @@ export const channels = {
   listModels: 'models:list',
   connect: 'models:connect',
   logout: 'models:logout',
+  signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',
 } as const;
 
