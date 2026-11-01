@@ -90,6 +90,8 @@ test('a server can be edited and removed, taking its models with it', async () =
   await row('Home').getByRole('button', { name: 'Edit' }).click();
   const edit = well('Edit the server');
   await expect(edit.getByLabel('Address', { exact: true })).toHaveValue(`${server.origin}/v1`);
+  // A saved server's models are looked for when Edit opens; the form grows once they're in.
+  await expect(picker(edit, 'Model')).toBeVisible();
   await edit.getByLabel('Name', { exact: true }).fill('Home (Anthropic)');
   await choose(edit, 'API format', 'Anthropic-compatible');
   await edit.getByLabel('Address', { exact: true }).fill(server.origin);
