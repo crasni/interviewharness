@@ -25,6 +25,9 @@ const reply = (kind: string, words: string, heard = 'explaining') => ({
  */
 const noWait = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+// Node's, which the engine's own code never uses (it compiles without Node's types); its tests always run in Node.
+declare function setImmediate(callback: () => void): unknown;
+
 function play(candidate: ScriptedCandidate, script: Parameters<typeof scriptedModel>[0]) {
   const model = scriptedModel(script);
   const played = playCandidate({ candidate, model: model.model, problem, lines: testLines(), toneGuide: '', wait: noWait });
