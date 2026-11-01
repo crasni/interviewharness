@@ -23,9 +23,12 @@ export function ModelPage() {
   const [setup, setSetup] = useState<{ provider?: KeyProvider } | null>(null);
   const interviewerId = useId();
   const feedbackId = useId();
+  const addId = useId();
+  /** "Add a model…" open, and the slot it was opened from. */
+  const [adding, setAdding] = useState<Slot | null>(null);
 
   // Picked models arrive through settings; the connections may have changed with them.
-  useEffect(refresh, [refresh, settings.interviewerModel, settings.feedbackModel, settings.serverAddress, settings.ollamaAddress]);
+  useEffect(refresh, [refresh, settings.interviewerModel, settings.feedbackModel, settings.yourModels, settings.serverAddress, settings.ollamaAddress]);
 
   if (!providers.length) return null;
 
@@ -37,10 +40,11 @@ export function ModelPage() {
   const graderKey = grader && modelKey(grader);
   const markedSmall = graderKey !== null && settings.smallModels.includes(graderKey);
 
+  /** Picking one of your models needs no check: it answered when it was added. */
   const pick = (slot: Slot, key: string) => {
     if (slot === 'feedback' && !key) return change({ feedbackModel: null });
     const choice = choiceFromKey(key);
-    if (choice) void picking.connect({ slot, ...choice });
+    if (choice) change(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice });
   };
 
   const remove = async (provider: ProviderStatus['provider']) => {
@@ -48,14 +52,33 @@ export function ModelPage() {
     refresh();
   };
 
-  /** Every connected provider's models, grouped by provider. */
-  const groups: PickerGroup[] = connected.map((p) => ({
-    label: p.name,
-    options: p.models.map((m) => ({ value: modelKey({ provider: p.provider, model: m.id }), label: m.name })),
-  }));
-  /** The model in use stays listed even when its provider isn't connected now. */
-  const kept = (current: ModelChoice | null) =>
-    current && !groups.some((g) => g.options.some((o) => o.value === modelKey(current))) ? [{ value: modelKey(current), label: current.model }] : [];
+  const removeModel = (key: string) => {
+    const choice = choiceFromKey(key);
+    if (choice) void window.harness.models.removeModel(choice);
+  };
+
+  /** Your models, grouped by the connection each comes from, in the order they were added. */
+  const yours = groupByConnection(settings.yourModels, providers);
+  const addModel = (slot: Slot) => ({
+    label: 'Add a model…',
+    onPick: () => {
+      picking.reset();
+      setAdding(slot);
+    },
+  });
+  /** Every connection's models that aren't yours yet: what "Add a model…" searches. */
+  const catalog: PickerGroup[] = connected
+    .map((p) => ({
+      label: p.name,
+      options: p.models
+        .filter((m) => !settings.yourModels.some((y) => y.provider === p.provider && y.model === m.id))
+        .map((m) => ({ value: modelKey({ provider: p.provider, model: m.id }), label: m.name })),
+    }))
+    .filter((g) => g.options.length);
+  const add = async (key: string) => {
+    const choice = choiceFromKey(key);
+    if (choice && adding && (await picking.connect({ slot: adding, ...choice }))) setAdding(null);
+  };
 
   return (
     <>
@@ -64,10 +87,11 @@ export function ModelPage() {
         <Picker
           id={interviewerId}
           value={settings.interviewerModel ? modelKey(settings.interviewerModel) : ''}
-          options={kept(settings.interviewerModel)}
-          groups={groups}
+          groups={yours}
           placeholder="None"
-          disabled={!connected.length || picking.step.name === 'checking'}
+          disabled={picking.step.name === 'checking'}
+          action={addModel('interviewer')}
+          onRemove={removeModel}
           onChange={(key) => pick('interviewer', key)}
         />
       </div>
@@ -77,21 +101,51 @@ export function ModelPage() {
         <Picker
           id={feedbackId}
           value={settings.feedbackModel ? modelKey(settings.feedbackModel) : ''}
-          options={[{ value: '', label: 'Same as interviewer' }, ...kept(settings.feedbackModel)]}
-          groups={groups}
-          disabled={!connected.length || picking.step.name === 'checking'}
+          options={[{ value: '', label: 'Same as interviewer' }]}
+          groups={yours}
+          disabled={picking.step.name === 'checking'}
+          action={addModel('feedback')}
+          onRemove={removeModel}
           onChange={(key) => pick('feedback', key)}
         />
       </div>
-      {picking.step.name === 'checking' && (
-        <p className="settings-hint" role="status">
-          Checking that the model answers…
-        </p>
-      )}
-      {picking.step.name === 'failed' && (
-        <p className="settings-hint" role="alert">
-          {picking.step.error}
-        </p>
+      {adding && (
+        <div className="add-model" role="group" aria-label="Add a model">
+          <div className="add-model-head">
+            <p className="settings-hint">
+              {catalog.length
+                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${adding === 'interviewer' ? 'interviewer' : 'Feedback'} model.`
+                : 'Every model your connections offer is already yours. Add a connection below for more.'}
+            </p>
+            <button type="button" onClick={() => setAdding(null)}>
+              Cancel
+            </button>
+          </div>
+          {catalog.length > 0 && (
+            <div className="settings-row">
+              <label htmlFor={addId}>Model</label>
+              <Picker
+                id={addId}
+                value=""
+                groups={catalog}
+                placeholder="Choose a model"
+                defaultOpen
+                disabled={picking.step.name === 'checking'}
+                onChange={(key) => void add(key)}
+              />
+            </div>
+          )}
+          {picking.step.name === 'checking' && (
+            <p className="settings-hint" role="status">
+              Checking that the model answers…
+            </p>
+          )}
+          {picking.step.name === 'failed' && (
+            <p className="settings-hint" role="alert">
+              {picking.step.error}
+            </p>
+          )}
+        </div>
       )}
 
       <label className="settings-row">
@@ -177,6 +231,23 @@ export function ModelPage() {
       </section>
     </>
   );
+}
+
+/**
+ * Your models as picker groups, one per connection, each model named as its connection lists it
+ * (its id while the connection is down).
+ */
+function groupByConnection(models: ModelChoice[], providers: ProviderStatus[]): PickerGroup[] {
+  const groups: PickerGroup[] = [];
+  for (const choice of models) {
+    const from = providers.find((p) => p.provider === choice.provider);
+    const label = from?.name ?? choice.provider;
+    const option = { value: modelKey(choice), label: from?.models.find((m) => m.id === choice.model)?.name ?? choice.model };
+    const group = groups.find((g) => g.label === label);
+    if (group) group.options.push(option);
+    else groups.push({ label, options: [option] });
+  }
+  return groups;
 }
 
 /** Ollama and a server are connected when they answer, which can change on its own; those rows can be refreshed. */
