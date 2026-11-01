@@ -73,8 +73,15 @@ export interface HarnessApi {
      * settings.onChange). For a server, `server` names which one; the server itself is removed too.
      */
     logout(provider: ModelChoice['provider'], server?: string): Promise<void>;
+    /**
+     * Opens OpenRouter's sign-in in the browser and resolves once it comes back, with the key OpenRouter
+     * issues saved. Picks no model. Cancelled with cancelLogin.
+     */
+    signInToOpenRouter(): Promise<LoginResult>;
     /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
     removeModel(model: ModelChoice): Promise<void>;
+    /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
+    openKeyPage(provider: ModelChoice['provider']): void;
     /** A server's models: a saved one's, or through an address, format or key not saved yet. */
     listServer(listing: ServerListing): Promise<ModelList>;
     /** Adds a server once a model on it answers; the model joins your models (announced through settings.onChange). */
@@ -112,6 +119,8 @@ export interface ProviderStatus {
   name: string;
   /** Signed in, a key saved, or (Ollama, a server) answering at its address. */
   connected: boolean;
+  /** Connected by signing in (ChatGPT, OpenRouter) rather than with a pasted key. */
+  signedIn?: boolean;
   /** Its models, when connected. */
   models: ModelListing[];
   /** Why it isn't connected, when that's worth saying (Ollama not running). */
@@ -172,7 +181,9 @@ export const channels = {
   listModels: 'models:list',
   connect: 'models:connect',
   logout: 'models:logout',
+  signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',
+  openKeyPage: 'models:open-key-page',
   listServer: 'models:server-list',
   addServer: 'models:server-add',
   editServer: 'models:server-edit',

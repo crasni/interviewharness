@@ -10,6 +10,8 @@ import { migratedServerId } from './server-migration.ts';
 
 /** The only page a login may open: OpenAI's sign-in. Anything else is refused, never handed to the browser. */
 const signInOrigin = 'https://auth.openai.com';
+/** The only page OpenRouter's sign-in may open: its own. */
+const openRouterOrigin = 'https://openrouter.ai';
 
 /**
  * End-to-end tests set INTERVIEWHARNESS_FAKE_MODEL, so they run with no network or keys: "example-lines"
@@ -118,6 +120,36 @@ export function setUpModels({
       login?.abort();
     },
 
+    /**
+     * Sign in with OpenRouter: opens OpenRouter's sign-in in the browser and resolves once it comes back,
+     * with the key it issues saved. Picks no model: the candidate then picks one, checked to answer.
+     * Cancelled with `cancelLogin`, like ChatGPT's.
+     */
+    async signInToOpenRouter(): Promise<LoginResult> {
+      login?.abort();
+      const controller = new AbortController();
+      login = controller;
+      try {
+        await providers.signInToOpenRouter({
+          signal: controller.signal,
+          async openBrowser(url) {
+            if (new URL(url).origin !== openRouterOrigin) throw new Error(`Refused to open ${new URL(url).origin}`);
+            await shell.openExternal(url);
+          },
+        });
+      } catch (error) {
+        const cancelled = controller.signal.aborted;
+        return { ok: false, cancelled, error: cancelled ? 'Sign-in cancelled' : plainOpenRouterError(error) };
+      } finally {
+        if (login === controller) login = null;
+      }
+      window()?.show();
+      window()?.focus();
+      const unencryptedNote = !credentials.encrypted() && !settings.values().unencryptedLoginNoted;
+      if (unencryptedNote) settings.change({ unencryptedLoginNoted: true });
+      return { ok: true, unencryptedNote };
+    },
+
     /** Every provider: ChatGPT and keys are connected once saved; Ollama and each server once they answer. */
     async providers(): Promise<ProviderStatus[]> {
       const names: ProviderName[] = ['chatgpt', 'ollama', ...keyProviders];
@@ -129,7 +161,8 @@ export function setUpModels({
             return listed.ok ? { provider, name, connected: true, models: listed.models } : { provider, name, connected: false, models: [], error: listed.error };
           }
           const connected = await providers.isLoggedIn(provider);
-          return { provider, name, connected, models: connected ? await providers.listModels(provider) : [] };
+          const signedIn = connected && (await providers.isSignedIn(provider));
+          return { provider, name, connected, ...(signedIn ? { signedIn } : {}), models: connected ? await providers.listModels(provider) : [] };
         }),
       );
       await oldServerKeyMoved;
@@ -161,4 +194,10 @@ function plainLoginError(error: unknown) {
   }
   if (/fetch failed|ENOTFOUND|ECONNREFUSED|network/i.test(message)) return "Couldn't reach OpenAI. Check your connection and try again.";
   return 'ChatGPT sign-in didn\'t finish. Try again.';
+}
+
+/** An OpenRouter sign-in error in words for the candidate; the raw error may quote OpenRouter's reply. */
+function plainOpenRouterError(error: unknown) {
+  if (/fetch failed|ENOTFOUND|ECONNREFUSED|network/i.test(String(error))) return "Couldn't reach OpenRouter. Check your connection and try again.";
+  return "OpenRouter sign-in didn't finish. Try again.";
 }

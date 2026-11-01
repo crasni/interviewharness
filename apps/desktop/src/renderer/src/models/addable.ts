@@ -1,3 +1,4 @@
+import { keyProviderTable } from '@interviewharness/providers/defaults';
 import type { ModelChoice } from '../../../shared/settings.ts';
 
 /**
@@ -45,10 +46,8 @@ export interface AddableItem {
 export const addable: readonly AddableItem[] = [
   { id: 'chatgpt', group: 'plans', name: 'ChatGPT', alsoKnownAs: ['OpenAI', 'Plus', 'Pro'], provider: 'chatgpt', fields: 'sign-in' },
 
-  { id: 'openai', group: 'keys', name: 'OpenAI', alsoKnownAs: ['GPT'], provider: 'openai', fields: 'key' },
-  { id: 'anthropic', group: 'keys', name: 'Anthropic', alsoKnownAs: ['Claude API'], provider: 'anthropic', fields: 'key' },
-  { id: 'google', group: 'keys', name: 'Google', alsoKnownAs: ['Gemini API', 'AI Studio'], provider: 'google', fields: 'key' },
-  { id: 'openrouter', group: 'keys', name: 'OpenRouter', provider: 'openrouter', fields: 'key' },
+  // Every provider in the table of key providers, in its order: OpenAI, Anthropic, Google, OpenRouter, DeepSeek…
+  ...keyProviderTable.map(({ id, name, alsoKnownAs }): AddableItem => ({ id, group: 'keys', name, alsoKnownAs: alsoKnownAs && [...alsoKnownAs], provider: id, fields: 'key' })),
 
   { id: 'ollama', group: 'local', name: 'Ollama', alsoKnownAs: ['local'], provider: 'ollama', fields: 'running' },
   // Any number of them, each by name, in either API format (picked in its fields).
@@ -60,6 +59,8 @@ export const addable: readonly AddableItem[] = [
     provider: 'server',
     fields: 'server',
   },
+
+  { id: 'openrouter-sign-in', group: 'sign-in', name: 'OpenRouter', provider: 'openrouter', fields: 'sign-in' },
 ];
 
 export interface FoundGroup {

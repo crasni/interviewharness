@@ -1,5 +1,5 @@
 import type { ModelChoice, Server } from '@interviewharness/providers';
-import { defaultOllamaAddress, serverFormats } from '@interviewharness/providers/defaults';
+import { defaultOllamaAddress, keyProviderTable, serverFormats } from '@interviewharness/providers/defaults';
 import { isTheme, type Theme } from './api.ts';
 
 export type { ModelChoice, Server };
@@ -80,7 +80,7 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const isSize = (value: unknown): value is number | null =>
   value === null || (typeof value === 'number' && Number.isFinite(value) && value > 0);
 
-const modelProviders: readonly ModelChoice['provider'][] = ['chatgpt', 'ollama', 'openai', 'anthropic', 'google', 'openrouter', 'server'];
+const modelProviders: readonly ModelChoice['provider'][] = ['chatgpt', 'ollama', ...keyProviderTable.map((row) => row.id), 'server'];
 
 /** An http(s) address with nothing that could carry a credential (user:password@). */
 export function isServerAddress(value: unknown): value is string {

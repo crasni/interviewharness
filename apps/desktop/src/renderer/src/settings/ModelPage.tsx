@@ -204,13 +204,13 @@ export function ModelPage() {
                         Edit
                       </button>
                     )}
-                    {p.provider !== 'chatgpt' && p.provider !== 'server' && (
+                    {p.provider !== 'chatgpt' && p.provider !== 'server' && !p.signedIn && (
                       <button type="button" onClick={() => setSetup({ item: addable.find((item) => item.provider === p.provider) ?? null, replacing: true })}>
                         Replace
                       </button>
                     )}
                     <button type="button" onClick={() => void remove(p)}>
-                      {p.provider === 'chatgpt' ? 'Sign out' : 'Remove'}
+                      {p.provider === 'chatgpt' || p.signedIn ? 'Sign out' : 'Remove'}
                     </button>
                   </>
                 )}
@@ -299,6 +299,6 @@ function connectionState(p: ProviderStatus) {
     case 'server':
       return p.connected ? `${p.server?.address} · ${plural(p.models.length)}` : `Not answering at ${p.server?.address}`;
     default:
-      return 'Key saved';
+      return p.signedIn ? 'Signed in' : 'Key saved';
   }
 }

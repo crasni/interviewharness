@@ -1,5 +1,5 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
-import { type Connection, type KeyProviderName, keyProviders, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import { type Connection, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import type { ConnectResult, ModelConnection, ModelList } from '../shared/api.ts';
 import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
 import { plainServerError, serverConnections } from './server-connections.ts';
@@ -8,11 +8,8 @@ import { plainServerError, serverConnections } from './server-connections.ts';
 export const providerNames: Record<ProviderName, string> = {
   chatgpt: 'ChatGPT',
   ollama: 'Ollama',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  openrouter: 'OpenRouter',
   server: 'Server',
+  ...(Object.fromEntries(keyProviderTable.map((row) => [row.id, row.name])) as Record<(typeof keyProviderTable)[number]['id'], string>),
 };
 
 /** The providers reached at an address the candidate can change, and the setting that keeps it. (Servers keep theirs in `servers`.) */
