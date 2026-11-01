@@ -25,7 +25,8 @@ async function relaunch() {
 }
 
 test('settings are kept in settings.json in the data folder, and survive a restart', async () => {
-  expect(settingsFile()).toMatchObject({ version: 1, textSize: 'medium' });
+  // Written just after launch, not before the window shows.
+  await expect.poll(settingsFile).toMatchObject({ version: 1, textSize: 'medium' });
 
   await window.getByRole('button', { name: 'Settings' }).click();
   await window.getByRole('dialog', { name: 'Settings' }).getByText('Large', { exact: true }).click();
@@ -33,12 +34,14 @@ test('settings are kept in settings.json in the data folder, and survive a resta
   await relaunch();
 
   await expect(body()).toHaveCSS('font-size', '16.1px');
-  expect(settingsFile()).toMatchObject({ textSize: 'large' });
+  await expect.poll(settingsFile).toMatchObject({ textSize: 'large' });
 });
 
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
   // As v0.0 left things: settings only in browser storage, no settings.json.
   await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
+  // Chromium writes browser storage to disk lazily; on a slow machine it may not be there yet when the app closes.
+  await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
   await closeApp(app);
   rmSync(join(dataDir, 'settings.json'));
   ({ app, window } = await launchApp({ dataDir }));

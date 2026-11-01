@@ -17,8 +17,12 @@ test('there is no File / Edit / View menu bar', async () => {
     menus: Menu.getApplicationMenu()?.items.map((item) => item.role ?? item.label) ?? [],
   }));
   if (process.platform === 'darwin') {
-    // A Mac always shows its menu bar at the top of the screen; there it holds only the app's own, Edit and Window.
-    expect(menus.map((m) => m.toLowerCase())).toEqual(['appmenu', 'editmenu', 'windowmenu']);
+    // A Mac always shows its menu bar at the top of the screen. The app keeps Edit there (copy and paste
+    // need it), but no File or View. (An unpackaged build also gets Electron's own Develop menu.)
+    const names = menus.map((m) => m.toLowerCase());
+    expect(names).toEqual(expect.arrayContaining(['appmenu', 'editmenu', 'windowmenu']));
+    expect(names).not.toEqual(expect.arrayContaining(['filemenu']));
+    expect(names).not.toEqual(expect.arrayContaining(['viewmenu']));
   } else {
     expect(menuBarVisible).toBe(false);
   }
