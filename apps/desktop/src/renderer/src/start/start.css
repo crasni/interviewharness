@@ -1,13 +1,14 @@
-/* Exactly the window's height: the title on top, and below it what to do next, centred in the space left.
-   Nothing here scrolls the page; the model step scrolls its own rows when the window is short. */
+/* Exactly the window's height, with the title and what to do next centred together in it. When they
+   don't fit, the title stays and only what's under it scrolls (the model step scrolls just its rows). */
 .start {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  justify-items: center;
-  gap: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: center;
+  gap: var(--space-12);
   height: 100%;
-  padding: var(--space-16) var(--space-6) var(--space-6);
+  padding: var(--space-12) var(--space-6);
   text-align: center;
 }
 
@@ -29,6 +30,7 @@
 }
 
 .start-head {
+  flex: none;
   display: grid;
   gap: var(--space-3);
 }
