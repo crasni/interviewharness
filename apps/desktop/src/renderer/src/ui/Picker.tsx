@@ -138,17 +138,24 @@ export function Picker({
     };
     place();
     (searchable ? search.current : list.querySelector<HTMLElement>('[role="listbox"]'))?.focus();
-    // The list stays with its button; anything that moves the button away closes it instead.
+    // The list stays with its button; a press elsewhere, or a scroll that moves the button away, closes it.
     const away = (event: Event) => {
       const target = event.target as Node;
       if (!list.contains(target) && !button.current?.contains(target)) close({ refocus: false });
     };
+    // Content growing around the page (models arriving, say) can fire a scroll without moving the button.
+    const openedAt = button.current!.getBoundingClientRect();
+    const scrolled = (event: Event) => {
+      const now = button.current?.getBoundingClientRect();
+      if (now && now.top === openedAt.top && now.left === openedAt.left) return;
+      away(event);
+    };
     window.addEventListener('resize', place);
-    document.addEventListener('scroll', away, true);
+    document.addEventListener('scroll', scrolled, true);
     document.addEventListener('pointerdown', away, true);
     return () => {
       window.removeEventListener('resize', place);
-      document.removeEventListener('scroll', away, true);
+      document.removeEventListener('scroll', scrolled, true);
       document.removeEventListener('pointerdown', away, true);
     };
   }, [open, searchable]);

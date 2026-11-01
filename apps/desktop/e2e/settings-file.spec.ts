@@ -21,7 +21,12 @@ function storedOnDisk(text: string) {
   const dir = join(dataDir, 'Local Storage', 'leveldb');
   if (!existsSync(dir)) return false;
   return readdirSync(dir).some((name) => {
-    const data = readFileSync(join(dir, name));
+    let data: Buffer;
+    try {
+      data = readFileSync(join(dir, name));
+    } catch {
+      return false; // on Windows, Chromium keeps some of these files locked (EBUSY) while the app runs
+    }
     return data.includes(Buffer.from(text, 'latin1')) || data.includes(Buffer.from(text, 'utf16le'));
   });
 }
