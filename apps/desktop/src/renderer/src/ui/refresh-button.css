@@ -1,0 +1,10 @@
+/* Refresh: the arrows make full turns while it works, and come to rest at the end of one. */
+.refresh-button[data-turning='true'] svg {
+  animation: refresh-turn 0.8s var(--ease) infinite;
+}
+
+@keyframes refresh-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}

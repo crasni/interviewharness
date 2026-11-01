@@ -50,7 +50,7 @@ test("says when Ollama isn't running and how to start it, and finds it at anothe
   await expect(step().getByRole('alert')).toContainText('ollama serve');
 
   await step().getByLabel('Ollama address').fill(ollama.origin);
-  await step().getByRole('button', { name: 'Look again' }).click();
+  await step().getByRole('button', { name: 'Refresh' }).click();
 
   await expect(step().getByText('Running on this computer · 2 models')).toBeVisible();
   await expect(step().getByRole('button', { name: 'Use this model' })).toBeEnabled();

@@ -4,6 +4,7 @@ import { choiceFromKey, feedbackModel, type ModelChoice, modelKey } from '../../
 import { type KeyProvider, ModelSetup } from '../models/ModelSetup.tsx';
 import { useConnect } from '../models/useConnect.ts';
 import { Picker, type PickerGroup } from '../ui/Picker.tsx';
+import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
 import { useSettings } from './settings.tsx';
 
 /**
@@ -13,7 +14,9 @@ import { useSettings } from './settings.tsx';
 export function ModelPage() {
   const { settings, change } = useSettings();
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
-  const refresh = useCallback(() => void window.harness.models.providers().then(setProviders), []);
+  const load = useCallback(() => window.harness.models.providers().then(setProviders), []);
+  const refresh = useCallback(() => void load(), [load]);
+  const looking = useRefresh(load);
   const picking = useConnect();
   /** The setup open below the connections: to add one, or to replace a key. */
   const [setup, setSetup] = useState<{ provider?: KeyProvider } | null>(null);
@@ -127,13 +130,13 @@ export function ModelPage() {
           {listed.map((p) => (
             <li key={p.provider} className="connection">
               <span className="connection-name">{p.provider === 'chatgpt' ? 'ChatGPT' : p.provider === 'server' ? 'Server' : p.name}</span>
-              <span className="connection-state">{connectionState(p, settings.serverAddress)}</span>
+              {/* Keyed by what it says, so a new state fades in after a refresh. */}
+              <span className="connection-state" key={looking.refreshing && answers(p) ? 'looking' : connectionState(p, settings.serverAddress)}>
+                {looking.refreshing && answers(p) ? 'Looking…' : connectionState(p, settings.serverAddress)}
+              </span>
               <span className="connection-actions">
-                {p.provider === 'ollama' ? (
-                  <button type="button" onClick={refresh}>
-                    Look again
-                  </button>
-                ) : (
+                {answers(p) && <RefreshButton refreshing={looking.refreshing} onClick={() => void looking.run()} />}
+                {p.provider !== 'ollama' && (
                   <>
                     {p.provider !== 'chatgpt' && p.provider !== 'server' && (
                       <button type="button" onClick={() => setSetup({ provider: p.provider as KeyProvider })}>
@@ -173,6 +176,9 @@ export function ModelPage() {
     </>
   );
 }
+
+/** Ollama and a server are connected when they answer, which can change on its own; those rows can be refreshed. */
+const answers = (p: ProviderStatus) => p.provider === 'ollama' || p.provider === 'server';
 
 /** A connection's state in a few words. */
 function connectionState(p: ProviderStatus, serverAddress: string) {

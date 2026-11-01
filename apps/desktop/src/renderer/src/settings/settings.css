@@ -252,6 +252,7 @@
 
 .connection-state {
   overflow: hidden;
+  animation: connection-state-in var(--fade) var(--ease);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--muted);
@@ -294,4 +295,10 @@
 /* A model picker in a settings row: wide enough for a name and its provider. */
 .settings-row .picker-button {
   width: 280px;
+}
+
+@keyframes connection-state-in {
+  from {
+    opacity: 0;
+  }
 }

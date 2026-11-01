@@ -1,8 +1,10 @@
 import { type ReactNode, useCallback, useEffect, useId, useState } from 'react';
 import type { ModelList } from '../../../shared/api.ts';
+import { defaultChatGPTModel } from '@interviewharness/providers/defaults';
 import type { ModelChoice } from '../../../shared/settings.ts';
 import { useSettings } from '../settings/settings.tsx';
 import { Picker } from '../ui/Picker.tsx';
+import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
 import { useChatGPTLogin } from './useChatGPTLogin.ts';
 import { useConnect } from './useConnect.ts';
 import './models.css';
@@ -43,22 +45,35 @@ export function ModelSetup({
   onUnencrypted?: () => void;
 }) {
   const { settings } = useSettings();
-  const ids = { way: useId(), ollamaModel: useId(), ollamaAddress: useId(), provider: useId(), key: useId(), address: useId(), model: useId() };
+  const ids = { way: useId(), chatgptModel: useId(), ollamaModel: useId(), ollamaAddress: useId(), provider: useId(), key: useId(), address: useId(), model: useId() };
   const [way, setWay] = useState<Way | null>(start ?? null);
   const login = useChatGPTLogin({ onUnencrypted });
   const check = useConnect({ onUnencrypted });
 
+  // A ChatGPT login already saved: then the row offers its models instead of signing in again.
+  const [chatgpt, setChatgpt] = useState<{ signedIn: boolean; models: { value: string; label: string }[] }>({ signedIn: false, models: [] });
+  const [chatgptModel, setChatgptModel] = useState('');
+  useEffect(() => {
+    void window.harness.models.providers().then((all) => {
+      const found = all.find((p) => p.provider === 'chatgpt');
+      if (!found?.connected) return;
+      setChatgpt({ signedIn: true, models: found.models.map((m) => ({ value: m.id, label: m.name })) });
+      setChatgptModel(found.models.some((m) => m.id === defaultChatGPTModel) ? defaultChatGPTModel : (found.models[0]?.id ?? ''));
+    });
+  }, []);
+
   // Ollama, looked for at once, so its row can say something true and be picked first when it's there.
+  // A second look keeps the last answer on show until the new one comes.
   const [ollamaAddress, setOllamaAddress] = useState(settings.ollamaAddress);
   const [ollama, setOllama] = useState<ModelList | null>(null);
   const [ollamaModel, setOllamaModel] = useState('');
   const lookForOllama = useCallback(async (address: string) => {
-    setOllama(null);
     const found = await window.harness.models.list('ollama', { address });
     setOllama(found);
     if (found.ok) setOllamaModel((picked) => (found.models.some((m) => m.id === picked) ? picked : (found.models[0]?.id ?? '')));
     return found;
   }, []);
+  const ollamaRefresh = useRefresh(useCallback(() => lookForOllama(ollamaAddress), [lookForOllama, ollamaAddress]));
   useEffect(() => {
     void lookForOllama(settings.ollamaAddress).then((found) => setWay((open) => open ?? (found.ok && found.models.length ? 'ollama' : 'chatgpt')));
   }, [lookForOllama, settings.ollamaAddress]);
@@ -94,7 +109,13 @@ export function ModelSetup({
   const busy = check.step.name === 'checking' || login.step.name === 'waiting';
   const action =
     way === 'chatgpt'
-      ? { label: 'Continue with ChatGPT', ready: true, run: async () => (await login.start()) && onDone?.() }
+      ? chatgpt.signedIn
+        ? {
+            label: 'Use this model',
+            ready: !!chatgptModel,
+            run: async () => (await check.connect({ slot: 'interviewer', provider: 'chatgpt', model: chatgptModel })) && onDone?.(),
+          }
+        : { label: 'Continue with ChatGPT', ready: true, run: async () => (await login.start()) && onDone?.() }
       : way === 'ollama'
         ? {
             label: 'Use this model',
@@ -111,7 +132,7 @@ export function ModelSetup({
               },
             }
           : null;
-  const checkingModel = way === 'ollama' ? ollamaModel : keyModel;
+  const checkingModel = way === 'chatgpt' ? chatgptModel : way === 'ollama' ? ollamaModel : keyModel;
 
   return (
     <form
@@ -122,7 +143,21 @@ export function ModelSetup({
       }}
     >
       <div className="model-setup-ways" role="radiogroup" aria-label="How the interviewer gets a model">
-        <Row way="chatgpt" open={way} onOpen={open} name={ids.way} title="ChatGPT" description="Uses your ChatGPT plan. Signs in through your browser." />
+        <Row
+          way="chatgpt"
+          open={way}
+          onOpen={open}
+          name={ids.way}
+          title="ChatGPT"
+          description={chatgpt.signedIn ? 'Signed in · uses your ChatGPT plan.' : 'Uses your ChatGPT plan. Signs in through your browser.'}
+        >
+          {chatgpt.signedIn && (
+            <div className="model-setup-field">
+              <label htmlFor={ids.chatgptModel}>Model</label>
+              <Picker id={ids.chatgptModel} value={chatgptModel} options={chatgpt.models} onChange={setChatgptModel} />
+            </div>
+          )}
+        </Row>
 
         <Row
           way="ollama"
@@ -131,7 +166,7 @@ export function ModelSetup({
           name={ids.way}
           title="Ollama"
           description={
-            !ollama
+            !ollama || ollamaRefresh.refreshing
               ? 'Looking for Ollama on this computer…'
               : ollama.ok
                 ? `Running on this computer · ${plural(ollama.models.length)}`
@@ -147,13 +182,14 @@ export function ModelSetup({
                 <label htmlFor={ids.ollamaAddress}>Ollama address</label>
                 <input id={ids.ollamaAddress} type="url" value={ollamaAddress} onChange={(event) => setOllamaAddress(event.target.value)} spellCheck={false} />
               </div>
-              <button type="button" className="model-setup-aside" onClick={() => void lookForOllama(ollamaAddress)}>
-                Look again
-              </button>
+              <RefreshButton className="model-setup-aside" refreshing={ollamaRefresh.refreshing} onClick={() => void ollamaRefresh.run()} />
             </>
           )}
           {ollama?.ok && !ollama.models.length && (
-            <p className="model-setup-note">Ollama has no models yet. Download one with "ollama pull", then look again.</p>
+            <>
+              <p className="model-setup-note">Ollama has no models yet. Download one with "ollama pull", then refresh.</p>
+              <RefreshButton className="model-setup-aside" refreshing={ollamaRefresh.refreshing} onClick={() => void ollamaRefresh.run()} />
+            </>
           )}
           {ollama?.ok && ollama.models.length > 0 && (
             <div className="model-setup-field">

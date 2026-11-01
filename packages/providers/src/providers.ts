@@ -38,8 +38,7 @@ export interface ModelChoice {
   model: string;
 }
 
-/** The ChatGPT model the interviewer uses until the candidate picks another in Settings → Model. */
-export const defaultChatGPTModel = 'gpt-5-mini';
+export { defaultChatGPTModel } from './defaults.ts';
 
 /**
  * The small-model rule: a model counts as small, and the Feedback it writes is marked rough, when it runs
