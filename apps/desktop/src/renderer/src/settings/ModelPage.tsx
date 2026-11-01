@@ -119,7 +119,7 @@ export function ModelPage() {
           <div className="add-model-head">
             <p className="settings-hint">
               {catalog.length
-                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${adding === 'interviewer' ? 'interviewer' : 'Feedback'} model.`
+                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${adding === 'interviewer' ? 'Interviewer' : 'Feedback'} model.`
                 : 'Every model your connections offer is already yours. Add a connection below for more.'}
             </p>
             <button type="button" onClick={() => setAdding(null)}>
