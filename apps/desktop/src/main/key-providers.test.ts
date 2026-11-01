@@ -31,13 +31,14 @@ afterEach(async () => {
 });
 
 describe('a key provider from the table', () => {
-  it('keeps a key that works, and the model it answered with', async () => {
+  it('keeps a key that works, and adds the model it answered with to your models', async () => {
     cloud.reply({ text: 'OK' });
 
     const result = await chooser.connect({ slot: 'interviewer', provider: 'deepseek', model: 'deepseek-flash', key: 'sk-deepseek-good' });
 
     expect(result).toEqual({ ok: true, unencryptedNote: false });
     expect(settings.values().interviewerModel).toEqual({ provider: 'deepseek', model: 'deepseek-flash' });
+    expect(settings.values().yourModels).toEqual([{ provider: 'deepseek', model: 'deepseek-flash' }]);
     expect(credentials.entries.get('deepseek')).toEqual({ type: 'api_key', key: 'sk-deepseek-good' });
   });
 
@@ -49,6 +50,7 @@ describe('a key provider from the table', () => {
     expect(result).toEqual({ ok: false, error: 'Mistral refused the key. Check it and try again.' });
     expect(settings.values().interviewerModel).toBeNull();
     expect(credentials.entries.size).toBe(0);
+    expect(settings.values().yourModels).toEqual([]);
   });
 
   it('lists its models before a key is saved', async () => {
