@@ -63,10 +63,15 @@ export interface HarnessApi {
     providers(): Promise<ProviderStatus[]>;
     /** A provider's models, reached through an address or key not saved yet if given. */
     list(provider: ModelChoice['provider'], connection?: Connection): Promise<ModelList>;
-    /** Checks that a model answers, then saves it for its slot with its address and key (announced through settings.onChange). */
+    /**
+     * Checks that a model answers, then adds it to your models and picks it for its slot, saving the address
+     * and key it was reached with (announced through settings.onChange). Used to add a connection and to add a model.
+     */
     connect(connection: ModelConnection): Promise<ConnectResult>;
-    /** Forgets a provider's login or key (a server's address too), and unpicks its models (announced through settings.onChange). */
+    /** Forgets a provider's login or key (a server's address too), and removes its models from your models (announced through settings.onChange). */
     logout(provider: ModelChoice['provider']): Promise<void>;
+    /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
+    removeModel(model: ModelChoice): Promise<void>;
     /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
     openKeyPage(provider: ModelChoice['provider']): void;
   };
@@ -134,6 +139,7 @@ export const channels = {
   listModels: 'models:list',
   connect: 'models:connect',
   logout: 'models:logout',
+  removeModel: 'models:remove-model',
   openKeyPage: 'models:open-key-page',
 } as const;
 

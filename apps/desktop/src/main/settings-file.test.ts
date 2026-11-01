@@ -18,7 +18,7 @@ describe('settings.json', () => {
 
     expect(file.fresh).toBe(true);
     expect(file.values()).toEqual(defaultSettings);
-    expect(onDisk(dir)).toEqual({ version: 1, ...defaultSettings });
+    expect(onDisk(dir)).toEqual({ version: 2, ...defaultSettings });
   });
 
   it('keeps valid changes for the next launch, and drops unknown or invalid ones', async () => {
@@ -49,7 +49,7 @@ describe('settings.json', () => {
     await file.flush();
 
     expect(file.values()).toEqual(defaultSettings);
-    expect(onDisk(dir)).toEqual({ version: 1, ...defaultSettings });
+    expect(onDisk(dir)).toEqual({ version: 2, ...defaultSettings });
     const backups = readdirSync(dir).filter((name) => name.startsWith('settings.json.corrupt'));
     expect(backups).toHaveLength(1);
     expect(readFileSync(join(dir, backups[0]!), 'utf8')).toBe('{"textSize": "lar');
@@ -75,19 +75,42 @@ describe('settings.json', () => {
   });
   it('keeps a file written by a newer version of the app, so going back to an older version loses nothing', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ version: 2, textSize: 'small', voice: 'calm' }));
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ version: 3, textSize: 'small', voice: 'calm' }));
 
     const file = openSettingsFile(dir);
     file.change({ theme: 'dark' });
     await file.flush();
 
     expect(file.values()).toMatchObject({ textSize: 'small', theme: 'dark' });
-    expect(onDisk(dir)).toEqual({ ...defaultSettings, version: 2, textSize: 'small', theme: 'dark', voice: 'calm' });
+    expect(onDisk(dir)).toEqual({ ...defaultSettings, version: 3, textSize: 'small', theme: 'dark', voice: 'calm' });
   });
 
 });
 
 describe('settings migrations', () => {
+  it("v0.1's picked models become your models", () => {
+    const dir = tempDir();
+    const interviewer = { provider: 'chatgpt', model: 'gpt-5-mini' };
+    const feedback = { provider: 'ollama', model: 'qwen3:0.6b' };
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ version: 1, interviewerModel: interviewer, feedbackModel: feedback }));
+
+    expect(openSettingsFile(dir).values()).toMatchObject({ interviewerModel: interviewer, feedbackModel: feedback, yourModels: [interviewer, feedback] });
+  });
+
+  it('a v0.1 file with nothing picked, or a model it no longer understands, starts with no models', () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ version: 1, interviewerModel: { provider: 'claude-login', model: 'x' }, feedbackModel: null }));
+
+    expect(openSettingsFile(dir).values().yourModels).toEqual([]);
+  });
+
+  it('the same model in both slots is one of your models once', () => {
+    const picked = { provider: 'chatgpt', model: 'gpt-5-mini' };
+
+    expect(migrateSettings({ version: 1, interviewerModel: picked, feedbackModel: { ...picked } })).toMatchObject({ yourModels: [picked] });
+  });
+
+
   // A made-up history: version 1 called the text size `fontSize`, and version 2 renamed it.
   const migrations = { 1: ({ fontSize, ...rest }: Record<string, unknown>) => ({ ...rest, textSize: fontSize }) };
 

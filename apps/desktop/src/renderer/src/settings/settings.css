@@ -292,3 +292,23 @@
     opacity: 0;
   }
 }
+
+/* "Add a model…": a search of every connection's models in a sunk well under the pickers, with its way out. */
+.add-model {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--sunk);
+  border-radius: var(--radius-md);
+}
+
+.add-model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.add-model .settings-hint {
+  margin-top: 0;
+}
