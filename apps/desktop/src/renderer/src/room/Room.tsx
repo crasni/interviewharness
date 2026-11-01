@@ -14,6 +14,7 @@ import { ProblemPanel } from './ProblemPanel.tsx';
 import './room.css';
 import { SayField } from './SayField.tsx';
 import { useTalking } from './useTalking.ts';
+import { useThinkingSeconds } from './useThinkingSeconds.ts';
 import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
 
@@ -107,7 +108,10 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
     return () => clearInterval(id);
   }, []);
 
-  const tileLabel = backchannelLine ?? tileLabels[presence];
+  const thinkingSeconds = useThinkingSeconds(presence === 'preparing');
+  // A slow model gets a running count, so a long wait reads as thinking, not as a frozen app.
+  const tileLabel =
+    backchannelLine ?? (presence === 'preparing' && thinkingSeconds > 0 ? `Thinking · ${thinkingSeconds}s` : tileLabels[presence]);
   const measure = (selector: string, side: 'offsetWidth' | 'offsetHeight') =>
     room.current?.querySelector<HTMLElement>(selector)?.[side] ?? 0;
 

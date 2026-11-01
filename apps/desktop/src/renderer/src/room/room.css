@@ -248,6 +248,7 @@
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .room-confirm {

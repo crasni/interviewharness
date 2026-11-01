@@ -44,10 +44,18 @@ test("the model writes the interviewer's words: the intro, and the answer to a q
   expect(calls[0].modelCall.model).toEqual({ provider: 'scripted', model: 'scripted-fake' });
 });
 
+test('a slow reply shows a running count of seconds, gone once the words arrive', async () => {
+  await startWith([{ text: 'Hi, I am your interviewer today.', delayMs: 4_000 }]);
+  await expect(tileState()).toHaveText('Thinking · 2s', { timeout: 4_000 });
+
+  await expect(window.getByText('Hi, I am your interviewer today.').first()).toBeVisible({ timeout: 5_000 });
+  await expect(tileState()).not.toHaveText(/Thinking/);
+});
+
 test('the interviewer thinks quietly while its words are written, and talking over it drops them', async () => {
   await startWith([{ text: 'Hi, I am your interviewer today.', delayMs: 3_000 }]);
   await expect(interviewer()).toHaveAttribute('data-state', 'preparing');
-  await expect(tileState()).toHaveText('Thinking');
+  await expect(tileState()).toHaveText(/^Thinking/);
 
   await talkButton(window).click();
 

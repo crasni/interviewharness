@@ -250,6 +250,19 @@ describe('the interviewer', () => {
       ]);
     });
 
+    it('waits for a slow model: a reply after 30 seconds is still said', async () => {
+      const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait']);
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(600 + 30_000);
+      model.waiting[0]!.answer(answer('Yes, it can be empty.').object);
+      await settle();
+      wait(1_000);
+
+      expect(spoken()).toEqual(['Yes, it can be empty.']);
+      expect(events).not.toContainEqual(expect.objectContaining({ kind: 'model-failed' }));
+      expect(modelCalls().map((c) => c.outcome)).toEqual(['spoken']);
+    });
+
     it('treats an empty reply as a failure', async () => {
       const { interviewer, wait, events, spoken } = await afterIntro([answer('   ')]);
 
