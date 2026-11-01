@@ -28,9 +28,11 @@ test('finds Ollama on this computer, and a model that answers is picked', async 
   ({ app, window, dataDir } = await launchApp({ modelPicked: false, ollamaAddress: ollama.origin }));
   ollama.reply({ text: 'OK' });
 
-  await expect(step().getByText('Running · 2 models')).toBeVisible();
-  await step().getByLabel('Ollama model').selectOption('gemma3:270m');
-  await step().getByRole('button', { name: 'Use Ollama' }).click();
+  // Ollama is running with models, so it's the way picked to start with.
+  await expect(step().getByText('Running on this computer · 2 models')).toBeVisible();
+  await expect(step().getByRole('radio', { name: /Ollama/ })).toBeChecked();
+  await step().getByRole('combobox', { name: 'Model', exact: true }).selectOption('gemma3:270m');
+  await step().getByRole('button', { name: 'Use this model' }).click();
 
   await expect(step()).toHaveCount(0);
   await expect(window.getByRole('button', { name: 'Start coding round' })).toBeEnabled();
@@ -43,14 +45,15 @@ test('finds Ollama on this computer, and a model that answers is picked', async 
 test("says when Ollama isn't running and how to start it, and finds it at another address", async () => {
   ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
+  await step().getByRole('radio', { name: /Ollama/ }).check();
   await expect(step().getByRole('alert')).toContainText("Ollama isn't running");
   await expect(step().getByRole('alert')).toContainText('ollama serve');
 
   await step().getByLabel('Ollama address').fill(ollama.origin);
   await step().getByRole('button', { name: 'Look again' }).click();
 
-  await expect(step().getByText('Running · 2 models')).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Start coding round' })).toBeDisabled();
+  await expect(step().getByText('Running on this computer · 2 models')).toBeVisible();
+  await expect(step().getByRole('button', { name: 'Use this model' })).toBeEnabled();
 });
 
 test('picks a model on another OpenAI-compatible server, checked before it is saved', async () => {
@@ -58,7 +61,7 @@ test('picks a model on another OpenAI-compatible server, checked before it is sa
   try {
     ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
-    await step().getByRole('button', { name: 'Add' }).click();
+    await step().getByRole('radio', { name: /API key/ }).check();
     await step().getByLabel('Provider').selectOption('server');
     await step().getByLabel('Server address').fill(`${server.origin}/v1`);
     await step().getByRole('button', { name: 'Find models' }).click();
@@ -66,7 +69,7 @@ test('picks a model on another OpenAI-compatible server, checked before it is sa
 
     server.reply({ status: 401, body: JSON.stringify({ error: { message: 'Unauthorized' } }) });
     await step().getByRole('button', { name: 'Check and save' }).click();
-    await expect(step().getByRole('region', { name: 'API key or other server' }).getByRole('alert')).toContainText('asks for a key');
+    await expect(step().getByRole('alert')).toContainText('asks for a key');
     expect(settingsFile().interviewerModel ?? null).toBeNull();
 
     server.reply({ text: 'OK' });
@@ -82,7 +85,7 @@ test('picks a model on another OpenAI-compatible server, checked before it is sa
 test('an API key is hidden as it is typed, and nothing can be saved without one', async () => {
   ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
-  await step().getByRole('button', { name: 'Add' }).click();
+  await step().getByRole('radio', { name: /API key/ }).check();
   await step().getByLabel('Provider').selectOption('anthropic');
   await expect(step().getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute('type', 'password');
   // With no key, nothing can be checked or saved.

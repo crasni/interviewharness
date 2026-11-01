@@ -1,62 +1,87 @@
-/* Picking a model: Ollama on this computer, and an API key or another server. Shared by the Start screen's
-   first step and Settings → Model. */
+/* Picking the interviewer's model: three ways in, one open at a time, one action under them. Shared by the
+   Start screen's first step and Settings → Model. */
 
-.model-option {
+/* Rows on top, the action pinned under them; when they don't fit, only the rows scroll. */
+.model-setup {
   display: grid;
-  gap: var(--space-2);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  min-height: 0;
   width: 100%;
-  text-align: left; /* the Start screen centres its text; forms read better from the left */
-  padding-top: var(--space-4);
+  text-align: left; /* the Start screen centres its text; choices and fields read better from the left */
+}
+
+.model-setup-ways {
+  min-height: 0;
+  overflow-y: auto;
   border-top: var(--rule);
 }
 
-.model-option-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+.model-setup-way {
+  border-bottom: var(--rule);
 }
 
-.model-option-title {
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
+/* The whole row picks it: a round mark, the name, and one line on what it needs. */
+.model-setup-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-3) var(--space-1);
+  cursor: pointer;
+}
+
+.model-setup-choice input {
+  appearance: none;
+  grid-row: span 2;
+  align-self: start;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  border: 1.5px solid var(--muted);
+  border-radius: var(--radius-round);
+  cursor: pointer;
+  transition: border-color var(--quick) var(--ease);
+}
+
+.model-setup-choice input:checked {
+  border: 5px solid var(--ink);
+}
+
+:root[data-input='keyboard'] .model-setup-choice input:focus-visible {
+  outline: var(--hairline) solid var(--ink);
+  outline-offset: 2px;
+}
+
+.model-setup-title {
   font-weight: var(--weight-medium);
 }
 
-.model-option-form {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.model-option-form > button {
-  justify-self: start;
-}
-
-.model-option-status {
+.model-setup-description {
+  grid-column: 2;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--muted);
 }
 
-/* Errors stay in ink: weight, not colour, marks them (red is kept for recording). */
-.model-option-status[role='alert'] {
-  color: var(--ink);
-  font-weight: var(--weight-medium);
+/* The open row's fields, lined up under its name. */
+.model-setup-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-1) var(--space-4) calc(16px + var(--space-3) + var(--space-1));
 }
 
-/* A field's name on the left, its control on the right. */
-.model-option-field {
-  display: flex;
+.model-setup-field {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
 }
 
-.model-option-field input,
-.model-option-field select {
-  flex: 0 1 260px;
+.model-setup-field input,
+.model-setup-field select {
   min-width: 0;
   min-height: 32px;
   padding: var(--space-1) var(--space-3);
@@ -67,6 +92,38 @@
   border-radius: var(--radius-control);
 }
 
-.model-option-field input::placeholder {
+.model-setup-field input::placeholder {
   color: var(--muted);
+}
+
+.model-setup-aside {
+  justify-self: start;
+}
+
+.model-setup-note {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--muted);
+}
+
+/* The one action, with what it's doing (or why it failed) beside it. */
+.model-setup-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.model-setup-status {
+  margin-right: auto;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--muted);
+}
+
+/* Errors stay in ink: weight, not colour, marks them (red is kept for recording). */
+.model-setup-note[role='alert'],
+.model-setup-status[role='alert'] {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
 }

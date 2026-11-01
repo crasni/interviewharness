@@ -1,24 +1,21 @@
 import { useCallback, useEffect, useId, useState } from 'react';
-import type { ProviderStatus } from '../../../shared/api.ts';
-import type { Slot } from '../../../shared/api.ts';
+import type { ProviderStatus, Slot } from '../../../shared/api.ts';
 import { choiceFromKey, feedbackModel, type ModelChoice, modelKey } from '../../../shared/settings.ts';
-import { KeyForm } from '../models/KeyForm.tsx';
-import { OllamaPicker } from '../models/OllamaPicker.tsx';
-import { useChatGPTLogin } from '../models/useChatGPTLogin.ts';
+import { type KeyProvider, ModelSetup } from '../models/ModelSetup.tsx';
 import { useConnect } from '../models/useConnect.ts';
 import { useSettings } from './settings.tsx';
 
 /**
- * Settings → Model: what the app is connected to (a ChatGPT login, Ollama, keys, a server), then which
- * of their models the interviewer and the Feedback use. A model picked here is checked to answer first.
+ * Settings → Model: which model interviews and which writes the Feedback, then where models come from
+ * (a ChatGPT login, Ollama, keys, a server). A model picked here is checked to answer first.
  */
 export function ModelPage() {
   const { settings, change } = useSettings();
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const refresh = useCallback(() => void window.harness.models.providers().then(setProviders), []);
-  const login = useChatGPTLogin();
   const picking = useConnect();
-  const [adding, setAdding] = useState<'key' | 'ollama' | null>(null);
+  /** The setup open below the connections: to add one, or to replace a key. */
+  const [setup, setSetup] = useState<{ provider?: KeyProvider } | null>(null);
   const interviewerId = useId();
   const feedbackId = useId();
 
@@ -27,11 +24,9 @@ export function ModelPage() {
 
   if (!providers.length) return null;
 
-  const chatgpt = providers.find((p) => p.provider === 'chatgpt')!;
-  const ollama = providers.find((p) => p.provider === 'ollama')!;
   const connected = providers.filter((p) => p.connected);
-  // A saved server stays listed while it's down, so it can still be removed.
-  const keys = providers.filter((p) => p.provider !== 'chatgpt' && p.provider !== 'ollama' && (p.connected || p.error));
+  // Ollama is always listed, running or not; a saved server stays listed while it's down, so it can be removed.
+  const listed = providers.filter((p) => p.provider === 'ollama' || p.connected || (p.provider === 'server' && settings.serverAddress));
 
   const grader = feedbackModel(settings);
   const graderKey = grader && modelKey(grader);
@@ -41,6 +36,11 @@ export function ModelPage() {
     if (slot === 'feedback' && !key) return change({ feedbackModel: null });
     const choice = choiceFromKey(key);
     if (choice) void picking.connect({ slot, ...choice });
+  };
+
+  const remove = async (provider: ProviderStatus['provider']) => {
+    await window.harness.models.logout(provider);
+    refresh();
   };
 
   /** Every connected provider's models, grouped by provider; the one in use stays listed even if its provider isn't. */
@@ -63,77 +63,6 @@ export function ModelPage() {
 
   return (
     <>
-      <h3 className="settings-heading">Connections</h3>
-
-      <div className="settings-row">
-        <span>{chatgpt.connected ? 'Signed in with ChatGPT' : 'ChatGPT'}</span>
-        {chatgpt.connected ? (
-          <button
-            type="button"
-            onClick={async () => {
-              await window.harness.models.logout('chatgpt');
-              refresh();
-            }}
-          >
-            Log out
-          </button>
-        ) : login.step.name === 'waiting' ? (
-          <button type="button" onClick={login.cancel}>
-            Cancel sign-in
-          </button>
-        ) : (
-          <button type="button" className="primary" onClick={async () => (await login.start()) && refresh()}>
-            Continue with ChatGPT
-          </button>
-        )}
-      </div>
-      {login.step.name === 'failed' && (
-        <p className="settings-hint" role="alert">
-          {login.step.error}
-        </p>
-      )}
-
-      <div className="settings-row">
-        <span>{ollama.connected ? `Ollama · ${ollama.models.length} ${ollama.models.length === 1 ? 'model' : 'models'}` : 'Ollama · not running'}</span>
-        {adding !== 'ollama' && (
-          <button type="button" onClick={() => setAdding('ollama')}>
-            {ollama.connected ? 'Change' : 'Set up'}
-          </button>
-        )}
-      </div>
-      {adding === 'ollama' && <OllamaPicker onConnected={() => setAdding(null)} />}
-
-      {keys.map((p) => (
-        <div key={p.provider}>
-          <div className="settings-row">
-            <span>{p.provider === 'server' ? `Server at ${settings.serverAddress}` : `${p.name} · key saved`}</span>
-            <button
-              type="button"
-              onClick={async () => {
-                await window.harness.models.logout(p.provider);
-                refresh();
-              }}
-            >
-              Remove
-            </button>
-          </div>
-          {p.error && <p className="settings-hint">{p.error}</p>}
-        </div>
-      ))}
-
-      {adding === 'key' ? (
-        <KeyForm onConnected={() => setAdding(null)} />
-      ) : (
-        <div className="settings-row">
-          <span>API key or other server</span>
-          <button type="button" onClick={() => setAdding('key')}>
-            Add
-          </button>
-        </div>
-      )}
-
-      <h3 className="settings-heading">Models</h3>
-
       <div className="settings-row">
         <label htmlFor={interviewerId}>Interviewer model</label>
         <select
@@ -191,6 +120,72 @@ export function ModelPage() {
         Feedback from a small model is marked rough. A model counts as small when it runs on this computer with fewer than
         14 billion parameters, or when you mark it here.
       </p>
+
+      <section className="connections" aria-labelledby="connections-title">
+        <h3 id="connections-title" className="settings-heading">
+          Connections
+        </h3>
+        <ul className="connections-list">
+          {listed.map((p) => (
+            <li key={p.provider} className="connection">
+              <span className="connection-name">{p.provider === 'chatgpt' ? 'ChatGPT' : p.provider === 'server' ? 'Server' : p.name}</span>
+              <span className="connection-state">{connectionState(p, settings.serverAddress)}</span>
+              <span className="connection-actions">
+                {p.provider === 'ollama' ? (
+                  <button type="button" onClick={refresh}>
+                    Look again
+                  </button>
+                ) : (
+                  <>
+                    {p.provider !== 'chatgpt' && p.provider !== 'server' && (
+                      <button type="button" onClick={() => setSetup({ provider: p.provider as KeyProvider })}>
+                        Replace
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void remove(p.provider)}>
+                      {p.provider === 'chatgpt' ? 'Sign out' : 'Remove'}
+                    </button>
+                  </>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {setup ? (
+          <div className="connections-setup">
+            <ModelSetup
+              start={setup.provider ? 'key' : undefined}
+              provider={setup.provider}
+              onDone={() => {
+                setSetup(null);
+                refresh();
+              }}
+            />
+            <button type="button" className="connections-cancel" onClick={() => setSetup(null)}>
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="connections-add" onClick={() => setSetup({})}>
+            Add a connection
+          </button>
+        )}
+        <p className="settings-hint">A model you add becomes the interviewer's model.</p>
+      </section>
     </>
   );
+}
+
+/** A connection's state in a few words. */
+function connectionState(p: ProviderStatus, serverAddress: string) {
+  switch (p.provider) {
+    case 'chatgpt':
+      return 'Signed in';
+    case 'ollama':
+      return p.connected ? `Running · ${p.models.length} ${p.models.length === 1 ? 'model' : 'models'}` : 'Not running';
+    case 'server':
+      return p.connected ? serverAddress : `Not answering at ${serverAddress}`;
+    default:
+      return 'Key saved';
+  }
 }

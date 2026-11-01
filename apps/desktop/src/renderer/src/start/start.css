@@ -1,12 +1,25 @@
+/* Exactly the window's height: the title on top, and below it what to do next, centred in the space left.
+   Nothing here scrolls the page; the model step scrolls its own rows when the window is short. */
 .start {
   position: relative;
   display: grid;
-  align-content: center;
+  grid-template-rows: auto minmax(0, 1fr);
   justify-items: center;
-  gap: var(--space-12);
-  min-height: 100%;
-  padding: var(--space-16) var(--space-6);
+  gap: var(--space-8);
+  height: 100%;
+  padding: var(--space-16) var(--space-6) var(--space-6);
   text-align: center;
+}
+
+.start-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .start-settings {
@@ -54,12 +67,20 @@
   font-size: var(--text-md);
 }
 
-/* The step before a first round: picking the interviewer's model. */
+/* The step before a first round: picking the interviewer's model. As tall as its content, at most the
+   space left; then its rows scroll and its action stays in view. */
 .model-step {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-6);
+  width: min(520px, 100%);
+  max-height: 100%;
+  min-height: 0;
+}
+
+.model-step-head {
+  display: grid;
   gap: var(--space-2);
-  justify-items: center;
-  max-width: 480px;
 }
 
 .model-step-title {
@@ -69,34 +90,8 @@
   font-weight: var(--weight-medium);
 }
 
-.model-step-lede,
-.model-step-note,
-.model-step-status {
+.model-step-lede {
   color: var(--muted);
-}
-
-.model-step-note,
-.model-step-status {
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-}
-
-.model-step-actions {
-  display: grid;
-  gap: var(--space-2);
-  justify-items: center;
-  margin-top: var(--space-4);
-}
-
-.model-step-actions button {
-  min-width: 220px;
-  min-height: 40px;
-  font-size: var(--text-md);
-}
-
-/* Errors stay in ink: weight, not colour, marks them (red is kept for recording). */
-.model-step-error {
-  font-weight: var(--weight-medium);
 }
 
 /* A note that needs reading once, with its way to dismiss it. */

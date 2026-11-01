@@ -26,33 +26,35 @@ export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void })
         <h1 className="start-title">InterviewHarness</h1>
         <p className="start-lede">Mock interviews, out loud, with an interviewer that listens.</p>
       </header>
-      {needsModel && <ModelStep onUnencrypted={() => setUnencryptedNote(true)} />}
-      {unencryptedNote && (
-        <div className="start-note" role="note" aria-label="Login not encrypted">
-          <p>
-            Your ChatGPT login is saved on this computer without encryption, because no password keyring (like GNOME
-            Keyring or KWallet) is running. Only your user account can read the file.
-          </p>
-          <button type="button" onClick={() => setUnencryptedNote(false)}>
-            Got it
-          </button>
-        </div>
-      )}
-      <ul className="start-rounds">
-        {roundKinds.map(({ kind, label, startLabel, available }) => (
-          <li key={kind}>
-            <button
-              type="button"
-              className={available && !needsModel ? 'primary' : undefined}
-              disabled={!available || needsModel}
-              onClick={() => onStart(kind)}
-            >
-              {available ? startLabel : label}
-            </button>
-            {!available && <span className="label">Later</span>}
-          </li>
-        ))}
-      </ul>
+      <div className="start-body">
+        {needsModel ? (
+          <ModelStep onUnencrypted={() => setUnencryptedNote(true)} />
+        ) : (
+          <>
+            {unencryptedNote && (
+              <div className="start-note" role="note" aria-label="Login not encrypted">
+                <p>
+                  Your login is saved on this computer without encryption, because no password keyring (like GNOME
+                  Keyring or KWallet) is running. Only your user account can read the file.
+                </p>
+                <button type="button" onClick={() => setUnencryptedNote(false)}>
+                  Got it
+                </button>
+              </div>
+            )}
+            <ul className="start-rounds">
+              {roundKinds.map(({ kind, label, startLabel, available }) => (
+                <li key={kind}>
+                  <button type="button" className={available ? 'primary' : undefined} disabled={!available} onClick={() => onStart(kind)}>
+                    {available ? startLabel : label}
+                  </button>
+                  {!available && <span className="label">Later</span>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </main>
   );
 }

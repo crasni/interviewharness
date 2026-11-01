@@ -18,13 +18,15 @@ test('candidate starts a coding round and sees the room', async () => {
   await closeApp(app);
 });
 
-test('with no model picked yet, Start waits for one and asks for it', async () => {
+test('with no model picked yet, the Start screen asks for one instead of offering rounds', async () => {
   const { app, window } = await launchApp({ modelPicked: false });
 
   const step = window.getByRole('region', { name: 'Pick a model' });
   await expect(step).toBeVisible();
+  // Ollama isn't running here, so ChatGPT is the way picked to start with.
+  await expect(step.getByRole('radio', { name: /ChatGPT/ })).toBeChecked();
   await expect(step.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Start coding round' })).toBeDisabled();
+  await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
 
   await closeApp(app);
 });
@@ -58,7 +60,7 @@ test('Continue with ChatGPT opens the sign-in in the browser, and can be cancell
   await window.getByRole('button', { name: 'Cancel' }).click();
 
   await expect(window.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
-  await expect(window.getByRole('button', { name: 'Start coding round' })).toBeDisabled();
+  await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
   await expect(fetch(url.searchParams.get('redirect_uri')!)).rejects.toThrow(); // the listener is gone
 
   await closeApp(app);
