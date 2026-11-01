@@ -53,8 +53,9 @@ export interface HarnessApi {
   /** Picking the interviewer's model. Logins stay in main; the renderer only learns whether one worked. */
   models: {
     /**
-     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. On success the choice
-     * is saved in settings (and announced through settings.onChange).
+     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. Its default model is then
+     * checked, and joins your models (and the interviewer, if none is picked) once it answers, announced
+     * through settings.onChange. If it doesn't answer, the sign-in is kept and the result says why.
      */
     continueWithChatGPT(): Promise<LoginResult>;
     /** Gives up on a login that is waiting for the browser. */

@@ -156,8 +156,13 @@ export function ModelSetup({
         : {
             label: signInCopy.button,
             ready: true,
-            // ChatGPT's sign-in picks its model; OpenRouter's then offers its models to pick from.
-            run: async () => (await login.start()) && (signInProvider === 'chatgpt' ? onDone?.() : await lookForSignIn()),
+            // ChatGPT's sign-in adds its default model once it answers; OpenRouter's then offers its models to pick
+            // from, as ChatGPT's does when its default model didn't answer (the sign-in is kept, the reason shown).
+            run: async () => {
+              const ok = await login.start();
+              if (ok && signInProvider === 'chatgpt') onDone?.();
+              else await lookForSignIn();
+            },
           }
       : way === 'ollama'
         ? {

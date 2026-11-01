@@ -1,5 +1,5 @@
-import { createProviders } from '@interviewharness/providers';
-import { fakeKeyServer, fakeOllama, memoryCredentials } from '@interviewharness/providers/test';
+import { createProviders, defaultChatGPTModel } from '@interviewharness/providers';
+import { fakeKeyServer, fakeOllama, fakeOpenAI, memoryCredentials } from '@interviewharness/providers/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultSettings, type Settings, validChanges } from '../shared/settings.ts';
 import { modelChooser } from './model-choice.ts';
@@ -176,6 +176,39 @@ describe('your models', () => {
 
     expect(credentials.entries.has('openai')).toBe(false);
     expect(settings.values()).toMatchObject({ yourModels: [qwen], interviewerModel: null, feedbackModel: qwen });
+  });
+});
+
+describe('signed in to ChatGPT', () => {
+  const login = { type: 'oauth', access: 'chatgpt-access-token', refresh: 'refresh-token', expires: Date.now() + 3_600_000, clientId: 'oaiapp_1' } as const;
+  let openai: Awaited<ReturnType<typeof fakeOpenAI>>;
+  let signedIn: ReturnType<typeof modelChooser>;
+  beforeEach(async () => {
+    openai = await fakeOpenAI();
+    await credentials.modify('openai', async () => login);
+    signedIn = modelChooser({ providers: createProviders({ credentials, appVersion: '0.1.0', fetch: openai.fetchVia }), settings });
+  });
+  afterEach(async () => {
+    await openai.close();
+  });
+  const sol = { provider: 'chatgpt', model: defaultChatGPTModel };
+
+  it('its default model joins your models, and the interviewer if none is picked, once it answers', async () => {
+    openai.reply({ text: 'OK' });
+
+    expect(await signedIn.afterSignIn()).toEqual({ ok: true });
+
+    expect(settings.values()).toMatchObject({ yourModels: [sol], interviewerModel: sol });
+  });
+
+  it("keeps the sign-in but adds no model when the default model doesn't answer, and says why", async () => {
+    openai.reply({ status: 403, body: JSON.stringify({ error: { message: 'Your plan does not include this model' } }) });
+
+    const result = await signedIn.afterSignIn();
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/\S/) });
+    expect(settings.values()).toMatchObject({ yourModels: [], interviewerModel: null });
+    expect(credentials.entries.get('openai')).toEqual(login);
   });
 });
 

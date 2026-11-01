@@ -1,5 +1,5 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
-import { type Connection, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import { type Connection, defaultChatGPTModel, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import type { ConnectResult, KeyReplacement, ModelConnection, ModelList } from '../shared/api.ts';
 import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterAdding, settingsAfterLogout, settingsAfterRemoving } from '../shared/settings.ts';
 import { plainServerError, serverConnections } from './server-connections.ts';
@@ -90,7 +90,7 @@ export function modelChooser({
 }) {
   const providers = loggingChecks(unlogged, log);
   const servers = serverConnections({ providers, settings, encrypted });
-  return {
+  const chooser = {
     /** The candidate's own servers: list, add, edit (each checked first). */
     servers,
 
@@ -133,6 +133,15 @@ export function modelChooser({
     },
 
     /**
+     * After signing in to ChatGPT: its default model is checked like any other, and joins your models (and the
+     * interviewer, if none is picked) only once it answers. If it doesn't, the sign-in stays and the reason is given.
+     */
+    async afterSignIn(): Promise<{ ok: true } | { ok: false; error: string }> {
+      const added = await chooser.connect({ provider: 'chatgpt', model: defaultChatGPTModel });
+      return added.ok ? { ok: true } : added;
+    },
+
+    /**
      * Replaces a provider's saved key once `model` answers through the new one. Your models and both picks
      * stay as they are; a refused key leaves the old one.
      */
@@ -165,6 +174,7 @@ export function modelChooser({
       settings.change(settingsAfterLogout(settings.values(), provider));
     },
   };
+  return chooser;
 }
 
 /** Why a model didn't answer, or its models couldn't be listed, in words for the candidate. Never repeats a key. */
