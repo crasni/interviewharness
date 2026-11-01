@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
 import { createLineBook, gradeRound, type GradingEntry, modelErrorKind, type RoundLog, type RoundRecord } from '@interviewharness/engine';
-import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 // The app icon from brand/ (png/app-icon-512.png); `?asset` gives its path in the build.
 import icon from '../../resources/icon.png?asset';
@@ -10,6 +10,7 @@ import { type ActiveRound, runRound } from './active-round.ts';
 import { writeFileAtomically } from './atomic-write.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
+import { keyPageFor } from './key-pages.ts';
 import { setUpModels } from './model-setup.ts';
 import { loadProblems } from './problems.ts';
 import { openSettingsFile } from './settings-file.ts';
@@ -156,6 +157,12 @@ ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(pro
 ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
 
 ipcMain.handle(channels.signInToOpenRouter, () => models.signInToOpenRouter());
+
+// "Get a key": the renderer names a provider; only that provider's key page, from the table, is opened.
+ipcMain.on(channels.openKeyPage, (_event, provider: unknown) => {
+  const page = keyPageFor(provider);
+  if (page) void shell.openExternal(page);
+});
 
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';

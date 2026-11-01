@@ -77,6 +77,8 @@ export interface HarnessApi {
     signInToOpenRouter(): Promise<LoginResult>;
     /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
     removeModel(model: ModelChoice): Promise<void>;
+    /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
+    openKeyPage(provider: ModelChoice['provider']): void;
   };
 }
 
@@ -146,6 +148,7 @@ export const channels = {
   logout: 'models:logout',
   signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',
+  openKeyPage: 'models:open-key-page',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

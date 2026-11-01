@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { addable, searchAddable } from './addable.ts';
 
+const keyNames = [
+  'OpenAI', 'Anthropic', 'Google', 'OpenRouter', 'DeepSeek', 'Mistral', 'xAI', 'Groq', 'Moonshot AI',
+  'Together', 'Fireworks', 'Cerebras', 'Hugging Face', 'Vercel AI Gateway', 'NVIDIA', 'Baseten',
+];
+
 const names = (found: ReturnType<typeof searchAddable>) => found.map((group) => [group.label, group.items.map((item) => item.name)]);
 
 describe('what can be added', () => {
@@ -8,7 +13,7 @@ describe('what can be added', () => {
     expect(names(searchAddable(addable, ''))).toEqual([
       ['Plans you pay for', ['ChatGPT']],
       ['Sign in', ['OpenRouter']],
-      ['API keys', ['OpenAI', 'Anthropic', 'Google', 'OpenRouter']],
+      ['API keys', keyNames],
       ['On this computer or your network', ['Ollama', 'OpenAI-compatible server']],
     ]);
   });
@@ -22,6 +27,8 @@ describe('what can be added', () => {
     ]);
     expect(names(searchAddable(addable, 'LM studio'))).toEqual([['On this computer or your network', ['OpenAI-compatible server']]]);
     expect(names(searchAddable(addable, 'gemini'))).toEqual([['API keys', ['Google']]]);
+    expect(names(searchAddable(addable, 'grok'))).toEqual([['API keys', ['xAI']]]);
+    expect(names(searchAddable(addable, 'hugging'))).toEqual([['API keys', ['Hugging Face']]]);
   });
 
   it('finds nothing for a search that matches nothing', () => {
@@ -31,7 +38,7 @@ describe('what can be added', () => {
   it('can be narrowed to some items, as the Start screen does to keys and servers', () => {
     const keysAndServers = addable.filter((item) => item.fields === 'key' || item.fields === 'server');
     expect(names(searchAddable(keysAndServers, ''))).toEqual([
-      ['API keys', ['OpenAI', 'Anthropic', 'Google', 'OpenRouter']],
+      ['API keys', keyNames],
       ['On this computer or your network', ['OpenAI-compatible server']],
     ]);
   });

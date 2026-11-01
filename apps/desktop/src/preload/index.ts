@@ -35,6 +35,7 @@ const api: HarnessApi = {
     logout: (provider) => ipcRenderer.invoke(channels.logout, provider),
     signInToOpenRouter: () => ipcRenderer.invoke(channels.signInToOpenRouter),
     removeModel: (model) => ipcRenderer.invoke(channels.removeModel, model),
+    openKeyPage: (provider) => ipcRenderer.send(channels.openKeyPage, provider),
   },
 };
 
