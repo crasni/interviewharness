@@ -25,7 +25,7 @@ _Last updated: 2026-11-01_
 
 ## Next steps (in order)
 0. **Play a real round** on the new interviewer (ADR 0018, 0019), then build the **fake-candidate suite** (`.scratch/interviewer-check/grilling.md`, decision 9). It's run by hand against ChatGPT, never in CI. Ollama now works (ticket 08); the suite is run on one local model before that model is called safe.
-1. **v0.1.1: connections.** Spec: `.scratch/v0-1-1/spec.md`, tickets in `.scratch/v0-1-1/issues/`; ADR 0021; research `docs/research/12` and `13`. Your models in the pickers, a searchable Add list, many key providers, named OpenAI- or Anthropic-compatible servers, OpenRouter sign-in. Comes before v0.1.2 (owner, 2026-11-01).
+1. **v0.1.1: connections.** Spec: `.scratch/v0-1-1/spec.md`, tickets in `.scratch/v0-1-1/issues/`; ADR 0021; research `docs/research/12` and `13`. Your models in the pickers, a searchable Add list, many key providers, named OpenAI- or Anthropic-compatible servers, OpenRouter sign-in. Also slow models (`.scratch/slow-model/`): "Thinking" with seconds, a one-minute reply limit, and no stock "okay" when a reply fails. Comes before v0.1.2 (owner, 2026-11-01).
 2. **v0.1.2:** 10 original problems (Claude drafts, the owner reviews) in the new problem folder format.
 3. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open). The owner wants speech transcribed once they stop talking and put in all at once, not shown live (2026-10-30).
 4. **v0.3: the code runner.** Pyodide/QuickJS in a sandboxed worker (`docs/research/09`; its owner questions wait until then).
