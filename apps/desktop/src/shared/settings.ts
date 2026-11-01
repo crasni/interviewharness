@@ -22,6 +22,14 @@ export type Settings = {
   language: CodeLanguage;
   autocomplete: boolean;
   highlighting: boolean;
+  /** Typing an opening bracket or quote adds its closing one. */
+  closeBrackets: boolean;
+  /** The bracket next to the cursor and its partner are marked. */
+  matchBrackets: boolean;
+  /** Ctrl/⌘+F opens find and replace in the editor. */
+  findReplace: boolean;
+  /** Long lines wrap instead of scrolling sideways. */
+  wrapLines: boolean;
   /** Dragged sizes in px; null means the default size. */
   problemWidth: number | null;
   conversationHeight: number | null;
@@ -47,6 +55,10 @@ export const defaultSettings: Settings = {
   language: 'python',
   autocomplete: true,
   highlighting: true,
+  closeBrackets: true,
+  matchBrackets: true,
+  findReplace: true,
+  wrapLines: true,
   problemWidth: null,
   conversationHeight: null,
   interviewerModel: null,
@@ -95,6 +107,10 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   language: oneOf(codeLanguages),
   autocomplete: isBoolean,
   highlighting: isBoolean,
+  closeBrackets: isBoolean,
+  matchBrackets: isBoolean,
+  findReplace: isBoolean,
+  wrapLines: isBoolean,
   problemWidth: isSize,
   conversationHeight: isSize,
   interviewerModel: isModelChoice,

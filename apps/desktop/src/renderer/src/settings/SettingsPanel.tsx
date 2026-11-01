@@ -105,6 +105,10 @@ export function SettingsPanel() {
           checked={settings.highlighting}
           onChange={(highlighting) => change({ highlighting })}
         />
+        <Toggle label="Close brackets and quotes" checked={settings.closeBrackets} onChange={(closeBrackets) => change({ closeBrackets })} />
+        <Toggle label="Highlight matching brackets" checked={settings.matchBrackets} onChange={(matchBrackets) => change({ matchBrackets })} />
+        <Toggle label="Find and replace" checked={settings.findReplace} onChange={(findReplace) => change({ findReplace })} />
+        <Toggle label="Wrap long lines" checked={settings.wrapLines} onChange={(wrapLines) => change({ wrapLines })} />
       </>
     ),
     model: <ModelPage />,

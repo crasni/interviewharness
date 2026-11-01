@@ -1,11 +1,12 @@
-import { autocompletion, completeAnyWord, completionKeymap } from '@codemirror/autocomplete';
+import { autocompletion, closeBrackets, closeBracketsKeymap, completeAnyWord, completionKeymap } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { cpp } from '@codemirror/lang-cpp';
 import { go } from '@codemirror/lang-go';
 import { java } from '@codemirror/lang-java';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
-import { HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
@@ -33,16 +34,42 @@ const languages: Record<CodeLanguage, () => Extension> = {
   go: () => [go(), indentUnit.of('\t')],
 };
 
-const completion = autocompletion();
+/** The editor's switchable help, each a switch in Settings → Editor, with what it adds when on (keys included). */
+const features = {
+  autocomplete: [autocompletion(), keymap.of(completionKeymap)],
+  highlighting: syntaxHighlighting(monoHighlight),
+  closeBrackets: [closeBrackets(), keymap.of(closeBracketsKeymap)],
+  matchBrackets: bracketMatching(),
+  // The search bar sits at the top of the editor; Ctrl/⌘+F opens it, Escape closes it.
+  findReplace: [search({ top: true }), highlightSelectionMatches(), keymap.of(searchKeymap)],
+  wrapLines: EditorView.lineWrapping,
+} satisfies Record<string, Extension>;
 
-export type EditorOptions = { language: CodeLanguage; autocomplete: boolean; highlighting: boolean };
+/** CodeMirror's own words for its find bar, written the way the rest of the app writes them. */
+const phrases = EditorState.phrases.of({
+  Find: 'Find',
+  Replace: 'Replace',
+  next: 'Next',
+  previous: 'Previous',
+  all: 'All',
+  'match case': 'Match case',
+  regexp: 'Regular expression',
+  'by word': 'Whole word',
+  replace: 'Replace',
+  'replace all': 'Replace all',
+  close: 'Close',
+});
+type Feature = keyof typeof features;
+const featureNames = Object.keys(features) as Feature[];
+
+export type EditorOptions = { language: CodeLanguage } & Record<Feature, boolean>;
 
 // The engine expects editor activity about once a second (see Signal 'editor-activity').
 const activityEvery = 1_000;
 
 /**
  * CodeMirror 6 in the mono theme. Reports typing as activity, at most once a second. No code runs yet.
- * Language, autocomplete and highlighting follow Settings live; the code stays as it is.
+ * The language and each feature follow Settings live; the code stays as it is.
  */
 /** What the room can ask of the editor. */
 export interface CodeEditorHandle {
@@ -64,15 +91,15 @@ export function CodeEditor({
   const activity = useRef(onActivity);
   activity.current = onActivity;
   const language = useRef(new Compartment());
-  const autocomplete = useRef(new Compartment());
-  const highlighting = useRef(new Compartment());
+  // One compartment per feature, so each can be turned on and off on its own.
+  const switches = useRef(Object.fromEntries(Object.keys(features).map((name) => [name, new Compartment()])) as Record<Feature, Compartment>);
   const initial = useRef(options);
 
   useImperativeHandle(ref, () => ({ text: () => view.current?.state.doc.toString() ?? '' }), []);
 
   useEffect(() => {
     let lastSent = 0;
-    const { language: lang, autocomplete: complete, highlighting: highlight } = initial.current;
+    const { language: lang } = initial.current;
     const editor = new EditorView({
       parent: host.current!,
       state: EditorState.create({
@@ -83,10 +110,10 @@ export function CodeEditor({
           drawSelection(),
           highlightActiveLine(),
           indentOnInput(),
+          phrases,
           language.current.of(languages[lang]()),
-          autocomplete.current.of(complete ? completion : []),
-          highlighting.current.of(highlight ? syntaxHighlighting(monoHighlight) : []),
-          keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+          ...featureNames.map((name) => switches.current[name].of(initial.current[name] ? features[name] : [])),
+          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.contentAttributes.of({ 'aria-label': 'Code editor' }),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged || Date.now() - lastSent < activityEvery) return;
@@ -100,15 +127,15 @@ export function CodeEditor({
     return () => editor.destroy();
   }, []);
 
+  const on = featureNames.map((name) => options[name]);
   useEffect(() => {
     view.current?.dispatch({
       effects: [
         language.current.reconfigure(languages[options.language]()),
-        autocomplete.current.reconfigure(options.autocomplete ? completion : []),
-        highlighting.current.reconfigure(options.highlighting ? syntaxHighlighting(monoHighlight) : []),
+        ...featureNames.map((name, i) => switches.current[name].reconfigure(on[i] ? features[name] : [])),
       ],
     });
-  }, [options.language, options.autocomplete, options.highlighting]);
+  }, [options.language, ...on]);
 
   return <div className="code-editor" ref={host} />;
 }

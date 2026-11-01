@@ -91,3 +91,112 @@
 .code-editor .cm-completionDetail {
   color: var(--muted);
 }
+
+/* Matching brackets: a hairline box, no colour. */
+.code-editor .cm-matchingBracket,
+.code-editor .cm-focused .cm-matchingBracket {
+  color: inherit;
+  background: transparent;
+  outline: 1px solid var(--muted);
+  border-radius: 2px;
+}
+
+.code-editor .cm-nonmatchingBracket,
+.code-editor .cm-focused .cm-nonmatchingBracket {
+  color: inherit;
+  background: transparent;
+  text-decoration: underline wavy var(--muted);
+}
+
+/* Find matches: a sunk tint; the current one is boxed in ink. Other uses of the selected word, a fainter tint. */
+.code-editor .cm-searchMatch {
+  background: var(--sunk);
+  outline: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.code-editor .cm-searchMatch.cm-searchMatch-selected,
+.code-editor .cm-searchMatch-selected * {
+  background: var(--sunk);
+  outline: 1px solid var(--ink);
+}
+
+.code-editor .cm-selectionMatch {
+  background: var(--wash);
+}
+
+/* Find and replace: a bar at the top of the editor in the app's own controls, not CodeMirror's grey ones.
+   The selectors carry .cm-panels so they outweigh CodeMirror's own theme, which it adds after this file. */
+.code-editor .cm-panels.cm-panels-top {
+  color: var(--ink);
+  background: var(--surface);
+  border-bottom: var(--rule);
+}
+
+.code-editor .cm-panels .cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-8) var(--space-2) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+/* Find and its buttons on one line, Replace and its buttons on the next. */
+.code-editor .cm-panels .cm-search br {
+  flex-basis: 100%;
+}
+
+.code-editor .cm-panels .cm-textfield {
+  width: 200px;
+  min-height: 28px;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-family: var(--font-mono);
+  color: var(--ink);
+  background: var(--sunk);
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.code-editor .cm-panels .cm-button {
+  min-height: 28px;
+  margin: 0;
+  padding: 0 var(--space-3);
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  background-image: none;
+  border: var(--rule);
+  border-radius: var(--radius-control);
+}
+
+.code-editor .cm-panels .cm-button:hover {
+  background: var(--wash);
+}
+
+.code-editor .cm-panels .cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--muted);
+  font-size: inherit;
+}
+
+.code-editor .cm-panels .cm-search input[type='checkbox'] {
+  accent-color: var(--ink);
+}
+
+.code-editor .cm-panels .cm-search button[name='close'] {
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+  padding: 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-lg);
+  background: transparent;
+  border: none;
+}

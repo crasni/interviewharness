@@ -131,7 +131,9 @@ test('the code language changes indentation live, and the code stays', async () 
   await window.keyboard.type('function g() {');
   await window.keyboard.press('Enter');
   await window.keyboard.type('y');
-  await expect(editor().locator('.cm-line').last()).toHaveText('  y');
+  // The closing brace was added with the opening one, and Enter between them opened an indented line.
+  await expect(editor().locator('.cm-line').nth(-2)).toHaveText('  y');
+  await expect(editor().locator('.cm-line').last()).toHaveText('}');
 });
 
 test('syntax highlighting can be turned off', async () => {
@@ -166,4 +168,59 @@ test('autocomplete offers names already in the code, once each, and can be turne
   await window.keyboard.type('see');
   await window.waitForTimeout(500); // the popup would have opened by now
   await expect(popup).toHaveCount(0);
+});
+
+test('brackets and quotes close themselves, and that can be turned off', async () => {
+  await startRound();
+  const code = () => editor().evaluate((element) => element.textContent);
+  await editor().click();
+  await window.keyboard.type('f(');
+  await expect.poll(code).toBe('f()');
+
+  await openSettings();
+  await showCategory('Editor');
+  await settings().getByRole('switch', { name: 'Close brackets and quotes' }).uncheck();
+  await window.keyboard.press('Escape');
+  await editor().click();
+  await window.keyboard.press('ControlOrMeta+a');
+  await window.keyboard.type('g(');
+  await expect.poll(code).toBe('g(');
+});
+
+test('matching brackets are marked, long lines wrap, and both can be turned off', async () => {
+  await startRound();
+  await editor().click();
+  await window.keyboard.type('x = (1)');
+  await window.keyboard.press('ArrowLeft'); // next to the closing bracket
+  await expect(editor().locator('.cm-matchingBracket')).toHaveCount(2);
+  await expect(editor()).toHaveClass(/cm-lineWrapping/);
+
+  await openSettings();
+  await showCategory('Editor');
+  await settings().getByRole('switch', { name: 'Highlight matching brackets' }).uncheck();
+  await settings().getByRole('switch', { name: 'Wrap long lines' }).uncheck();
+  await window.keyboard.press('Escape');
+  await expect(editor().locator('.cm-matchingBracket')).toHaveCount(0);
+  await expect(editor()).not.toHaveClass(/cm-lineWrapping/);
+});
+
+test('Ctrl/⌘+F opens find and replace in the editor, and that can be turned off', async () => {
+  await startRound();
+  const findField = window.getByRole('textbox', { name: 'Find' });
+  await editor().click();
+  await window.keyboard.type('seen = {}');
+  await window.keyboard.press('ControlOrMeta+f');
+  await expect(findField).toBeVisible();
+  await expect(window.getByRole('textbox', { name: 'Replace' })).toBeVisible();
+  await window.keyboard.press('Escape');
+  await expect(findField).toHaveCount(0);
+
+  await openSettings();
+  await showCategory('Editor');
+  await settings().getByRole('switch', { name: 'Find and replace' }).uncheck();
+  await window.keyboard.press('Escape');
+  await editor().click();
+  await window.keyboard.press('ControlOrMeta+f');
+  await window.waitForTimeout(300);
+  await expect(findField).toHaveCount(0);
 });

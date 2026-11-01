@@ -198,7 +198,15 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
         <section className="room-editor" aria-label="Editor">
           <CodeEditor
             ref={editor}
-            options={{ language: settings.language, autocomplete: settings.autocomplete, highlighting: settings.highlighting }}
+            options={{
+              language: settings.language,
+              autocomplete: settings.autocomplete,
+              highlighting: settings.highlighting,
+              closeBrackets: settings.closeBrackets,
+              matchBrackets: settings.matchBrackets,
+              findReplace: settings.findReplace,
+              wrapLines: settings.wrapLines,
+            }}
             onActivity={() => window.harness.signal({ type: 'editor-activity' })}
           />
         </section>
