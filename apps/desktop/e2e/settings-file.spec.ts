@@ -1,4 +1,4 @@
-import { readFileSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import { closeApp, launchApp } from './launch.ts';
@@ -15,6 +15,16 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await closeApp(app);
 });
+
+/** Whether `text` is in Chromium's browser-storage files in the data folder (stored as Latin-1 or UTF-16). */
+function storedOnDisk(text: string) {
+  const dir = join(dataDir, 'Local Storage', 'leveldb');
+  if (!existsSync(dir)) return false;
+  return readdirSync(dir).some((name) => {
+    const data = readFileSync(join(dir, name));
+    return data.includes(Buffer.from(text, 'latin1')) || data.includes(Buffer.from(text, 'utf16le'));
+  });
+}
 
 const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
 const body = () => window.locator('body');
@@ -40,8 +50,10 @@ test('settings are kept in settings.json in the data folder, and survive a resta
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
   // As v0.0 left things: settings only in browser storage, no settings.json.
   await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
-  // Chromium writes browser storage to disk lazily; on a slow machine it may not be there yet when the app closes.
+  // Chromium writes browser storage to disk lazily, and on Windows even a flush can still be under way when the
+  // app closes. Wait until the value is in the storage files on disk.
   await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
+  await expect.poll(() => storedOnDisk('neon')).toBe(true);
   await closeApp(app);
   rmSync(join(dataDir, 'settings.json'));
   ({ app, window } = await launchApp({ dataDir }));

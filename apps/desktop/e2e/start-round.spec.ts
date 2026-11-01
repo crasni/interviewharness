@@ -52,7 +52,10 @@ test('Continue with ChatGPT opens the sign-in in the browser, and can be cancell
   await window.getByRole('button', { name: 'Continue with ChatGPT' }).click();
 
   await expect(window.getByRole('status').filter({ hasText: 'Finish signing in in your browser' })).toBeVisible();
-  const [page] = await app.evaluate(() => (globalThis as { opened?: string[] }).opened ?? []);
+  // The browser is opened just after that line shows; wait for it rather than look too early.
+  const opened = () => app.evaluate(() => (globalThis as { opened?: string[] }).opened ?? []);
+  await expect.poll(async () => (await opened()).length).toBe(1);
+  const [page] = await opened();
   const url = new URL(page!);
   expect(`${url.origin}${url.pathname}`).toBe('https://auth.openai.com/api/accounts/authorize');
   expect(url.searchParams.get('agent_name_hint')).toBe('InterviewHarness');
