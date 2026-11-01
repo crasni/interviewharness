@@ -1,0 +1,8 @@
+# The problem's details. The statement, interviewer notes, reference solution and tests sit beside this file.
+title: Shortest path in a grid with walls
+pattern: Grid BFS
+difficulty: medium
+license: CC-BY-4.0
+credits:
+  - InterviewHarness contributors
+source: original
