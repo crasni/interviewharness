@@ -166,3 +166,24 @@ describe('your models', () => {
     expect(settings.values()).toMatchObject({ yourModels: [qwen], interviewerModel: null, feedbackModel: qwen });
   });
 });
+
+describe('the log', () => {
+  it('records every check with its provider and model, and never a key', async () => {
+    const logged: unknown[] = [];
+    const providers = createProviders({ credentials, appVersion: '0.1.0', servers: () => settings.values().servers, baseUrls: { anthropic: cloud.origin } });
+    const logging = modelChooser({ providers, settings, log: (entry) => logged.push(entry) });
+    const refused = { status: 401, body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key sk-ant-secret' } }) };
+    cloud.reply(refused, { text: 'OK' }, { text: 'OK' });
+
+    await logging.connect({ slot: 'interviewer', provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-secret' });
+    await logging.connect({ slot: 'interviewer', provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-good' });
+    await logging.servers.add({ slot: 'feedback', name: 'Home', address: `${cloud.origin}/v1`, format: 'openai', key: 'home-secret', model: 'local-model' });
+
+    expect(logged).toMatchObject([
+      { check: { provider: 'anthropic', model: 'claude-sonnet-4-6', outcome: 'failed', error: 'auth' } },
+      { check: { provider: 'anthropic', model: 'claude-sonnet-4-6', outcome: 'answered' } },
+      { check: { provider: 'server', model: 'local-model', outcome: 'answered' } },
+    ]);
+    for (const key of ['sk-ant-secret', 'sk-ant-good', 'home-secret']) expect(JSON.stringify(logged)).not.toContain(key);
+  });
+});

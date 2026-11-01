@@ -51,7 +51,8 @@ export function setUpModels({
     ollamaAddress: () => settings.values().ollamaAddress,
     servers: () => settings.values().servers,
   });
-  const chooser = modelChooser({ providers, settings, encrypted: () => credentials.encrypted() });
+  // Checks happen outside any round, so they go to the main process's log; a round's model calls go to its events.jsonl.
+  const chooser = modelChooser({ providers, settings, encrypted: () => credentials.encrypted(), log: (entry) => console.info(JSON.stringify(entry)) });
   // v0.1's one server became a named server (settings v1 → v2); its key follows it, once safeStorage is ready.
   const oldServerKeyMoved = settings.values().servers.some((server) => server.id === migratedServerId)
     ? app.whenReady().then(() => providers.adoptOldServerKey(migratedServerId)).catch((error: unknown) => console.error("Could not move v0.1's server key:", error))

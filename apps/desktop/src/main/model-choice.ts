@@ -40,21 +40,48 @@ function isModelConnection(value: unknown): value is ModelConnection {
   return server === undefined && isConnection(provider, value);
 }
 
+/** One check in the log: which model was asked for its short reply, and how it went. Never a key or a message that could quote one. */
+export interface CheckLogEntry {
+  check: { provider: ProviderName; model: string; server?: string; outcome: 'answered' | 'failed'; error?: ModelErrorKind; ms: number };
+}
+
+/** `providers`, with every check written to `log`. */
+function loggingChecks(providers: Providers, log: (entry: CheckLogEntry) => void): Providers {
+  return {
+    ...providers,
+    async check(choice, connection, timeoutMs) {
+      const startedAt = performance.now();
+      const which = { provider: choice.provider, model: choice.model, ...(choice.server ? { server: choice.server } : {}) };
+      try {
+        await providers.check(choice, connection, timeoutMs);
+      } catch (error) {
+        log({ check: { ...which, outcome: 'failed', error: modelErrorKind(error), ms: Math.round(performance.now() - startedAt) } });
+        throw error;
+      }
+      log({ check: { ...which, outcome: 'answered', ms: Math.round(performance.now() - startedAt) } });
+    },
+  };
+}
+
 /**
  * Adding a model to your models, into a slot. The model is asked for one short reply first, through the address or
  * key the candidate just entered, and only a model that answers is saved, with that address and key.
  * Anything that fails leaves everything as it was, and says why in plain words.
  */
 export function modelChooser({
-  providers,
+  providers: unlogged,
   settings,
   encrypted = () => true,
+  log = () => {},
 }: {
   providers: Providers;
   settings: { values(): Settings; change(changes: Partial<Settings>): unknown };
   /** Whether saved keys are encrypted by the OS (not on Linux with no keyring). */
   encrypted?: () => boolean;
+  /** Where each check is recorded, with its provider and model and never a key. */
+  log?: (entry: CheckLogEntry) => void;
 }) {
+  const providers = loggingChecks(unlogged, log);
   const servers = serverConnections({ providers, settings, encrypted });
   return {
     /** The candidate's own servers: list, add, edit (each checked first). */
