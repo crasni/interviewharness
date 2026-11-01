@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useId, useState } from 'react';
 import type { ModelList } from '../../../shared/api.ts';
-import { defaultChatGPTModel } from '@interviewharness/providers/defaults';
+import { defaultChatGPTModel, defaultModels } from '@interviewharness/providers/defaults';
 import type { ModelChoice } from '../../../shared/settings.ts';
 import { useSettings } from '../settings/settings.tsx';
 import { Picker } from '../ui/Picker.tsx';
@@ -91,7 +91,9 @@ export function ModelSetup({
     if (server) return;
     void window.harness.models.list(provider).then((found) => {
       setKeyModels(found);
-      if (found.ok) setKeyModel(found.models[0]?.id ?? '');
+      if (!found.ok) return;
+      const preferred = defaultModels[provider as keyof typeof defaultModels];
+      setKeyModel(found.models.some((m) => m.id === preferred) ? preferred! : (found.models[0]?.id ?? ''));
     });
   }, [provider, server]);
   async function findServerModels() {

@@ -87,6 +87,9 @@ test('an API key is hidden as it is typed, and nothing can be saved without one'
   ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
   await step().getByRole('radio', { name: /API key/ }).check();
+  await expect(picker(step(), 'Model')).toHaveText('GPT-6.1 Sol'); // OpenAI's list starts on the default
+  await choose(step(), 'Provider', 'OpenRouter');
+  await expect(picker(step(), 'Model')).toHaveText('OpenAI: GPT-6.1 Sol');
   await choose(step(), 'Provider', 'Anthropic');
   await expect(step().getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute('type', 'password');
   // With no key, nothing can be checked or saved.

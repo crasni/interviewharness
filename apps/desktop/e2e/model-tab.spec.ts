@@ -154,6 +154,6 @@ test('signed in to ChatGPT, adding it again offers its models instead of signing
 
   await expect(settings().getByRole('radio', { name: /ChatGPT/ })).toHaveAccessibleName(/Signed in/);
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
-  await expect(picker(settings(), 'Model')).toHaveText('GPT-5 Mini');
+  await expect(picker(settings(), 'Model')).toHaveText('GPT-6.1 Sol');
   await expect(settings().getByRole('button', { name: 'Use this model' })).toBeEnabled();
 });
