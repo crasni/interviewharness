@@ -125,3 +125,64 @@ describe('picking a model, checked before it is saved', () => {
     expect(settings.values().interviewerModel).toBeNull();
   });
 });
+
+describe('your models', () => {
+  const qwen = { provider: 'ollama', model: 'qwen3:0.6b' } as const;
+
+  it('a model joins your models, and its slot, only after it answers', async () => {
+    ollama.reply({ status: 500, error: 'model requires more system memory' }, { text: 'OK' });
+
+    await chooser.connect({ slot: 'feedback', provider: 'ollama', model: 'qwen3:0.6b', address: ollama.origin });
+    expect(settings.values().yourModels).toEqual([]);
+
+    await chooser.connect({ slot: 'feedback', provider: 'ollama', model: 'qwen3:0.6b', address: ollama.origin });
+    expect(settings.values()).toMatchObject({ yourModels: [qwen], feedbackModel: qwen });
+  });
+
+  it('adding a connection adds the model checked with it, after the ones already there', async () => {
+    settings.change({ yourModels: [qwen] });
+    cloud.reply({ text: 'OK' }, { text: 'OK' });
+
+    await chooser.connect({ slot: 'interviewer', provider: 'openrouter', model: 'z-ai/glm-5v-turbo', key: 'sk-or-good' });
+    await chooser.connect({ slot: 'interviewer', provider: 'openrouter', model: 'z-ai/glm-5v-turbo' });
+
+    expect(settings.values().yourModels).toEqual([qwen, { provider: 'openrouter', model: 'z-ai/glm-5v-turbo' }]);
+  });
+
+  it('removing a model takes it off your models and unpicks it wherever it was picked', () => {
+    const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
+    settings.change({ yourModels: [qwen, sol], interviewerModel: qwen, feedbackModel: qwen });
+
+    chooser.removeModel({ provider: 'ollama', model: 'qwen3:0.6b' });
+
+    expect(settings.values()).toMatchObject({ yourModels: [sol], interviewerModel: null, feedbackModel: null });
+  });
+
+  it('removing a model leaves the others picked', () => {
+    const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
+    settings.change({ yourModels: [qwen, sol], interviewerModel: sol, feedbackModel: qwen });
+
+    chooser.removeModel(qwen);
+
+    expect(settings.values()).toMatchObject({ yourModels: [sol], interviewerModel: sol, feedbackModel: null });
+  });
+
+  it('removing ignores a request the renderer made up', () => {
+    settings.change({ yourModels: [qwen], interviewerModel: qwen });
+
+    for (const made of [null, 'ollama/qwen3:0.6b', { ...qwen, extra: 1 }]) chooser.removeModel(made);
+
+    expect(settings.values()).toMatchObject({ yourModels: [qwen], interviewerModel: qwen });
+  });
+
+  it('removing a connection removes its models from your models, and unpicks them', async () => {
+    const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
+    await credentials.modify('openai', async () => ({ type: 'api_key', key: 'not-a-login' }));
+    settings.change({ yourModels: [sol, qwen], interviewerModel: sol, feedbackModel: qwen });
+
+    await chooser.removeConnection('chatgpt');
+
+    expect(credentials.entries.has('openai')).toBe(false);
+    expect(settings.values()).toMatchObject({ yourModels: [qwen], interviewerModel: null, feedbackModel: qwen });
+  });
+});

@@ -12,9 +12,11 @@ describe('model settings', () => {
   });
 
   it('logging out of a provider unpicks its models, and keeps the rest', () => {
-    const settings = { ...defaultSettings, interviewerModel: chatgpt('gpt-5-mini'), feedbackModel: chatgpt('gpt-5.5') };
+    const local = { provider: 'ollama' as const, model: 'qwen3:0.6b' };
+    const settings = { ...defaultSettings, yourModels: [chatgpt('gpt-5-mini'), local, chatgpt('gpt-5.5')], interviewerModel: chatgpt('gpt-5-mini'), feedbackModel: chatgpt('gpt-5.5') };
 
-    expect(settingsAfterLogout(settings, 'chatgpt')).toEqual({ interviewerModel: null, feedbackModel: null });
+    expect(settingsAfterLogout(settings, 'chatgpt')).toEqual({ yourModels: [local], interviewerModel: null, feedbackModel: null });
+    expect(settingsAfterLogout({ ...settings, feedbackModel: local }, 'chatgpt')).toEqual({ yourModels: [local], interviewerModel: null });
   });
 
   it('keeps only well-formed model choices and marks', () => {
@@ -67,13 +69,10 @@ describe('named servers in settings', () => {
   });
 
   it("removing a server unpicks its models, and keeps another server's", () => {
-    const settings = {
-      ...defaultSettings,
-      servers: [home, gateway] as Settings['servers'],
-      interviewerModel: { provider: 'server' as const, server: 'home', model: 'a' },
-      feedbackModel: { provider: 'server' as const, server: 'work', model: 'b' },
-    };
+    const onHome = { provider: 'server' as const, server: 'home', model: 'a' };
+    const onWork = { provider: 'server' as const, server: 'work', model: 'a' };
+    const settings = { ...defaultSettings, servers: [home, gateway] as Settings['servers'], yourModels: [onHome, onWork], interviewerModel: onHome, feedbackModel: onWork };
 
-    expect(settingsAfterRemovingServer(settings, 'home')).toEqual({ servers: [gateway], interviewerModel: null });
+    expect(settingsAfterRemovingServer(settings, 'home')).toEqual({ servers: [gateway], yourModels: [onWork], interviewerModel: null });
   });
 });

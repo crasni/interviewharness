@@ -33,7 +33,9 @@ export type Settings = {
   /** Dragged sizes in px; null means the default size. */
   problemWidth: number | null;
   conversationHeight: number | null;
-  /** The model that writes the interviewer's words. A round can't start without one. Logins live in the credential store. */
+  /** Your models: every model the candidate added, each checked to answer when it was. The pickers list only these. */
+  yourModels: ModelChoice[];
+  /** The model that writes the interviewer's words, one of your models. A round can't start without one. Logins live in the credential store. */
   interviewerModel: ModelChoice | null;
   /** The model that writes the Feedback, if not the interviewer's (a stronger one, say). */
   feedbackModel: ModelChoice | null;
@@ -61,6 +63,7 @@ export const defaultSettings: Settings = {
   wrapLines: true,
   problemWidth: null,
   conversationHeight: null,
+  yourModels: [],
   interviewerModel: null,
   feedbackModel: null,
   smallModels: [],
@@ -92,9 +95,9 @@ export function isServerAddress(value: unknown): value is string {
 /** A server's id: made by the app, so plain; never holds a slash, which `modelKey` relies on. */
 export const isServerId = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,64}$/.test(value);
 
-const isModelChoice = (value: unknown): value is ModelChoice | null => {
-  if (value === null) return true;
-  if (typeof value !== 'object') return false;
+/** A well-formed model choice; nothing else rides along with it (a key, say). */
+export const isModelChoice = (value: unknown): value is ModelChoice => {
+  if (typeof value !== 'object' || value === null) return false;
   const { provider, model, server, ...rest } = value as Record<string, unknown>;
   // A server's model names its server; no other model names one.
   const serverNamed = provider === 'server' ? isServerId(server) : server === undefined;
@@ -113,6 +116,8 @@ const isServer = (value: unknown): value is Server => {
 const isServers = (value: unknown): value is Server[] =>
   Array.isArray(value) && value.length <= 100 && value.every(isServer) && new Set(value.map((server: Server) => server.id)).size === value.length;
 
+const isPickedModel = (value: unknown): value is ModelChoice | null => value === null || isModelChoice(value);
+
 const isModelKeys = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((key) => typeof key === 'string' && key.includes('/'));
 
@@ -130,8 +135,9 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   wrapLines: isBoolean,
   problemWidth: isSize,
   conversationHeight: isSize,
-  interviewerModel: isModelChoice,
-  feedbackModel: isModelChoice,
+  yourModels: (value): value is ModelChoice[] => Array.isArray(value) && value.every(isModelChoice),
+  interviewerModel: isPickedModel,
+  feedbackModel: isPickedModel,
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
@@ -156,6 +162,14 @@ export function validSettings(raw: unknown): Partial<Settings> {
 export const modelKey = (choice: ModelChoice) =>
   choice.provider === 'server' ? `server/${choice.server}/${choice.model}` : `${choice.provider}/${choice.model}`;
 
+const sameModel = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model && a.server === b.server;
+
+/** Your models with `choice` added at the end, unless it's already one of them. */
+export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
+  models.some((m) => sameModel(m, choice))
+    ? models
+    : [...models, { provider: choice.provider, model: choice.model, ...(choice.provider === 'server' ? { server: choice.server } : {}) }];
+
 /** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
 export function choiceFromKey(key: string): ModelChoice | null {
   const slash = key.indexOf('/');
@@ -170,19 +184,23 @@ export function choiceFromKey(key: string): ModelChoice | null {
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
 export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;
 
-/** What logging out of a provider changes: models from it are no longer picked. */
-export function settingsAfterLogout(settings: Settings, provider: ModelChoice['provider']): Partial<Settings> {
-  const changes: Partial<Settings> = {};
-  if (settings.interviewerModel?.provider === provider) changes.interviewerModel = null;
-  if (settings.feedbackModel?.provider === provider) changes.feedbackModel = null;
+/** What removing some of your models changes: they leave your models, and are unpicked wherever they were picked. */
+export function settingsWithout(settings: Settings, removed: (choice: ModelChoice) => boolean): Partial<Settings> {
+  const changes: Partial<Settings> = { yourModels: settings.yourModels.filter((choice) => !removed(choice)) };
+  if (settings.interviewerModel && removed(settings.interviewerModel)) changes.interviewerModel = null;
+  if (settings.feedbackModel && removed(settings.feedbackModel)) changes.feedbackModel = null;
   return changes;
 }
 
-/** What removing one of the candidate's servers changes: it's gone, and its models are no longer picked. */
-export function settingsAfterRemovingServer(settings: Settings, server: string): Partial<Settings> {
-  const onIt = (choice: ModelChoice | null) => choice?.provider === 'server' && choice.server === server;
-  const changes: Partial<Settings> = { servers: settings.servers.filter((each) => each.id !== server) };
-  if (onIt(settings.interviewerModel)) changes.interviewerModel = null;
-  if (onIt(settings.feedbackModel)) changes.feedbackModel = null;
-  return changes;
-}
+/** What logging out of a provider changes: its models leave your models, and are no longer picked. */
+export const settingsAfterLogout = (settings: Settings, provider: ModelChoice['provider']) =>
+  settingsWithout(settings, (choice) => choice.provider === provider);
+
+/** What removing one of your models changes. */
+export const settingsAfterRemoving = (settings: Settings, model: ModelChoice) => settingsWithout(settings, (choice) => sameModel(choice, model));
+
+/** What removing one of the candidate's servers changes: it's gone, and its models leave your models and are no longer picked. */
+export const settingsAfterRemovingServer = (settings: Settings, server: string): Partial<Settings> => ({
+  servers: settings.servers.filter((each) => each.id !== server),
+  ...settingsWithout(settings, (choice) => choice.provider === 'server' && choice.server === server),
+});
