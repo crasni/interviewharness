@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLineBook, readProblem } from '@interviewharness/engine';
 import { formatPlayedRound, playCandidate } from '@interviewharness/engine/scripted-candidate';
-import { type Credential, type CredentialStore, createProviders, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import { type Credential, type CredentialStore, createProviders, type KeyProviderName, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import { validSettings } from '../src/shared/settings.ts';
 import { scriptedCandidates } from './scripted-candidates.ts';
 
@@ -101,7 +101,32 @@ const signIns: Record<ProviderName, (providers: Providers) => Promise<void>> = {
       },
     });
   },
+  // Ollama needs no login. Its address is INTERVIEWHARNESS_OLLAMA_ADDRESS, else Ollama's default.
+  async ollama() {},
+  openai: savedKeyFromEnvironment('openai'),
+  anthropic: savedKeyFromEnvironment('anthropic'),
+  google: savedKeyFromEnvironment('google'),
+  openrouter: savedKeyFromEnvironment('openrouter'),
+  // A server's key is optional; its address is INTERVIEWHARNESS_SERVER_ADDRESS.
+  async server(providers) {
+    if (!serverAddress) throw new Error('Set INTERVIEWHARNESS_SERVER_ADDRESS to the server\'s address, e.g. http://localhost:1234/v1.');
+    if (apiKey) await providers.saveKey('server', apiKey);
+  },
 };
+
+/**
+ * The API key for this run, kept in memory. Read before the providers are made, as they clear the provider
+ * SDKs' own variables (OPENAI_API_KEY and the like), which the app never uses.
+ */
+const apiKey = process.env.INTERVIEWHARNESS_API_KEY;
+const serverAddress = process.env.INTERVIEWHARNESS_SERVER_ADDRESS;
+
+function savedKeyFromEnvironment(provider: KeyProviderName) {
+  return async (providers: Providers) => {
+    if (!apiKey) throw new Error(`Set INTERVIEWHARNESS_API_KEY to your ${provider} API key (kept in memory for this run only).`);
+    await providers.saveKey(provider, apiKey);
+  };
+}
 
 /** Logins kept in this process's memory only, gone when it exits. */
 function memoryCredentials(): CredentialStore {
@@ -137,7 +162,12 @@ export async function main(argv: string[]) {
   const problem = readProblem('two-sum', readFolder(join(repoRoot, 'content', 'problems', 'two-sum')));
   const choice = configuredModel();
 
-  const providers = createProviders({ credentials: memoryCredentials(), appVersion: 'scripted-rounds' });
+  const providers = createProviders({
+    credentials: memoryCredentials(),
+    appVersion: 'scripted-rounds',
+    ...(process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS ? { ollamaAddress: () => process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS! } : {}),
+    serverAddress: () => serverAddress ?? '',
+  });
   console.log(`Model: ${choice.provider} / ${choice.model}.`);
   await signIns[choice.provider](providers);
   const model = providers.model(choice);

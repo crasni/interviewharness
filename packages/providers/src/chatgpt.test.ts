@@ -1,26 +1,12 @@
 import { ModelError } from '@interviewharness/engine';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type Credential, type CredentialStore, createProviders } from './index.ts';
+import { type CredentialStore, createProviders } from './index.ts';
 import { fakeOpenAI } from './test/fake-openai.ts';
+import { memoryCredentials } from './test/loopback.ts';
 
-/** A credential store in memory, holding a ChatGPT login unless told otherwise. */
-function memoryStore(initial: Record<string, Credential> = {}): CredentialStore & { entries: Map<string, Credential> } {
-  const entries = new Map(Object.entries(initial));
-  return {
-    entries,
-    read: async (id) => entries.get(id),
-    list: async () => [...entries].map(([providerId, credential]) => ({ providerId, type: credential.type })),
-    async modify(id, fn) {
-      const next = await fn(entries.get(id));
-      if (next) entries.set(id, next);
-      return entries.get(id);
-    },
-    delete: async (id) => void entries.delete(id),
-  };
-}
 
 const loggedIn = () =>
-  memoryStore({
+  memoryCredentials({
     openai: { type: 'oauth', access: 'chatgpt-access-token', refresh: 'refresh-token', expires: Date.now() + 3_600_000, clientId: 'oaiapp_1' },
   });
 
@@ -139,7 +125,7 @@ describe('a model on the ChatGPT plan', () => {
   });
 
   it('fails as not logged in when there is no ChatGPT login', async () => {
-    const providers = createProviders({ credentials: memoryStore(), appVersion: '0.1.0', fetch: openai.fetchVia });
+    const providers = createProviders({ credentials: memoryCredentials(), appVersion: '0.1.0', fetch: openai.fetchVia });
 
     await expect(providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).streamText(request)).rejects.toMatchObject({ kind: 'auth' });
     expect(openai.requests).toHaveLength(0);
@@ -161,7 +147,7 @@ describe('a model on the ChatGPT plan', () => {
   it('never uses a key from the environment', async () => {
     process.env.OPENAI_API_KEY = 'sk-from-the-environment';
     try {
-      const providers = createProviders({ credentials: memoryStore(), appVersion: '0.1.0', fetch: openai.fetchVia });
+      const providers = createProviders({ credentials: memoryCredentials(), appVersion: '0.1.0', fetch: openai.fetchVia });
 
       await expect(providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).streamText(request)).rejects.toMatchObject({ kind: 'auth' });
       expect(openai.requests).toHaveLength(0);
@@ -202,7 +188,7 @@ describe('Continue with ChatGPT', () => {
       expires_in: 3600,
       scope: 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct',
     });
-    const credentials = memoryStore();
+    const credentials = memoryCredentials();
     const providers = loginProviders(credentials);
     const pages: URL[] = [];
 
@@ -226,7 +212,7 @@ describe('Continue with ChatGPT', () => {
   });
 
   it('can be cancelled while waiting for the browser; it saves nothing and stops listening', async () => {
-    const credentials = memoryStore();
+    const credentials = memoryCredentials();
     const controller = new AbortController();
     const pages: URL[] = [];
 
@@ -247,7 +233,7 @@ describe('Continue with ChatGPT', () => {
   it("ends at once, and stops listening, when the browser can't be opened", async () => {
     const pages: URL[] = [];
 
-    const login = loginProviders(memoryStore()).loginWithChatGPT({
+    const login = loginProviders(memoryCredentials()).loginWithChatGPT({
       openBrowser: async (url) => {
         pages.push(new URL(url));
         throw new Error('No browser');
@@ -259,8 +245,8 @@ describe('Continue with ChatGPT', () => {
     expect(await listening(pages[0]!)).toBe(false);
   });
 
-  it('lists the models ChatGPT offers, including the default', () => {
-    const listed = createProviders({ credentials: memoryStore(), appVersion: '0.1.0' }).listModels('chatgpt');
+  it('lists the models ChatGPT offers, including the default', async () => {
+    const listed = await createProviders({ credentials: memoryCredentials(), appVersion: '0.1.0' }).listModels('chatgpt');
 
     expect(listed.map((m) => m.id)).toContain('gpt-5-mini');
     expect(listed.every((m) => !m.local)).toBe(true);

@@ -4,12 +4,12 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-01; tested against fake servers on loopback, not yet with a real key)
 
-- [ ] All five options appear in the first-run step and the Model tab
-- [ ] The Anthropic provider accepts API keys only; no Claude consumer login code is registered or reachable
-- [ ] A wrong key or unreachable server is caught at setup with a plain message
-- [ ] Keys are stored only in the credential store and never shown back in full
-- [ ] Adapter tests against a fake loopback server cover each request shape and the error paths
+- [x] All five options appear in the first-run step and the Model tab
+- [x] The Anthropic provider accepts API keys only; no Claude consumer login code is registered or reachable
+- [x] A wrong key or unreachable server is caught at setup with a plain message
+- [x] Keys are stored only in the credential store and never shown back in full
+- [x] Adapter tests against a fake loopback server cover each request shape and the error paths
 
 Spec: `.scratch/v0-1/spec.md`.

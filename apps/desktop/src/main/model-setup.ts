@@ -1,10 +1,11 @@
 import type { Model } from '@interviewharness/engine';
 import { scriptedModel } from '@interviewharness/engine/test';
-import { createProviders, defaultChatGPTModel } from '@interviewharness/providers';
+import { createProviders, defaultChatGPTModel, keyProviders, type ProviderName } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
 import type { LoginResult, ProviderStatus } from '../shared/api.ts';
 import { feedbackModel, modelKey, type Settings, settingsAfterLogout } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
+import { isProviderName, modelChooser, providerNames } from './model-choice.ts';
 
 /** The only page a login may open: OpenAI's sign-in. Anything else is refused, never handed to the browser. */
 const signInOrigin = 'https://auth.openai.com';
@@ -41,7 +42,16 @@ export function setUpModels({
     encrypt: (text) => safeStorage.encryptStringAsync(text),
     decrypt: (data) => safeStorage.decryptStringAsync(data),
   });
-  const providers = createProviders({ credentials, appVersion: app.getVersion() });
+  const providers = createProviders({
+    credentials,
+    appVersion: app.getVersion(),
+    ollamaAddress: () => settings.values().ollamaAddress,
+    serverAddress: () => settings.values().serverAddress,
+  });
+  const chooser = modelChooser({ providers, settings, encrypted: () => credentials.encrypted() });
+  // End-to-end tests keep away from any real Ollama on the machine running them.
+  const testOllama = app.isPackaged ? undefined : process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS;
+  if (testOllama) settings.change({ ollamaAddress: testOllama });
   const fake = testModel();
   let login: AbortController | null = null;
 
@@ -58,12 +68,12 @@ export function setUpModels({
      * The model that writes the Feedback (the Feedback model, else the interviewer's), and whether it
      * counts as small, so the Feedback is marked rough. Null when there's no model to write it.
      */
-    feedbackModel(): { model: Model; rough: boolean } | null {
+    async feedbackModel(): Promise<{ model: Model; rough: boolean } | null> {
       if (fake !== undefined) return fake && { model: fake, rough: false };
       const choice = feedbackModel(settings.values());
       if (!choice) return null;
-      // Local models under the size threshold count as small too, once there are local providers (Ollama).
-      return { model: providers.model(choice), rough: settings.values().smallModels.includes(modelKey(choice)) };
+      const rough = settings.values().smallModels.includes(modelKey(choice)) || (await providers.isSmall(choice));
+      return { model: providers.model(choice), rough };
     },
 
     async continueWithChatGPT(): Promise<LoginResult> {
@@ -100,14 +110,31 @@ export function setUpModels({
       login?.abort();
     },
 
+    /** Every provider: ChatGPT and keys are connected once saved; Ollama and a server once they answer. */
     async providers(): Promise<ProviderStatus[]> {
-      return [{ provider: 'chatgpt', name: 'ChatGPT', loggedIn: await providers.isLoggedIn('chatgpt'), models: providers.listModels('chatgpt') }];
+      const names: ProviderName[] = ['chatgpt', 'ollama', ...keyProviders];
+      return Promise.all(
+        names.map(async (provider): Promise<ProviderStatus> => {
+          const name = providerNames[provider];
+          const answers = provider === 'ollama' || (provider === 'server' && settings.values().serverAddress !== '');
+          if (answers) {
+            const listed = await chooser.list(provider);
+            return listed.ok ? { provider, name, connected: true, models: listed.models } : { provider, name, connected: false, models: [], error: listed.error };
+          }
+          const connected = provider !== 'server' && (await providers.isLoggedIn(provider));
+          return { provider, name, connected, models: connected ? await providers.listModels(provider) : [] };
+        }),
+      );
     },
 
+    list: chooser.list,
+    connect: chooser.connect,
+
     async logout(provider: unknown) {
-      if (provider !== 'chatgpt') return; // the renderer is not trusted to name a provider that exists
+      // The renderer is not trusted to name a provider that exists. Ollama has nothing to forget.
+      if (!isProviderName(provider) || provider === 'ollama') return;
       await providers.logout(provider);
-      settings.change(settingsAfterLogout(settings.values(), provider));
+      settings.change({ ...settingsAfterLogout(settings.values(), provider), ...(provider === 'server' ? { serverAddress: '' } : {}) });
     },
   };
 }

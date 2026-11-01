@@ -13,12 +13,15 @@ export const stopTalkingButton = (window: Page) => window.getByRole('button', { 
  *   it says the example lines as written. No test ever reaches a real model.
  * - `modelPicked`: a new data folder starts with a model already picked, so Start works at once.
  *   False shows the first-run step instead.
+ * - `ollamaAddress`: where the app looks for Ollama, e.g. a fakeOllama. By default nothing listens there,
+ *   so a real Ollama on the machine running the tests is never found.
  */
 export async function launchApp({
   dataDir,
   model,
   modelPicked = true,
-}: { dataDir?: string; model?: ModelScript; modelPicked?: boolean } = {}) {
+  ollamaAddress = 'http://127.0.0.1:9',
+}: { dataDir?: string; model?: ModelScript; modelPicked?: boolean; ollamaAddress?: string } = {}) {
   if (!dataDir) {
     dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-'));
     if (modelPicked) {
@@ -34,6 +37,7 @@ export async function launchApp({
       INTERVIEWHARNESS_DATA_DIR: dataDir,
       INTERVIEWHARNESS_HIDDEN_WINDOW: '1',
       INTERVIEWHARNESS_FAKE_MODEL: model ? JSON.stringify(model) : 'example-lines',
+      INTERVIEWHARNESS_OLLAMA_ADDRESS: ollamaAddress,
     },
     // No emulated colour scheme: Playwright's default (light) would hide the theme the app sets itself.
     colorScheme: null,

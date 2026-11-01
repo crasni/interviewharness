@@ -87,6 +87,18 @@
   border-top: var(--rule);
 }
 
+/* Names a group of rows within a page (Connections, Models). */
+.settings-heading {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+}
+
+.settings-heading:not(:first-child) {
+  margin-top: var(--space-3);
+}
+
 /* One setting per row: its name on the left, the control on the right. */
 .settings-row {
   display: flex;

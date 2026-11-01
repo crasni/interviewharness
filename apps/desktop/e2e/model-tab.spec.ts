@@ -1,18 +1,25 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fakeOllama } from '@interviewharness/providers/test';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import { closeApp, launchApp } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
 let dataDir: string;
+let ollama: Awaited<ReturnType<typeof fakeOllama>>;
 
 test.beforeEach(async () => {
-  ({ app, window, dataDir } = await launchApp());
+  ollama = await fakeOllama([
+    { name: 'qwen3:0.6b', parameterSize: '751.63M' },
+    { name: 'qwen2.5:32b', parameterSize: '32.8B' },
+  ]);
+  ({ app, window, dataDir } = await launchApp({ ollamaAddress: ollama.origin }));
 });
 
 test.afterEach(async () => {
   await closeApp(app);
+  await ollama.close();
 });
 
 const settings = () => window.getByRole('dialog', { name: 'Settings' });
@@ -30,31 +37,27 @@ async function seedLogin() {
   writeFileSync(join(dataDir, 'credentials.json'), JSON.stringify({ version: 1, entries: { openai: { type: 'oauth', data } } }));
 }
 
-test('shows the interviewer model, and offers to sign in when logged out', async () => {
+test('shows the connections and the interviewer model, and offers to sign in when logged out', async () => {
   await openModelTab();
 
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
-  await expect(settings().getByLabel('Interviewer model', { exact: true })).toHaveValue('gpt-5-mini');
-  await expect(settings().getByLabel('Interviewer model', { exact: true })).toBeDisabled();
+  await expect(settings().getByText('Ollama · 2 models')).toBeVisible();
+  await expect(settings().getByLabel('Interviewer model', { exact: true })).toHaveValue('chatgpt/gpt-5-mini');
   await expect(settings().getByLabel('Feedback model', { exact: true })).toHaveValue('');
 });
 
-test('changes the interviewer and Feedback models, and marks a model small', async () => {
-  await seedLogin();
+test('changes the interviewer and Feedback models, each checked to answer, and marks a model small', async () => {
   await openModelTab();
-  await expect(settings().getByText('Signed in with ChatGPT')).toBeVisible();
+  ollama.reply({ text: 'OK' }, { text: 'OK' });
 
-  await settings().getByLabel('Interviewer model', { exact: true }).selectOption('gpt-5-nano');
-  await settings().getByLabel('Feedback model', { exact: true }).selectOption('gpt-5.5');
+  await settings().getByLabel('Interviewer model', { exact: true }).selectOption('ollama/qwen3:0.6b');
+  await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'ollama', model: 'qwen3:0.6b' } });
+  await settings().getByLabel('Feedback model', { exact: true }).selectOption('ollama/qwen2.5:32b');
+  await expect.poll(settingsFile).toMatchObject({ feedbackModel: { provider: 'ollama', model: 'qwen2.5:32b' } });
+  expect(ollama.chats()).toHaveLength(2);
   await settings().getByRole('switch', { name: 'Treat the Feedback model as small' }).check();
 
-  await expect
-    .poll(settingsFile)
-    .toMatchObject({
-      interviewerModel: { provider: 'chatgpt', model: 'gpt-5-nano' },
-      feedbackModel: { provider: 'chatgpt', model: 'gpt-5.5' },
-      smallModels: ['chatgpt/gpt-5.5'],
-    });
+  await expect.poll(settingsFile).toMatchObject({ smallModels: ['ollama/qwen2.5:32b'] });
 
   await settings().getByLabel('Feedback model', { exact: true }).selectOption('');
   await expect.poll(settingsFile).toMatchObject({ feedbackModel: null });
@@ -74,4 +77,15 @@ test('logging out forgets the login, and Start asks for a model again', async ()
   await window.keyboard.press('Escape');
   await expect(window.getByRole('region', { name: 'Pick a model' })).toBeVisible();
   await expect(window.getByRole('button', { name: 'Start coding round' })).toBeDisabled();
+});
+
+test("a model that doesn't answer isn't picked, and the reason is shown", async () => {
+  await openModelTab();
+  ollama.reply({ status: 500, error: 'model requires more system memory (20.0 GiB) than is available (8.0 GiB)' });
+
+  await settings().getByLabel('Interviewer model', { exact: true }).selectOption('ollama/qwen2.5:32b');
+
+  await expect(settings().getByRole('alert')).toContainText('more system memory');
+  await expect(settings().getByLabel('Interviewer model', { exact: true })).toHaveValue('chatgpt/gpt-5-mini');
+  expect(settingsFile()).toMatchObject({ interviewerModel: { provider: 'chatgpt', model: 'gpt-5-mini' } });
 });

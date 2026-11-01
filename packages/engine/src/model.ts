@@ -4,7 +4,7 @@
  */
 
 /** What a model call is for. Logged with every call, and lets a fake script replies per purpose. */
-export type ModelPurpose = 'interviewer-reply' | 'reply-check' | 'grading' | 'feedback-prose';
+export type ModelPurpose = 'interviewer-reply' | 'reply-check' | 'grading' | 'feedback-prose' | 'setup-check';
 
 export interface ModelMessage {
   role: 'user' | 'assistant';

@@ -1,6 +1,6 @@
 # Status: where we left off
 
-_Last updated: 2026-10-30_
+_Last updated: 2026-11-01_
 
 ## Done
 - [x] Market and competitor research (`research/00-market.md`)
@@ -16,6 +16,7 @@ _Last updated: 2026-10-30_
 - [x] **Bought `interviewharness.dev`** on Cloudflare Registrar (2026-10-29; $8.20 first year, auto-renews at $12.20/yr, expires 2027-10-29 unless renewed)
 - [x] **The app keeps the round** (ADR 0018, after a real Two sum round on 2026-10-30): the model reports what it observed and what its reply does; the app moves phases only on the candidate's words, rejects a mistake named unasked, records who started each trace and who found each mistake, and tells the model the round so far every turn. New Follow-up phase when the candidate finishes early; the interviewer says goodbye once. Grading caps testing at 2 without testing of their own (`docs/research/11`). Not yet tried in a real round.
 - [x] **The check** (ADR 0019, grilling in `.scratch/interviewer-check/grilling.md`): where help could slip in, a second call judges the reply's words before they're said, and its verdict is what's graded. Phases follow the candidate back as well as ahead; every prompt carries the whole conversation and the current phase's part; testing is capped at 2 without checking of their own, and at 1 for a bug called done and never caught. Not yet tried in a real round.
+- [x] **Ollama and API keys** (v0.1 tickets 08–09): Ollama on this computer through its native API (context size always set, thinking off, structured replies through its `format`); API keys for OpenAI, Anthropic (our own key-only provider), Google and OpenRouter; and any OpenAI-compatible server (LM Studio, llama.cpp, vLLM), key optional. Every model is asked for one short reply before it's saved. Settings → Model lists the connections, then the interviewer and Feedback models from all of them. Tested against fake servers; not yet tried with a real cloud key.
 - [x] **The mark** (ADR 0020, files in `brand/`): passing the floor, a solid dot, an open ring and the arc between them, optically centred; app icon tiles, a heavier cut for small sizes, PNG exports and the window icon. The wordmark is set in Newsreader; `.icns`/`.ico` come with packaging.
 
 ## Not done yet
@@ -23,7 +24,7 @@ _Last updated: 2026-10-30_
 - Domain is bought, but DNS, website and email aren't set up (next: Cloudflare Pages landing page, Email Routing for hello@).
 
 ## Next steps (in order)
-0. **Play a real round** on the new interviewer (ADR 0018, 0019), then build the **fake-candidate suite** (`.scratch/interviewer-check/grilling.md`, decision 9). It's run by hand against ChatGPT, never in CI. After that comes Ollama (ticket 08), and the suite is run on one local model before that model is called safe.
+0. **Play a real round** on the new interviewer (ADR 0018, 0019), then build the **fake-candidate suite** (`.scratch/interviewer-check/grilling.md`, decision 9). It's run by hand against ChatGPT, never in CI. Ollama now works (ticket 08); the suite is run on one local model before that model is called safe.
 1. **v0.1a: a real AI interviewer.** Spec: `.scratch/v0-1/spec.md` (ready for tickets: `/mattpocock-skills:to-tickets`). Decisions: `.scratch/v0-1/grilling.md`; research: `docs/research/08` and `10`; ADR 0016.
    - Providers via pi-ai: Continue with ChatGPT first, then Ollama (native API), then API keys. safeStorage keys.
    - `settings.json` in user data; data folder renamed to "InterviewHarness".

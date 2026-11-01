@@ -64,7 +64,7 @@ function endCurrentRound(code?: unknown) {
 async function writeFeedback(record: RoundRecord, { dir, log }: RoundFolder): Promise<FeedbackResult> {
   // A round where the candidate said nothing has nothing to grade, however long it ran.
   if (!record.transcript.some((line) => line.who === 'candidate')) return { ok: false, error: 'nothing-said' };
-  const grader = models.feedbackModel();
+  const grader = await models.feedbackModel();
   if (!grader) return { ok: false, error: 'no-model' };
   const startedAt = systemClock.now();
   // How the verdict was reached (or why it wasn't) goes in the round's log, so it can be replayed and checked.
@@ -147,6 +147,10 @@ ipcMain.handle(channels.continueWithChatGPT, () => models.continueWithChatGPT())
 ipcMain.on(channels.cancelLogin, () => models.cancelLogin());
 
 ipcMain.handle(channels.providers, () => models.providers());
+
+ipcMain.handle(channels.listModels, (_event, provider: unknown, connection: unknown) => models.list(provider, connection));
+
+ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect(connection));
 
 ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
 

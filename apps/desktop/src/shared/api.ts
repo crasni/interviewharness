@@ -1,6 +1,7 @@
 import type { RoundKind } from '@interviewharness/core';
 import type { CodeSnapshot, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
 import type { Verdict } from '@interviewharness/core';
+import type { Connection, ModelListing } from '@interviewharness/providers';
 import type { ModelChoice, Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
@@ -58,9 +59,13 @@ export interface HarnessApi {
     continueWithChatGPT(): Promise<LoginResult>;
     /** Gives up on a login that is waiting for the browser. */
     cancelLogin(): void;
-    /** Each provider, whether it's logged in, and its models. Never a credential. */
+    /** Each provider, whether it's connected, and its models. Never a credential. */
     providers(): Promise<ProviderStatus[]>;
-    /** Forgets a provider's login, and unpicks its models (announced through settings.onChange). */
+    /** A provider's models, reached through an address or key not saved yet if given. */
+    list(provider: ModelChoice['provider'], connection?: Connection): Promise<ModelList>;
+    /** Checks that a model answers, then saves it for its slot with its address and key (announced through settings.onChange). */
+    connect(connection: ModelConnection): Promise<ConnectResult>;
+    /** Forgets a provider's login or key (a server's address too), and unpicks its models (announced through settings.onChange). */
     logout(provider: ModelChoice['provider']): Promise<void>;
   };
 }
@@ -69,14 +74,40 @@ export interface ProviderStatus {
   provider: ModelChoice['provider'];
   /** The provider's name as the candidate knows it. */
   name: string;
-  loggedIn: boolean;
-  models: { id: string; name: string; local: boolean }[];
+  /** Signed in, a key saved, or (Ollama, a server) answering at its address. */
+  connected: boolean;
+  /** Its models, when connected. */
+  models: ModelListing[];
+  /** Why it isn't connected, when that's worth saying (Ollama not running). */
+  error?: string;
 }
 
 /** The Feedback as the candidate sees it: words and moments, no scores (those stay in the round's feedback.json). */
 export type FeedbackResult =
   | { ok: true; verdict: Verdict; why: string; wentWell: FeedbackPoint[]; toFix: FeedbackPoint[]; rough: boolean }
   | { ok: false; error: ModelErrorKind | 'no-model' | 'no-round' | 'nothing-said' };
+
+/** Which model a choice is for: the interviewer's words, or the Feedback. */
+export type Slot = 'interviewer' | 'feedback';
+
+/**
+ * A model to pick for a slot, with the address (Ollama, a server) or key (a pasted API key, a server's
+ * optional one) to reach it if they're new. Checked by main before anything is saved.
+ */
+export interface ModelConnection extends Connection {
+  slot: Slot;
+  provider: ModelChoice['provider'];
+  model: string;
+}
+
+export type ConnectResult =
+  /** `unencryptedNote`: say once that the key isn't encrypted on this machine (Linux with no keyring). */
+  | { ok: true; unencryptedNote: boolean }
+  | { ok: false; error: string };
+
+export type { Connection, ModelListing };
+
+export type ModelList = { ok: true; models: ModelListing[] } | { ok: false; error: string };
 
 export type LoginResult =
   /** `unencryptedNote`: say once that the login isn't encrypted on this machine (Linux with no keyring). */
@@ -98,6 +129,8 @@ export const channels = {
   continueWithChatGPT: 'models:chatgpt-login',
   cancelLogin: 'models:cancel-login',
   providers: 'models:providers',
+  listModels: 'models:list',
+  connect: 'models:connect',
   logout: 'models:logout',
 } as const;
 

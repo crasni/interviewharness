@@ -4,13 +4,13 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-01)
 
-- [ ] Ollama is found automatically when running, and its models are listed in both places
-- [ ] Requests use the native chat API with an explicit context size and thinking off
-- [ ] A stopped Ollama gives a plain message, not an error dump
-- [ ] The model is checked to answer before the choice is saved
-- [ ] Adapter tests against a fake loopback server cover listing, streaming, abort, errors and the request options
-- [ ] Manually verified once with a real local model
+- [x] Ollama is found automatically when running, and its models are listed in both places
+- [x] Requests use the native chat API with an explicit context size and thinking off
+- [x] A stopped Ollama gives a plain message, not an error dump
+- [x] The model is checked to answer before the choice is saved
+- [x] Adapter tests against a fake loopback server cover listing, streaming, abort, errors and the request options
+- [x] Manually verified once with a real local model (qwen3:0.6b on Ollama 0.34.4, 2026-11-01: listed, checked, streamed with thinking off, structured reply)
 
 Spec: `.scratch/v0-1/spec.md`.

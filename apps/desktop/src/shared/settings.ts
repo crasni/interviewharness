@@ -1,4 +1,4 @@
-import type { ModelChoice } from '@interviewharness/providers';
+import { defaultOllamaAddress, type ModelChoice } from '@interviewharness/providers';
 import { isTheme, type Theme } from './api.ts';
 
 export type { ModelChoice };
@@ -32,6 +32,10 @@ export type Settings = {
   smallModels: string[];
   /** Whether the candidate has been told their login isn't encrypted on this machine (Linux with no keyring). */
   unencryptedLoginNoted: boolean;
+  /** Where Ollama listens on this computer. */
+  ollamaAddress: string;
+  /** Another OpenAI-compatible server (LM Studio, llama.cpp, vLLM), with its API path, e.g. http://localhost:1234/v1. Empty when none. */
+  serverAddress: string;
 };
 
 export const defaultSettings: Settings = {
@@ -48,6 +52,8 @@ export const defaultSettings: Settings = {
   feedbackModel: null,
   smallModels: [],
   unencryptedLoginNoted: false,
+  ollamaAddress: defaultOllamaAddress,
+  serverAddress: '',
 };
 
 const oneOf =
@@ -58,7 +64,18 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const isSize = (value: unknown): value is number | null =>
   value === null || (typeof value === 'number' && Number.isFinite(value) && value > 0);
 
-const modelProviders: readonly ModelChoice['provider'][] = ['chatgpt'];
+const modelProviders: readonly ModelChoice['provider'][] = ['chatgpt', 'ollama', 'openai', 'anthropic', 'google', 'openrouter', 'server'];
+
+/** An http(s) address with nothing that could carry a credential (user:password@). */
+export function isServerAddress(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 500) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
 const isModelChoice = (value: unknown): value is ModelChoice | null => {
   if (value === null) return true;
   if (typeof value !== 'object') return false;
@@ -83,6 +100,8 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   feedbackModel: isModelChoice,
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
+  ollamaAddress: isServerAddress,
+  serverAddress: (value): value is string => value === '' || isServerAddress(value),
 };
 
 /**
@@ -101,6 +120,13 @@ export function validSettings(raw: unknown): Partial<Settings> {
 
 /** A model's name as one string, e.g. "chatgpt/gpt-5-mini". */
 export const modelKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`;
+
+/** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
+export function choiceFromKey(key: string): ModelChoice | null {
+  const slash = key.indexOf('/');
+  const choice = { provider: key.slice(0, slash), model: key.slice(slash + 1) };
+  return slash > 0 && isModelChoice(choice) ? (choice as ModelChoice) : null;
+}
 
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
 export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;

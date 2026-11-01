@@ -30,6 +30,8 @@ const api: HarnessApi = {
     continueWithChatGPT: () => ipcRenderer.invoke(channels.continueWithChatGPT),
     cancelLogin: () => ipcRenderer.send(channels.cancelLogin),
     providers: () => ipcRenderer.invoke(channels.providers),
+    list: (provider, connection) => ipcRenderer.invoke(channels.listModels, provider, connection),
+    connect: (connection) => ipcRenderer.invoke(channels.connect, connection),
     logout: (provider) => ipcRenderer.invoke(channels.logout, provider),
   },
 };

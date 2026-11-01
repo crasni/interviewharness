@@ -10,7 +10,10 @@ Providers are built in this order: **Continue with ChatGPT** (the candidate's pl
 - **We write our own Anthropic provider.** pi-ai's built-in one always registers the Claude Pro/Max consumer login, which we never use (AGENTS.md). Ours accepts API keys only.
 - **No ambient credentials.** pi-ai's lookup of environment variables (including `ANTHROPIC_OAUTH_TOKEN`) and other tools' credential files is turned off. Only what the candidate entered in the app is used, stored with async `safeStorage`.
 - **Ollama goes through its native API, not its OpenAI-compatible `/v1` endpoint.** `/v1` can't set the context size (Ollama's default is about 4k on most laptops, and longer input is cut silently) or turn thinking off.
-- pi-ai has no structured-output API, so structured replies (grading, hint levels) force a single tool call with a strict schema.
+- pi-ai has no structured-output API, so structured replies (grading, hint levels) force a single tool call with a strict schema. Each API spells the forced call its own way (Responses, Chat Completions, Anthropic; Google can only require some tool, and there's just the one). **Ollama is the exception:** it doesn't go through pi-ai, and its native API constrains the output to a JSON schema itself (`format`), which small models follow far better than a forced tool call. Both check the value and ask once more on a mismatch.
+- **An OpenAI key is kept apart from the ChatGPT login** (its own credential, its own provider id), so adding one never replaces the other.
+- **A server's key is optional:** local servers (LM Studio, llama.cpp) take none, so a server with no saved key is sent a placeholder.
+- **Every model is checked before it's saved:** asked for one short reply through the address or key just entered, with a one-minute limit (a local model may first load). Only a model that answers is saved, with its address and key; anything else is said in plain words and nothing changes.
 
 ## Considered options
 
