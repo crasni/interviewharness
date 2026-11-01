@@ -32,10 +32,8 @@ export function ProblemList({ onPick, onBack }: { onPick: (problem: string) => v
           <li key={name}>
             <button type="button" onClick={() => onPick(name)}>
               <span className="problem-list-name">{title}</span>
-              <span className="problem-list-facts">
-                <span>{difficultyLabels[difficulty]}</span>
-                {doneLabel(timesDone) && <span>{doneLabel(timesDone)}</span>}
-              </span>
+              <span className="problem-list-done">{doneLabel(timesDone)}</span>
+              <span className="problem-list-difficulty">{difficultyLabels[difficulty]}</span>
             </button>
           </li>
         ))}
