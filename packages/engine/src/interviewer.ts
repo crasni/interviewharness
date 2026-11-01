@@ -512,6 +512,8 @@ export function createInterviewer(options: InterviewerOptions) {
 
   function fallBack(reply: Reply, error: ModelErrorKind) {
     onEvent({ kind: 'model-failed', error });
+    // A stock "okay" to a question would pretend it was heard: a reply to their turn is never faked, and the room says why.
+    if (reply.kind === 'turn') return handle(floor.onSignal({ type: 'no-words' }));
     sayFallback(fallbackSituation(reply));
   }
 

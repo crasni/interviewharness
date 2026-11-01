@@ -19,6 +19,8 @@ export type Signal =
    * the candidate's turn, `as` is what kind of reply the model found fitting; without one it's an acknowledgement.
    */
   | { type: 'words'; line: string; as?: TurnReplyKind }
+  /** The model gave no words for the reply to the candidate's turn: the interviewer lets go of the floor without a word. */
+  | { type: 'no-words' }
   /**
    * The conversation is in another phase than the round's, ahead or back: the candidate moved there, or asked
    * to and the interviewer agreed, or the interviewer began the follow-up questions. Never the interviewer's own questions.
@@ -339,6 +341,11 @@ export function createFloorManager({
 
       case 'words':
         return [speak(now, signal.line, signal.as), true];
+
+      case 'no-words':
+        if (!preparing) return [silent, true];
+        preparing = null;
+        return [{ kind: 'stop-preparing' }, true];
 
       case 'phase-reached':
         if (!phases.reach(signal.phase)) return [silent, true];

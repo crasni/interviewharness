@@ -141,6 +141,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
           label={transcriptShown ? 'Hide transcript' : 'Show transcript'}
           aria-expanded={transcriptShown}
           on={transcriptShown}
+          motion={transcriptShown ? 'slide-down' : 'slide-up'}
           swap={{ on: <PanelBottomClose {...iconProps} />, off: <PanelBottomOpen {...iconProps} /> }}
           onClick={() => setTranscriptShown((shown) => !shown)}
         />
@@ -253,6 +254,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
             label={talking ? 'Stop talking' : 'Talk'}
             tip="above"
             aria-pressed={talking}
+            motion="wiggle"
             icon={<Mic {...iconProps} />}
             onClick={toggleTalking}
           />
@@ -271,15 +273,15 @@ const tileLabels: Record<PresenceState, string> = {
   speaking: 'Speaking',
 };
 
-/** What the room says when the model couldn't give the interviewer's words, and a stock line was said instead. */
+/** What the room says, every time, when the model couldn't give the interviewer's words: what happened, and what to do. */
 const modelFailures: Record<ModelErrorKind, string> = {
-  offline: "Couldn't reach the model, so the interviewer used a stock line.",
-  auth: 'The model login failed, so the interviewer used a stock line.',
-  'rate-limit': 'The model is rate-limited, so the interviewer used a stock line.',
-  timeout: 'The model took too long, so the interviewer used a stock line.',
-  'bad-output': 'The model gave no usable words, so the interviewer used a stock line.',
-  aborted: 'The model stopped, so the interviewer used a stock line.',
-  other: 'The model failed, so the interviewer used a stock line.',
+  offline: "Couldn't reach the model. Check your connection.",
+  auth: 'The model login failed. Sign in again in Settings.',
+  'rate-limit': 'The model is rate-limited. Wait a bit, or pick another model in Settings.',
+  timeout: "The model didn't answer within a minute. Pick a faster model in Settings.",
+  'bad-output': 'The model gave no usable words.',
+  aborted: 'The model stopped before answering.',
+  other: "The model didn't answer.",
 };
 
 /** How long a notice stays before it fades. */

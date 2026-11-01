@@ -60,6 +60,7 @@ A free reasoning model ran past the old 10-second limit on every turn, and each 
 
 - **A reply may take up to a minute** (`replyRules.timeout`), the same limit as the model check (ADR 0016), so reasoning models and slow free tiers get to finish.
 - **The room shows it's thinking**, like a chat app: the interviewer's tile reads "Thinking · 12s" while the reply is written. Nothing is spoken to fill the wait.
+- **A reply to the candidate is never faked.** If the model fails, the interviewer says nothing (no stock "okay", which would pretend it heard them) and the room's notice says what happened, every time. Its open question stays open. Lines the interviewer starts itself (the intro, check-ins) still fall back to their example lines.
 
 ## Considered options
 

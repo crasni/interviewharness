@@ -70,13 +70,13 @@ describe('a scripted candidate', () => {
     expect(round.record.elapsedMs).toBeGreaterThanOrEqual(3 * 60_000);
   });
 
-  it("doesn't hang on a model that never answers: the time limit gives the example line", async () => {
+  it("doesn't hang on a model that never answers: the time limit ends the wait, and nothing is said", async () => {
     const candidate: ScriptedCandidate = { name: 'waits', about: 'Asks a question the model never answers.', steps: [{ say: 'Can the list be empty?' }] };
     const { played } = play(candidate, { 'interviewer-reply': ['Hi, take a look at the problem.', 'wait'] });
 
     const round = await played;
 
-    expect(round.record.transcript.at(-1)).toMatchObject({ who: 'interviewer', text: 'Okay, that makes sense.' });
+    expect(round.record.transcript.at(-1)).toMatchObject({ who: 'candidate', text: 'Can the list be empty?' });
     expect(round.events).toContainEqual(expect.objectContaining({ event: { kind: 'model-failed', error: 'timeout' } }));
   });
 });
