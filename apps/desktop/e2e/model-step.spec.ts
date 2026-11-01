@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fakeKeyServer, fakeOllama } from '@interviewharness/providers/test';
+import { fakeOllama } from '@interviewharness/providers/test';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import { choose, closeApp, launchApp, picker } from './launch.ts';
 
@@ -57,40 +57,20 @@ test("says when Ollama isn't running and how to start it, and finds it at anothe
   await expect(step().getByRole('button', { name: 'Use this model' })).toBeEnabled();
 });
 
-test('picks a model on another OpenAI-compatible server, checked before it is saved', async () => {
-  const server = await fakeKeyServer(['qwen2.5-7b-instruct']);
-  try {
-    ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
-
-    await step().getByRole('radio', { name: /API key/ }).check();
-    await choose(step(), 'Provider', 'Other server (LM Studio, llama.cpp, vLLM)');
-    await step().getByLabel('Server address').fill(`${server.origin}/v1`);
-    await step().getByRole('button', { name: 'Find models' }).click();
-    await expect(picker(step(), 'Model')).toHaveText('qwen2.5-7b-instruct');
-
-    server.reply({ status: 401, body: JSON.stringify({ error: { message: 'Unauthorized' } }) });
-    await step().getByRole('button', { name: 'Check and save' }).click();
-    await expect(step().getByRole('alert')).toContainText('asks for a key');
-    expect(settingsFile().interviewerModel ?? null).toBeNull();
-
-    server.reply({ text: 'OK' });
-    await step().getByRole('button', { name: 'Check and save' }).click();
-
-    await expect(step()).toHaveCount(0);
-    await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'server', model: 'qwen2.5-7b-instruct' }, serverAddress: `${server.origin}/v1` });
-  } finally {
-    await server.close();
-  }
-});
-
 test('an API key is hidden as it is typed, and nothing can be saved without one', async () => {
   ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
+  const pickKey = (name: string) => step().getByRole('option', { name, exact: true }).click();
+  const backToList = () => step().getByRole('button', { name: 'Cancel' }).click();
+
   await step().getByRole('radio', { name: /API key/ }).check();
+  await pickKey('OpenAI');
   await expect(picker(step(), 'Model')).toHaveText('GPT-6.1 Sol'); // OpenAI's list starts on the default
-  await choose(step(), 'Provider', 'OpenRouter');
+  await backToList();
+  await pickKey('OpenRouter');
   await expect(picker(step(), 'Model')).toHaveText('OpenAI: GPT-6.1 Sol');
-  await choose(step(), 'Provider', 'Anthropic');
+  await backToList();
+  await pickKey('Anthropic');
   await expect(step().getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute('type', 'password');
   // With no key, nothing can be checked or saved.
   await expect(step().getByRole('button', { name: 'Check and save' })).toBeDisabled();

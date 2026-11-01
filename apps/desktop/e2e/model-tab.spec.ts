@@ -42,7 +42,7 @@ test('shows the connections and the interviewer model, and offers to sign in whe
 
   await expect(settings().getByRole('listitem').filter({ hasText: 'Ollama' })).toContainText('Running · 2 models');
   await settings().getByRole('button', { name: 'Add', exact: true }).click();
-  await settings().getByRole('radio', { name: /ChatGPT/ }).check();
+  await settings().getByRole('option', { name: 'ChatGPT' }).click();
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
   await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini');
   await expect(picker(settings(), 'Feedback model')).toHaveText('Same as interviewer');
@@ -150,9 +150,9 @@ test('signed in to ChatGPT, adding it again offers its models instead of signing
   await openModelTab();
   await settings().getByRole('button', { name: 'Add', exact: true }).click();
 
-  await settings().getByRole('radio', { name: /ChatGPT/ }).check();
+  await settings().getByRole('option', { name: 'ChatGPT' }).click();
 
-  await expect(settings().getByRole('radio', { name: /ChatGPT/ })).toHaveAccessibleName(/Signed in/);
+  await expect(settings().getByRole('group', { name: 'Add a connection' })).toContainText('Signed in');
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
   await expect(picker(settings(), 'Model')).toHaveText('GPT-6.1 Sol');
   await expect(settings().getByRole('button', { name: 'Use this model' })).toBeEnabled();
