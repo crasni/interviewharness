@@ -19,8 +19,11 @@ const reply = (kind: string, words: string, heard = 'explaining') => ({
   object: { heard, movesTo: 'stays', checkedCode: false, foundOwnMistake: false, saysCodeDone: false, attemptFailed: false, hintLevel: 'none', pointsOutMistake: false, asks: 'nothing', kind, words },
 });
 
-/** Lets promises settle between ticks, instead of waiting real time. */
-const noWait = () => new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
+/**
+ * Lets promises settle between ticks, instead of waiting real time. setImmediate, not setTimeout(0): a
+ * long silence is thousands of ticks, and Windows gives every timer a minimum delay that adds up past the test's limit.
+ */
+const noWait = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 function play(candidate: ScriptedCandidate, script: Parameters<typeof scriptedModel>[0]) {
   const model = scriptedModel(script);

@@ -47,7 +47,7 @@ test('settings open from the start screen and the room, by button or shortcut, a
   await expect(settings()).toBeHidden();
 
   await startRound();
-  await window.keyboard.press('Control+,');
+  await window.keyboard.press('ControlOrMeta+,'); // ⌘, on macOS, Ctrl+, elsewhere
   await expect(settings()).toBeVisible();
   await settings().getByRole('button', { name: 'Close' }).click();
   await expect(settings()).toBeHidden();

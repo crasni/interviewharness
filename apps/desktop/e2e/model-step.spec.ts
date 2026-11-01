@@ -36,7 +36,8 @@ test('finds Ollama on this computer, and a model that answers is picked', async 
 
   await expect(step()).toHaveCount(0);
   await expect(window.getByRole('button', { name: 'Start coding round' })).toBeEnabled();
-  expect(settingsFile()).toMatchObject({ interviewerModel: { provider: 'ollama', model: 'gemma3:270m' }, ollamaAddress: ollama.origin });
+  // The screen moves on as soon as main has the choice; settings.json is written a moment later.
+  await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'ollama', model: 'gemma3:270m' }, ollamaAddress: ollama.origin });
   // Asked once to answer, with the context size set.
   expect(ollama.chats()).toHaveLength(1);
   expect(ollama.chats()[0]!.body).toMatchObject({ model: 'gemma3:270m', options: { num_ctx: 8192 } });
@@ -76,7 +77,7 @@ test('picks a model on another OpenAI-compatible server, checked before it is sa
     await step().getByRole('button', { name: 'Check and save' }).click();
 
     await expect(step()).toHaveCount(0);
-    expect(settingsFile()).toMatchObject({ interviewerModel: { provider: 'server', model: 'qwen2.5-7b-instruct' }, serverAddress: `${server.origin}/v1` });
+    await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'server', model: 'qwen2.5-7b-instruct' }, serverAddress: `${server.origin}/v1` });
   } finally {
     await server.close();
   }

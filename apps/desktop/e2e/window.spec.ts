@@ -12,8 +12,16 @@ test.afterEach(async () => {
 });
 
 test('there is no File / Edit / View menu bar', async () => {
-  const menuBarVisible = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isMenuBarVisible());
-  expect(menuBarVisible).toBe(false);
+  const { menuBarVisible, menus } = await app.evaluate(({ BrowserWindow, Menu }) => ({
+    menuBarVisible: BrowserWindow.getAllWindows()[0]!.isMenuBarVisible(),
+    menus: Menu.getApplicationMenu()?.items.map((item) => item.role ?? item.label) ?? [],
+  }));
+  if (process.platform === 'darwin') {
+    // A Mac always shows its menu bar at the top of the screen; there it holds only the app's own, Edit and Window.
+    expect(menus.map((m) => m.toLowerCase())).toEqual(['appmenu', 'editmenu', 'windowmenu']);
+  } else {
+    expect(menuBarVisible).toBe(false);
+  }
 });
 
 test('Ctrl+= zooms in without Shift, Ctrl+- zooms out, Ctrl+0 resets', async () => {
