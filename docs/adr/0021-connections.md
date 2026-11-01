@@ -4,6 +4,7 @@ The interviewer runs on "any model", and candidates arrive with very different a
 
 ## The decisions
 - **Every source is a connection** in one list (Settings → Model): a kind, a short literal status, and its actions. Both model slots pick from every connection's models. Adding one is a **searchable list grouped by kind**: plans you pay for, sign in, API keys, on this computer or your network. Picking an item shows only its fields, and every add ends in the one-short-reply check before anything is saved. The Start screen's API key row opens the same list.
+- **The model pickers list only your models**: the ones you've added, each already checked to answer, with the connection it comes from. Their last item, "Add a model…", searches every connection's full catalog and adds the pick after its check. A connection with hundreds of models (OpenRouter) never floods the pickers. Removing a connection removes its models. (Considered: favourites and recent on top of every model, as in Jan and Zed; a suggested short list with "Show all".)
 - **Many key providers by name**, from pi-ai's catalog (DeepSeek, Mistral, xAI, Groq, Moonshot, Together, Fireworks, Cerebras, Hugging Face, Vercel AI Gateway and more), each key-only and searchable.
 - **Several named custom servers**, each **OpenAI- or Anthropic-compatible**, replacing the single "other server". This covers LM Studio, llama.cpp, vLLM, Jan's own server, LiteLLM and company gateways.
 - **OpenRouter sign-in** next to pasting a key.
