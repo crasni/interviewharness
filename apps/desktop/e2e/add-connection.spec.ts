@@ -33,9 +33,9 @@ test('Add lists every kind of connection in groups, and typing filters across al
 
   // The search field has the keyboard as soon as the list opens.
   await window.keyboard.type('open');
-  await expect(well().getByRole('option')).toHaveText(['ChatGPT', 'OpenRouter', 'OpenAI', 'OpenRouter', 'OpenAI-compatible server']);
+  await expect(well().getByRole('option')).toHaveText(['ChatGPT', 'OpenRouter', 'OpenAI', 'OpenRouter', 'Custom server']);
   await well().getByRole('combobox', { name: 'Search' }).fill('lm studio');
-  await expect(well().getByRole('option')).toHaveText(['OpenAI-compatible server']);
+  await expect(well().getByRole('option')).toHaveText(['Custom server']);
 });
 
 test('plans the app can not use are not there, not even in search', async () => {
@@ -61,7 +61,7 @@ test('picking an item from the keyboard shows only its fields, and Cancel goes b
   await expect(well().getByRole('heading', { name: 'OpenRouter' })).toBeVisible();
   await expect(well().getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute('type', 'password');
   await expect(picker(well(), 'Model')).toHaveText('OpenAI: GPT-6.1 Sol');
-  await expect(well().getByLabel('Server address')).toHaveCount(0);
+  await expect(well().getByLabel('Address', { exact: true })).toHaveCount(0);
   await expect(well().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
   await expect(well().getByRole('button', { name: 'Check and save' })).toBeDisabled();
 
@@ -76,17 +76,19 @@ test('a server picked from the list is checked before it is saved, then listed a
   try {
     ({ app, window, dataDir } = await launchApp());
     await openAdd();
-    await well().getByRole('option', { name: 'OpenAI-compatible server' }).click();
+    await well().getByRole('option', { name: 'Custom server' }).click();
 
-    await well().getByLabel('Server address').fill(`${server.origin}/v1`);
-    await well().getByRole('button', { name: 'Find models' }).click();
+    await well().getByLabel('Name', { exact: true }).fill('Home');
+    await expect(well().getByRole('button', { name: 'Find models' })).toBeDisabled();
+    await well().getByLabel('Address', { exact: true }).fill(`${server.origin}/v1`);
+    await well().getByLabel('Address', { exact: true }).press('Tab');
     await expect(picker(well(), 'Model')).toHaveText('qwen2.5-7b-instruct');
     server.reply({ text: 'OK' });
     await well().getByRole('button', { name: 'Check and save' }).click();
 
     await expect(well()).toHaveCount(0);
-    await expect(settings().getByRole('listitem').filter({ hasText: 'Server' })).toContainText(`${server.origin}/v1`);
-    await expect.poll(settingsFile).toMatchObject({ serverAddress: `${server.origin}/v1` });
+    await expect(settings().getByRole('listitem').filter({ hasText: 'Home' })).toContainText(`${server.origin}/v1 · 1 model`);
+    await expect.poll(settingsFile).toMatchObject({ servers: [{ name: 'Home', address: `${server.origin}/v1`, format: 'openai' }] });
   } finally {
     await server.close();
   }
@@ -115,8 +117,8 @@ test("the Start screen's API key row opens the same list, with only keys and ser
 
     await step().getByRole('combobox', { name: 'Search' }).fill('vllm');
     await window.keyboard.press('Enter');
-    await step().getByLabel('Server address').fill(`${server.origin}/v1`);
-    await step().getByRole('button', { name: 'Find models' }).click();
+    await step().getByLabel('Address', { exact: true }).fill(`${server.origin}/v1`);
+    await step().getByLabel('Address', { exact: true }).press('Tab');
     await expect(picker(step(), 'Model')).toHaveText('qwen2.5-7b-instruct');
 
     server.reply({ status: 401, body: JSON.stringify({ error: { message: 'Unauthorized' } }) });
@@ -128,7 +130,9 @@ test("the Start screen's API key row opens the same list, with only keys and ser
     await step().getByRole('button', { name: 'Check and save' }).click();
 
     await expect(step()).toHaveCount(0);
-    await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'server', model: 'qwen2.5-7b-instruct' }, serverAddress: `${server.origin}/v1` });
+    // Named after its host, as no name was typed.
+    const host = new URL(server.origin).host;
+    await expect.poll(settingsFile).toMatchObject({ servers: [{ name: host, address: `${server.origin}/v1` }], interviewerModel: { provider: 'server', model: 'qwen2.5-7b-instruct' } });
   } finally {
     await server.close();
   }
