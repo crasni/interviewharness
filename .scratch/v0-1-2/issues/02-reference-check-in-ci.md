@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The script passes on Two sum and fails with a clear message when a case's expected answer is wrong
-- [ ] Unordered comparison works where a problem marks it
-- [ ] CI runs it on all three OSes as a separate step
-- [ ] The content README says how to run it
+- [x] The script passes on Two sum and fails with a clear message when a case's expected answer is wrong
+- [x] Unordered comparison works where a problem marks it
+- [x] CI runs it on all three OSes as a separate step
+- [x] The content README says how to run it
 
 Spec: `.scratch/v0-1-2/spec.md`.

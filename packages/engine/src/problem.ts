@@ -38,6 +38,8 @@ export interface HintLadder {
 export interface ProblemTests {
   /** The function the candidate writes, called with each case's input as named arguments. */
   function: string;
+  /** The answer is a list whose order doesn't matter ("in any order"); checks compare it sorted. */
+  unordered?: boolean;
   cases: { id: string; description: string; input: Record<string, unknown>; expected: unknown }[];
 }
 
