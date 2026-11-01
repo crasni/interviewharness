@@ -1,6 +1,6 @@
 # v0.1a: a real AI interviewer
 
-Status: ready-for-agent
+Status: done (2026-11-01: tickets 01–12 done, CI green on macOS, Windows and Linux)
 
 ## Problem Statement
 

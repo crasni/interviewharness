@@ -19,7 +19,7 @@ Required behavior tests: productive silence stays quiet; candidate independently
 Keep this delivery within v0.1a: text interaction, minimal replay tooling, and focused complete-round evaluation. Preserve assistance provenance and current numerical rules; report grading limitations instead of silently changing the rubric.
 
 
-Status: needs-triage
+Status: done (2026-11-01: tickets 01–12 done; what was put off is in later.md)
 Date: 2026-10-30
 Scope: implementation and evaluation; numerical grading redesign excluded.
 
