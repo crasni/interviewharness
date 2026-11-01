@@ -39,13 +39,20 @@ def check(folder: Path) -> list[str]:
     failures = []
     for case in tests["cases"]:
         try:
-            got = getattr(reference, tests["function"])(**case["input"])
+            got = replay(reference, case["calls"]) if "class" in tests else getattr(reference, tests["function"])(**case["input"])
         except Exception as error:  # a crash is a failure of that case, not of the check
             failures.append(f"{folder.name} / {case['id']}: raised {error!r}")
             continue
         if not same(got, case["expected"], unordered):
             failures.append(f"{folder.name} / {case['id']}: expected {case['expected']!r}, got {got!r}")
     return failures
+
+
+def replay(reference, calls: list) -> list:
+    """A class case: the first call makes the object (its result is None), each later one calls a method on it."""
+    [class_name, *arguments], *methods = calls
+    instance = getattr(reference, class_name)(*arguments)
+    return [None] + [getattr(instance, name)(*arguments) for name, *arguments in methods]
 
 
 def main() -> int:

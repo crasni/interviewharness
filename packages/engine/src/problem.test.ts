@@ -79,6 +79,30 @@ describe('reading a problem folder', () => {
   });
 });
 
+describe('tests for a class', () => {
+  const cache = { id: 'evicts', description: 'The oldest key goes', calls: [['Cache', 1], ['put', 1, 10], ['put', 2, 20], ['get', 1]], expected: [null, null, null, -1] };
+  const withTests = (tests: unknown) => folder({ 'tests.json': JSON.stringify(tests) });
+
+  it('reads a class and the calls each case makes', () => {
+    expect(readProblem('cache', withTests({ class: 'Cache', cases: [cache] })).tests).toEqual({ class: 'Cache', cases: [cache] });
+  });
+
+  it('refuses a case whose calls and results differ in number, or that starts with anything but the class', () => {
+    expect(() => readProblem('cache', withTests({ class: 'Cache', cases: [{ ...cache, expected: [null] }] }))).toThrow(
+      'cache: tests.json: case "evicts" needs one expected result per call',
+    );
+    expect(() => readProblem('cache', withTests({ class: 'Cache', cases: [{ ...cache, calls: [['get', 1], ...cache.calls.slice(1)] }] }))).toThrow(
+      'cache: tests.json: case "evicts" must start by calling Cache',
+    );
+  });
+
+  it('refuses tests that name both a function and a class', () => {
+    expect(() => readProblem('cache', withTests({ function: 'f', class: 'Cache', cases: [cache] }))).toThrow(
+      'cache: tests.json needs a function or a class, not both',
+    );
+  });
+});
+
 describe('problem names', () => {
   it('accepts names that work as folder names on every OS', () => {
     expect(checkProblemNames(['two-sum', 'merge-intervals', 'lru-cache'])).toEqual([]);

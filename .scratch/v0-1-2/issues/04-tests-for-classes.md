@@ -4,11 +4,11 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The engine reads the class form; the function form reads as before
-- [ ] Refused with the folder's name: both forms, calls and expected of different lengths, a first call not naming the class
-- [ ] The reference check replays class cases
-- [ ] The content README describes the class form with a short example
+- [x] The engine reads the class form; the function form reads as before
+- [x] Refused with the folder's name: both forms, calls and expected of different lengths, a first call not naming the class
+- [x] The reference check replays class cases
+- [x] The content README describes the class form with a short example
 
 Spec: `.scratch/v0-1-2/spec.md`.

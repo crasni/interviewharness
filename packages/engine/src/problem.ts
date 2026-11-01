@@ -35,12 +35,25 @@ export interface HintLadder {
   concrete: string;
 }
 
-export interface ProblemTests {
+/** How the candidate's code is tried: a function called once per case, or a class driven by a list of calls. */
+export type ProblemTests = FunctionTests | ClassTests;
+
+export interface FunctionTests {
   /** The function the candidate writes, called with each case's input as named arguments. */
   function: string;
   /** The answer is a list whose order doesn't matter ("in any order"); checks compare it sorted. */
   unordered?: boolean;
   cases: { id: string; description: string; input: Record<string, unknown>; expected: unknown }[];
+}
+
+export interface ClassTests {
+  /** The class the candidate writes. */
+  class: string;
+  /**
+   * Each case's calls: the first makes the class (its name, then its arguments), each later one is a method's
+   * name and its arguments. `expected` has one result per call: null for the first, and for methods returning nothing.
+   */
+  cases: { id: string; description: string; calls: [string, ...unknown[]][]; expected: unknown[] }[];
 }
 
 const difficulties = ['easy', 'medium', 'hard'] as const;
@@ -115,19 +128,37 @@ function readTests(text: string, fail: (message: string) => never): ProblemTests
   } catch (error) {
     return fail(`tests.json isn't valid JSON: ${String(error)}`);
   }
-  const tests = raw as Partial<ProblemTests>;
-  if (typeof tests.function !== 'string' || !Array.isArray(tests.cases) || !tests.cases.length) {
-    return fail('tests.json needs a function name and a list of cases');
+  const tests = raw as { function?: unknown; class?: unknown; cases?: unknown };
+  if (typeof tests.function === 'string' && typeof tests.class === 'string') {
+    return fail('tests.json needs a function or a class, not both');
+  }
+  const isClass = typeof tests.class === 'string';
+  if ((!isClass && typeof tests.function !== 'string') || !Array.isArray(tests.cases) || !tests.cases.length) {
+    return fail('tests.json needs a function or class name and a list of cases');
   }
   const ids = new Set<string>();
-  for (const c of tests.cases) {
-    if (typeof c?.id !== 'string' || typeof c.description !== 'string' || typeof c.input !== 'object' || !('expected' in c)) {
-      return fail(`tests.json: every case needs an id, a description, an input and what's expected`);
+  for (const c of tests.cases as Record<string, unknown>[]) {
+    if (typeof c?.id !== 'string' || typeof c.description !== 'string' || !('expected' in c)) {
+      return fail(`tests.json: every case needs an id, a description and what's expected`);
     }
+    if (isClass) checkCalls(c, tests.class as string, fail);
+    else if (typeof c.input !== 'object' || c.input === null) fail(`tests.json: case "${c.id}" needs an input`);
     if (ids.has(c.id)) fail(`tests.json has two cases with the id "${c.id}"`);
     ids.add(c.id);
   }
   return tests as ProblemTests;
+}
+
+/** A class case: calls that start by making the class, and one expected result per call. */
+function checkCalls(c: Record<string, unknown>, className: string, fail: (message: string) => never) {
+  const { calls, expected } = c;
+  if (!Array.isArray(calls) || !calls.length || !calls.every((call) => Array.isArray(call) && typeof call[0] === 'string')) {
+    fail(`tests.json: case "${String(c.id)}" needs calls, each a name and its arguments`);
+  }
+  if ((calls as unknown[][])[0]![0] !== className) fail(`tests.json: case "${String(c.id)}" must start by calling ${className}`);
+  if (!Array.isArray(expected) || expected.length !== (calls as unknown[]).length) {
+    fail(`tests.json: case "${String(c.id)}" needs one expected result per call`);
+  }
 }
 
 /** A markdown file's `## ` sections, by lower-case heading, each trimmed. Text before the first is dropped. */
