@@ -37,7 +37,7 @@ test('a short pause mid-turn gets a backchannel, and it is logged', async () => 
   await stopTalkingButton(window).click();
 
   await expect(window.getByTestId('interviewer-state')).toHaveText('Mm-hm.', { timeout: 3_000 });
-  expect(roundLog().find((entry) => entry.decision.kind === 'backchannel')).toMatchObject({
+  expect(roundLog().find((entry) => entry.decision?.kind === 'backchannel')).toMatchObject({
     decision: { line: 'Mm-hm.' },
     state: { talking: false },
   });

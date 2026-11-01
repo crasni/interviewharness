@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { closeApp, launchApp, readRoundLog } from './launch.ts';
 
@@ -73,9 +75,12 @@ test("a round starts on a problem, shows its statement and names it in the round
   const { app, window, dataDir } = await launchApp();
 
   await window.getByRole('button', { name: 'Start coding round' }).click();
-  // Two sum is the only problem until the others are written.
-  await expect(window.getByRole('region', { name: 'Problem' }).getByRole('heading', { level: 1 })).toHaveText('Two sum');
-  await expect.poll(() => readRoundLog(dataDir)[0]).toMatchObject({ started: { kind: 'coding', problem: 'two-sum' } });
+  // Picked at random: whichever it is, the panel and the log agree.
+  const title = await window.getByRole('region', { name: 'Problem' }).getByRole('heading', { level: 1 }).textContent();
+  await expect.poll(() => readRoundLog(dataDir)[0]).toMatchObject({ started: { kind: 'coding', problem: expect.any(String) } });
+  const { problem } = readRoundLog(dataDir)[0].started;
+  const statement = readFileSync(join(import.meta.dirname, '../../../content/problems', problem, 'statement.md'), 'utf8');
+  expect(statement.split(/\r?\n/)[0]).toBe(`# ${title}`);
 
   await closeApp(app);
 });

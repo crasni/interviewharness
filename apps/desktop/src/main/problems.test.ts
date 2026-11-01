@@ -14,6 +14,23 @@ describe('the problems in content/problems', () => {
     expect(problems.get('two-sum')!.statement).toMatch(/^# Two sum\n/);
   });
 
+  it('are the ten of v0.1.2, at their difficulties', () => {
+    const difficulties = Object.fromEntries([...loadProblems().values()].map((p) => [p.name, p.details.difficulty]));
+
+    expect(difficulties).toEqual({
+      'two-sum': 'easy',
+      'balanced-brackets': 'easy',
+      'merge-meeting-times': 'medium',
+      'longest-run-no-repeat': 'medium',
+      'smallest-truck-size': 'medium',
+      'shortest-grid-path': 'medium',
+      'k-closest-stores': 'medium',
+      'recently-used-cache': 'medium',
+      'course-order': 'medium',
+      'fewest-coins': 'hard',
+    });
+  });
+
   it('each have what a round needs: a statement, follow-ups and enough test cases', () => {
     for (const problem of loadProblems().values()) {
       expect(problem.statement, problem.name).toMatch(new RegExp(`^# ${problem.details.title}\n`));

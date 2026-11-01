@@ -17,8 +17,12 @@ test('Choose a problem lists the problems by title and difficulty, never their t
   await window.getByRole('button', { name: 'Choose a problem' }).click();
   const list = problemList(window);
   await expect(list.getByRole('heading', { name: 'Choose a problem' })).toBeVisible();
+  await expect(list.getByRole('listitem')).toHaveCount(10);
+  // Easiest first: the two easy ones, then the medium ones, then the hard one.
+  await expect(list.getByRole('listitem').first()).toContainText('Balanced brackets');
+  await expect(list.getByRole('listitem').last()).toContainText('Fewest coins');
   await expect(list.getByRole('button', { name: /^Two sum/ })).toContainText('Easy');
-  await expect(list).not.toContainText('Hash map');
+  for (const topic of ['Hash map', 'Stack', 'Heap', 'Dynamic programming']) await expect(list).not.toContainText(topic);
   // Nothing done yet, so no count shows.
   await expect(list).not.toContainText('Done');
   await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
