@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fakeOllama } from '@interviewharness/providers/test';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { closeApp, launchApp } from './launch.ts';
+import { choose, closeApp, launchApp, picker } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -41,27 +41,28 @@ test('shows the connections and the interviewer model, and offers to sign in whe
   await openModelTab();
 
   await expect(settings().getByRole('listitem').filter({ hasText: 'Ollama' })).toContainText('Running · 2 models');
-  await settings().getByRole('button', { name: 'Add a connection' }).click();
+  await settings().getByRole('button', { name: 'Add', exact: true }).click();
   await settings().getByRole('radio', { name: /ChatGPT/ }).check();
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
-  await expect(settings().getByLabel('Interviewer model', { exact: true })).toHaveValue('chatgpt/gpt-5-mini');
-  await expect(settings().getByLabel('Feedback model', { exact: true })).toHaveValue('');
+  await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini');
+  await expect(picker(settings(), 'Feedback model')).toHaveText('Same as interviewer');
 });
 
 test('changes the interviewer and Feedback models, each checked to answer, and marks a model small', async () => {
   await openModelTab();
   ollama.reply({ text: 'OK' }, { text: 'OK' });
 
-  await settings().getByLabel('Interviewer model', { exact: true }).selectOption('ollama/qwen3:0.6b');
+  await choose(settings(), 'Interviewer model', 'qwen3:0.6b');
   await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'ollama', model: 'qwen3:0.6b' } });
-  await settings().getByLabel('Feedback model', { exact: true }).selectOption('ollama/qwen2.5:32b');
+  await choose(settings(), 'Feedback model', 'qwen2.5:32b');
+  await expect(picker(settings(), 'Feedback model')).toHaveText('qwen2.5:32b · Ollama');
   await expect.poll(settingsFile).toMatchObject({ feedbackModel: { provider: 'ollama', model: 'qwen2.5:32b' } });
   expect(ollama.chats()).toHaveLength(2);
   await settings().getByRole('switch', { name: 'Treat the Feedback model as small' }).check();
 
   await expect.poll(settingsFile).toMatchObject({ smallModels: ['ollama/qwen2.5:32b'] });
 
-  await settings().getByLabel('Feedback model', { exact: true }).selectOption('');
+  await choose(settings(), 'Feedback model', 'Same as interviewer');
   await expect.poll(settingsFile).toMatchObject({ feedbackModel: null });
   // "Same as interviewer": the switch now speaks about the interviewer's model, which isn't marked.
   await expect(settings().getByRole('switch', { name: 'Treat the Feedback model as small' })).not.toBeChecked();
@@ -86,10 +87,10 @@ test("a model that doesn't answer isn't picked, and the reason is shown", async 
   await openModelTab();
   ollama.reply({ status: 500, error: 'model requires more system memory (20.0 GiB) than is available (8.0 GiB)' });
 
-  await settings().getByLabel('Interviewer model', { exact: true }).selectOption('ollama/qwen2.5:32b');
+  await choose(settings(), 'Interviewer model', 'qwen2.5:32b');
 
   await expect(settings().getByRole('alert')).toContainText('more system memory');
-  await expect(settings().getByLabel('Interviewer model', { exact: true })).toHaveValue('chatgpt/gpt-5-mini');
+  await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini');
   expect(settingsFile()).toMatchObject({ interviewerModel: { provider: 'chatgpt', model: 'gpt-5-mini' } });
 });
 
@@ -107,4 +108,24 @@ test('a saved key shows as a status, never the key, and Remove forgets it', asyn
 
   await expect(row).toHaveCount(0);
   expect(JSON.parse(readFileSync(join(dataDir, 'credentials.json'), 'utf8')).entries).toEqual({});
+});
+
+test('the model picker searches a long list, works from the keyboard, and Escape closes only the list', async () => {
+  await seedLogin();
+  await openModelTab();
+  ollama.reply({ text: 'OK' });
+
+  await picker(settings(), 'Interviewer model').click();
+  await settings().getByRole('combobox', { name: 'Search' }).fill('qwen3');
+  await expect(settings().getByRole('option')).toHaveCount(1);
+  await window.keyboard.press('Escape');
+  await expect(settings().getByRole('option')).toHaveCount(0);
+  await expect(settings()).toBeVisible();
+
+  await picker(settings(), 'Interviewer model').click();
+  await settings().getByRole('combobox', { name: 'Search' }).fill('qwen3');
+  await window.keyboard.press('Enter');
+
+  await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'ollama', model: 'qwen3:0.6b' } });
+  await expect(picker(settings(), 'Interviewer model')).toHaveText('qwen3:0.6b · Ollama');
 });

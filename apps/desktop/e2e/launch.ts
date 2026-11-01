@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ModelScript } from '@interviewharness/engine/test';
-import { _electron as electron, type ElectronApplication, expect, type Page, test } from '@playwright/test';
+import { _electron as electron, type ElectronApplication, expect, type Locator, type Page, test } from '@playwright/test';
 
 export const talkButton = (window: Page) => window.getByRole('button', { name: 'Talk', exact: true });
 export const stopTalkingButton = (window: Page) => window.getByRole('button', { name: 'Stop talking' });
@@ -46,6 +46,15 @@ export async function launchApp({
   if (process.env.CI) await app.context().tracing.start({ screenshots: true, snapshots: true });
   const window = await app.firstWindow();
   return { app, window, dataDir };
+}
+
+/** The app's own picker (ui/Picker) named `field`: a button showing the current choice. */
+export const picker = (scope: Page | Locator, field: string) => scope.getByRole('button', { name: field, exact: true });
+
+/** Opens the picker named `field` and picks the option named `option`. */
+export async function choose(scope: Page | Locator, field: string, option: string) {
+  await picker(scope, field).click();
+  await scope.getByRole('option', { name: option, exact: true }).click();
 }
 
 /** Ends the round: End round, then the confirmation's End round. */

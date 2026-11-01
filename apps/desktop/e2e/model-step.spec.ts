@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fakeKeyServer, fakeOllama } from '@interviewharness/providers/test';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { closeApp, launchApp } from './launch.ts';
+import { choose, closeApp, launchApp, picker } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -31,7 +31,7 @@ test('finds Ollama on this computer, and a model that answers is picked', async 
   // Ollama is running with models, so it's the way picked to start with.
   await expect(step().getByText('Running on this computer · 2 models')).toBeVisible();
   await expect(step().getByRole('radio', { name: /Ollama/ })).toBeChecked();
-  await step().getByRole('combobox', { name: 'Model', exact: true }).selectOption('gemma3:270m');
+  await choose(step(), 'Model', 'gemma3:270m');
   await step().getByRole('button', { name: 'Use this model' }).click();
 
   await expect(step()).toHaveCount(0);
@@ -62,10 +62,10 @@ test('picks a model on another OpenAI-compatible server, checked before it is sa
     ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
     await step().getByRole('radio', { name: /API key/ }).check();
-    await step().getByLabel('Provider').selectOption('server');
+    await choose(step(), 'Provider', 'Other server (LM Studio, llama.cpp, vLLM)');
     await step().getByLabel('Server address').fill(`${server.origin}/v1`);
     await step().getByRole('button', { name: 'Find models' }).click();
-    await expect(step().getByRole('combobox', { name: 'Model', exact: true })).toHaveValue('qwen2.5-7b-instruct');
+    await expect(picker(step(), 'Model')).toHaveText('qwen2.5-7b-instruct');
 
     server.reply({ status: 401, body: JSON.stringify({ error: { message: 'Unauthorized' } }) });
     await step().getByRole('button', { name: 'Check and save' }).click();
@@ -86,7 +86,7 @@ test('an API key is hidden as it is typed, and nothing can be saved without one'
   ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
   await step().getByRole('radio', { name: /API key/ }).check();
-  await step().getByLabel('Provider').selectOption('anthropic');
+  await choose(step(), 'Provider', 'Anthropic');
   await expect(step().getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute('type', 'password');
   // With no key, nothing can be checked or saved.
   await expect(step().getByRole('button', { name: 'Check and save' })).toBeDisabled();

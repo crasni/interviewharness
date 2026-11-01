@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useId, useState } from 'react';
 import type { ModelList } from '../../../shared/api.ts';
 import type { ModelChoice } from '../../../shared/settings.ts';
 import { useSettings } from '../settings/settings.tsx';
+import { Picker } from '../ui/Picker.tsx';
 import { useChatGPTLogin } from './useChatGPTLogin.ts';
 import { useConnect } from './useConnect.ts';
 import './models.css';
@@ -142,10 +143,10 @@ export function ModelSetup({
               <p className="model-setup-note" role="alert">
                 {ollama.error}
               </p>
-              <label className="model-setup-field" htmlFor={ids.ollamaAddress}>
-                <span>Ollama address</span>
+              <div className="model-setup-field">
+                <label htmlFor={ids.ollamaAddress}>Ollama address</label>
                 <input id={ids.ollamaAddress} type="url" value={ollamaAddress} onChange={(event) => setOllamaAddress(event.target.value)} spellCheck={false} />
-              </label>
+              </div>
               <button type="button" className="model-setup-aside" onClick={() => void lookForOllama(ollamaAddress)}>
                 Look again
               </button>
@@ -155,33 +156,26 @@ export function ModelSetup({
             <p className="model-setup-note">Ollama has no models yet. Download one with "ollama pull", then look again.</p>
           )}
           {ollama?.ok && ollama.models.length > 0 && (
-            <label className="model-setup-field" htmlFor={ids.ollamaModel}>
-              <span>Model</span>
-              <select id={ids.ollamaModel} value={ollamaModel} onChange={(event) => setOllamaModel(event.target.value)}>
-                {ollama.models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="model-setup-field">
+              <label htmlFor={ids.ollamaModel}>Model</label>
+              <Picker id={ids.ollamaModel} value={ollamaModel} options={ollama.models.map((m) => ({ value: m.id, label: m.name }))} onChange={setOllamaModel} />
+            </div>
           )}
         </Row>
 
         <Row way="key" open={way} onOpen={open} name={ids.way} title="API key" description="OpenAI, Anthropic, Google, OpenRouter, or another OpenAI-compatible server.">
-          <label className="model-setup-field" htmlFor={ids.provider}>
-            <span>Provider</span>
-            <select id={ids.provider} value={provider} onChange={(event) => setProvider(event.target.value as KeyProvider)}>
-              {keyProviders.map((p) => (
-                <option key={p.provider} value={p.provider}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="model-setup-field">
+            <label htmlFor={ids.provider}>Provider</label>
+            <Picker
+              id={ids.provider}
+              value={provider}
+              options={keyProviders.map((p) => ({ value: p.provider, label: p.name }))}
+              onChange={(next) => setProvider(next as KeyProvider)}
+            />
+          </div>
           {server && (
-            <label className="model-setup-field" htmlFor={ids.address}>
-              <span>Server address</span>
+            <div className="model-setup-field">
+              <label htmlFor={ids.address}>Server address</label>
               <input
                 id={ids.address}
                 type="url"
@@ -191,12 +185,12 @@ export function ModelSetup({
                 onBlur={() => serverAddress && void findServerModels()}
                 spellCheck={false}
               />
-            </label>
+            </div>
           )}
-          <label className="model-setup-field" htmlFor={ids.key}>
-            <span>{server ? 'Key, if it needs one' : 'API key'}</span>
+          <div className="model-setup-field">
+            <label htmlFor={ids.key}>{server ? 'Key, if it needs one' : 'API key'}</label>
             <input id={ids.key} type="password" value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
-          </label>
+          </div>
           {server && !keyModels && (
             <button type="button" className="model-setup-aside" disabled={!serverAddress} onClick={() => void findServerModels()}>
               Find models
@@ -208,16 +202,10 @@ export function ModelSetup({
             </p>
           )}
           {keyModels?.ok && (
-            <label className="model-setup-field" htmlFor={ids.model}>
-              <span>Model</span>
-              <select id={ids.model} value={keyModel} onChange={(event) => setKeyModel(event.target.value)}>
-                {keyModels.models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="model-setup-field">
+              <label htmlFor={ids.model}>Model</label>
+              <Picker id={ids.model} value={keyModel} options={keyModels.models.map((m) => ({ value: m.id, label: m.name }))} onChange={setKeyModel} />
+            </div>
           )}
         </Row>
       </div>
