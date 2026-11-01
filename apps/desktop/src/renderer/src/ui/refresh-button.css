@@ -1,4 +1,12 @@
-/* Refresh: the arrows make full turns while it works, and come to rest at the end of one. */
+/*
+ * Refresh: on hover the arrows make a half turn. The icon looks the same upside down, so when a press starts
+ * the full turns from 0° there's no visible jump.
+ */
+.refresh-button:hover:not(:disabled) svg {
+  transform: rotate(180deg);
+}
+
+/* While it works the arrows make full turns, and come to rest at the end of one. */
 .refresh-button[data-turning='true'] svg {
   animation: refresh-turn 0.8s var(--ease) infinite;
 }

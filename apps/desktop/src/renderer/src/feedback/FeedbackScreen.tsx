@@ -105,7 +105,7 @@ export function FeedbackScreen({ round, onBack }: { round: RoundSnapshot; onBack
 
       <footer className="feedback-foot">
         {result && !result.ok && !final.includes(result.error) && (
-          <button type="button" className="primary with-icon" onClick={() => void tryAgain()}>
+          <button type="button" className="primary with-icon" data-motion="unwind" onClick={() => void tryAgain()}>
             <RotateCcw {...iconProps} size={16} />
             Try again
           </button>

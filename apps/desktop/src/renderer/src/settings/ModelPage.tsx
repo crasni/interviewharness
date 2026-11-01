@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { ProviderStatus, Slot } from '../../../shared/api.ts';
 import { choiceFromKey, feedbackModel, type ModelChoice, modelKey } from '../../../shared/settings.ts';
@@ -121,7 +122,8 @@ export function ModelPage() {
             Connections
           </h3>
           {!setup && (
-            <button type="button" onClick={() => setSetup({})}>
+            <button type="button" className="primary with-icon" data-motion="grow" onClick={() => setSetup({})}>
+              <Plus size={14} strokeWidth={2} aria-hidden />
               Add
             </button>
           )}

@@ -97,8 +97,56 @@ button.with-icon svg {
   transition: transform var(--settle) var(--ease);
 }
 
-button.with-icon[data-motion='nudge']:hover svg {
+/* Small movements an icon makes on hover, worded or icon-only alike; each says what its button does. */
+button[data-motion='turn']:hover:not(:disabled) svg {
+  transform: rotate(90deg); /* close: the cross turns */
+}
+
+button[data-motion='spin']:hover:not(:disabled) svg {
+  transform: rotate(60deg); /* settings: the gear turns */
+}
+
+button[data-motion='unwind']:hover:not(:disabled) svg {
+  transform: rotate(-120deg); /* reset, try again: winds back */
+}
+
+button[data-motion='nudge']:hover:not(:disabled) svg {
+  transform: translateX(-2px); /* back: leans the way it goes */
+}
+
+button[data-motion='grow']:hover:not(:disabled) svg {
+  transform: scale(1.2); /* add: the plus grows */
+}
+
+/* show or hide a panel: the icon leans the way the panel will move */
+button[data-motion='slide-left']:hover:not(:disabled) svg {
   transform: translateX(-2px);
+}
+
+button[data-motion='slide-right']:hover:not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+button[data-motion='slide-up']:hover:not(:disabled) svg {
+  transform: translateY(-2px);
+}
+
+button[data-motion='slide-down']:hover:not(:disabled) svg {
+  transform: translateY(2px);
+}
+
+/* talk: the mic gives a quick wiggle, like a tap to check it's on */
+button[data-motion='wiggle']:hover:not(:disabled) svg {
+  animation: mic-wiggle var(--settle) var(--ease);
+}
+
+@keyframes mic-wiggle {
+  30% {
+    transform: rotate(-14deg);
+  }
+  65% {
+    transform: rotate(10deg);
+  }
 }
 
 button:disabled {
