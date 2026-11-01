@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLineBook, readProblem } from '@interviewharness/engine';
 import { formatPlayedRound, playCandidate } from '@interviewharness/engine/scripted-candidate';
-import { type Credential, type CredentialStore, createProviders, type KeyProviderName, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import { type Credential, type CredentialStore, createProviders, type KeyProviderName, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import { validSettings } from '../src/shared/settings.ts';
 import { scriptedCandidates } from './scripted-candidates.ts';
 
@@ -103,10 +103,8 @@ const signIns: Record<ProviderName, (providers: Providers) => Promise<void>> = {
   },
   // Ollama needs no login. Its address is INTERVIEWHARNESS_OLLAMA_ADDRESS, else Ollama's default.
   async ollama() {},
-  openai: savedKeyFromEnvironment('openai'),
-  anthropic: savedKeyFromEnvironment('anthropic'),
-  google: savedKeyFromEnvironment('google'),
-  openrouter: savedKeyFromEnvironment('openrouter'),
+  // Every provider in the table of key providers takes its key the same way.
+  ...(Object.fromEntries(keyProviderTable.map((row) => [row.id, savedKeyFromEnvironment(row.id)])) as Record<(typeof keyProviderTable)[number]['id'], (providers: Providers) => Promise<void>>),
   // A server's key is optional; its address is INTERVIEWHARNESS_SERVER_ADDRESS.
   async server(providers) {
     if (!serverAddress) throw new Error('Set INTERVIEWHARNESS_SERVER_ADDRESS to the server\'s address, e.g. http://localhost:1234/v1.');

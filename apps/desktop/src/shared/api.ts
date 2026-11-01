@@ -67,6 +67,8 @@ export interface HarnessApi {
     connect(connection: ModelConnection): Promise<ConnectResult>;
     /** Forgets a provider's login or key (a server's address too), and unpicks its models (announced through settings.onChange). */
     logout(provider: ModelChoice['provider']): Promise<void>;
+    /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
+    openKeyPage(provider: ModelChoice['provider']): void;
   };
 }
 
@@ -132,6 +134,7 @@ export const channels = {
   listModels: 'models:list',
   connect: 'models:connect',
   logout: 'models:logout',
+  openKeyPage: 'models:open-key-page',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {
