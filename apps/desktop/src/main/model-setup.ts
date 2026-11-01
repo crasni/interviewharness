@@ -172,6 +172,7 @@ export function setUpModels({
 
     list: chooser.list,
     connect: chooser.connect,
+    replaceKey: chooser.replaceKey,
     logout: chooser.removeConnection,
     removeModel: chooser.removeModel,
     listServer: chooser.servers.list,

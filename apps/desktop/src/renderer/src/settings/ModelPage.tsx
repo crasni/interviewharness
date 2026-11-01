@@ -234,12 +234,15 @@ export function ModelPage() {
                 <p className="settings-hint">
                   {setup.editing
                     ? 'Changes are saved once a model on the server answers; that model joins your models.'
-                    : `${setup.replacing ? 'Paste the new key. ' : ''}The model you check here becomes the interviewer's model.`}
+                    : setup.replacing
+                      ? "Paste the new key. It's saved once the model answers through it; your models and picks stay as they are."
+                      : "The model you check here becomes the interviewer's model."}
                 </p>
                 <ModelSetup
                   key={setup.editing?.id ?? setup.item.id}
                   item={setup.item}
                   editing={setup.editing}
+                  replacing={setup.replacing}
                   onDone={() => {
                     setSetup(null);
                     refresh();

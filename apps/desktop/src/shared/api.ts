@@ -68,6 +68,8 @@ export interface HarnessApi {
      * and key it was reached with (announced through settings.onChange). Used to add a connection and to add a model.
      */
     connect(connection: ModelConnection): Promise<ConnectResult>;
+    /** Checks that a model answers through a new key, then saves the key in place of the old one. Your models and the picks stay as they are. */
+    replaceKey(replacement: KeyReplacement): Promise<ConnectResult>;
     /**
      * Forgets a provider's login or key, and removes its models from your models (announced through
      * settings.onChange). For a server, `server` names which one; the server itself is removed too.
@@ -149,6 +151,13 @@ export interface ModelConnection extends Connection {
   server?: string;
 }
 
+/** A new key for a key provider already connected, and a model to check it with (which isn't added to your models). */
+export interface KeyReplacement {
+  provider: ModelChoice['provider'];
+  model: string;
+  key: string;
+}
+
 export type ConnectResult =
   /** `unencryptedNote`: say once that the key isn't encrypted on this machine (Linux with no keyring). */
   | { ok: true; unencryptedNote: boolean }
@@ -180,6 +189,7 @@ export const channels = {
   providers: 'models:providers',
   listModels: 'models:list',
   connect: 'models:connect',
+  replaceKey: 'models:replace-key',
   logout: 'models:logout',
   signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',

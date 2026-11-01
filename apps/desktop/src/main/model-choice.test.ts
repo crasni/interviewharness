@@ -167,6 +167,42 @@ describe('your models', () => {
   });
 });
 
+describe('replacing a key', () => {
+  const sonnet = { provider: 'anthropic', model: 'claude-sonnet-4-6' } as const;
+  const qwen = { provider: 'ollama', model: 'qwen3:0.6b' } as const;
+  beforeEach(async () => {
+    await credentials.modify('anthropic', async () => ({ type: 'api_key', key: 'sk-ant-old' }));
+    settings.change({ yourModels: [qwen, sonnet], interviewerModel: qwen, feedbackModel: sonnet });
+  });
+
+  it('saves the new key once a model answers through it, and keeps your models and both picks', async () => {
+    cloud.reply({ text: 'OK' });
+
+    const result = await chooser.replaceKey({ provider: 'anthropic', model: 'claude-opus-4-6', key: ' sk-ant-new ' });
+
+    expect(result).toEqual({ ok: true, unencryptedNote: false });
+    expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-new' });
+    expect(cloud.requests.at(-1)!.headers['x-api-key']).toBe('sk-ant-new');
+    expect(settings.values()).toMatchObject({ yourModels: [qwen, sonnet], interviewerModel: qwen, feedbackModel: sonnet });
+  });
+
+  it('keeps the old key when the new one is refused', async () => {
+    cloud.reply({ status: 401, body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }) });
+
+    const result = await chooser.replaceKey({ provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-wrong' });
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/refused/) });
+    expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-old' });
+  });
+
+  it('refuses a request the renderer made up', async () => {
+    for (const made of [null, { provider: 'ollama', model: 'x', key: 'k' }, { provider: 'anthropic', model: 'x' }, { provider: 'anthropic', model: 'x', key: ' ' }, { provider: 'anthropic', model: 'x', key: 'k', slot: 'interviewer' }]) {
+      expect(await chooser.replaceKey(made)).toMatchObject({ ok: false });
+    }
+    expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-old' });
+  });
+});
+
 describe('the log', () => {
   it('records every check with its provider and model, and never a key', async () => {
     const logged: unknown[] = [];

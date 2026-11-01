@@ -53,6 +53,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'model' : 'models'}`;
 export function ModelSetup({
   item,
   editing,
+  replacing = false,
   onDone,
   onUnencrypted,
 }: {
@@ -60,6 +61,8 @@ export function ModelSetup({
   item?: AddableItem;
   /** With a server `item`: the saved server to edit. */
   editing?: Server;
+  /** With a key provider's `item`: replace its saved key, leaving your models and the picks as they are. */
+  replacing?: boolean;
   /** After a model is saved or a login comes back. */
   onDone?: () => void;
   /** A login or key was saved without encryption on this machine, which is said once. */
@@ -167,7 +170,8 @@ export function ModelSetup({
                 ready: !!provider && !!keyModel && !!key.trim(),
                 run: async () => {
                   if (!provider) return;
-                  if (await check.connect({ slot: 'interviewer', provider, model: keyModel, key })) onDone?.();
+                  const saved = replacing ? await check.replaceKey({ provider, model: keyModel, key }) : await check.connect({ slot: 'interviewer', provider, model: keyModel, key });
+                  if (saved) onDone?.();
                 },
               }
             : null;

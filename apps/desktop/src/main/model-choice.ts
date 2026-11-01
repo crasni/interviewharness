@@ -1,6 +1,6 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
 import { type Connection, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
-import type { ConnectResult, ModelConnection, ModelList } from '../shared/api.ts';
+import type { ConnectResult, KeyReplacement, ModelConnection, ModelList } from '../shared/api.ts';
 import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
 import { plainServerError, serverConnections } from './server-connections.ts';
 
@@ -63,6 +63,13 @@ function loggingChecks(providers: Providers, log: (entry: CheckLogEntry) => void
   };
 }
 
+function isKeyReplacement(value: unknown): value is KeyReplacement & { provider: KeyProviderName } {
+  if (typeof value !== 'object' || value === null) return false;
+  const { provider, model, key, ...rest } = value as Record<string, unknown>;
+  if (!isProviderName(provider) || !isKeyProvider(provider) || Object.keys(rest).length) return false;
+  return typeof model === 'string' && !!model && model.length <= 200 && typeof key === 'string' && !!key.trim() && key.length <= 500;
+}
+
 /**
  * Adding a model to your models, into a slot. The model is asked for one short reply first, through the address or
  * key the candidate just entered, and only a model that answers is saved, with that address and key.
@@ -119,6 +126,24 @@ export function modelChooser({
         ...(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice }),
         ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
       });
+      return { ok: true, unencryptedNote };
+    },
+
+    /**
+     * Replaces a provider's saved key once `model` answers through the new one. Your models and both picks
+     * stay as they are; a refused key leaves the old one.
+     */
+    async replaceKey(request: unknown): Promise<ConnectResult> {
+      if (!isKeyReplacement(request)) return { ok: false, error: "That key can't be saved." };
+      const { provider, model, key } = request;
+      try {
+        await providers.check({ provider, model }, { key });
+      } catch (error) {
+        return { ok: false, error: plainError(modelErrorKind(error), request, error) };
+      }
+      await providers.saveKey(provider, key);
+      const unencryptedNote = !encrypted() && !settings.values().unencryptedLoginNoted;
+      if (unencryptedNote) settings.change({ unencryptedLoginNoted: true });
       return { ok: true, unencryptedNote };
     },
 
