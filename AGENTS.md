@@ -28,6 +28,7 @@ Inspired by [LearnHarness](https://github.com/amosblomqvist/learnharness) (AGPL)
 - Plan logins: ChatGPT only through OpenAI's official partner program. **Never use Claude consumer OAuth**; the only option is spawning the user's own `claude` CLI.
 
 ## Rules
+- **macOS, Linux and Windows are all first-class.** Every feature must work on all three (x64 and arm64). Check paths, line endings, key storage, packaging and sandboxes per OS; no single-OS dependencies without a plan for the others.
 - Layering: `packages/core` (pure, no I/O) ← `engine` ← `providers|voice|runner` ← `apps/desktop`. Enforce with lint.
 - Tests are deterministic, using a scripted fake LLM and fake audio. No network in tests.
 - Every interviewer decision is logged with its signals (`events.jsonl`) so sessions can be replayed and evaluated.
@@ -47,6 +48,9 @@ Local markdown under `.scratch/<feature>/` for the owner's work; GitHub Issues o
 
 ### Triage labels
 The five default roles, written as a `Status:` line in each `.scratch/` ticket. See `docs/agents/triage-labels.md`.
+
+### Git workflow
+A branch per version, its commits kept, merged with a merge commit once the version is done and CI is green. See `docs/agents/git-workflow.md`.
 
 ### Domain docs
 Single-context: `GLOSSARY.md` at the root plus `docs/adr/`; D1–D13 stay in `docs/DECISIONS.md`. See `docs/agents/domain.md`.

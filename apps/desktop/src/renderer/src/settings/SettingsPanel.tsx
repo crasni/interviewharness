@@ -1,7 +1,9 @@
 import { RotateCcw, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
+import { Picker } from '../ui/Picker.tsx';
 import { type CodeLanguage, type Settings, type TextSize, type Theme, useSettings } from './settings.tsx';
+import { ModelPage } from './ModelPage.tsx';
 import './settings.css';
 
 export const languageLabels: Record<CodeLanguage, string> = {
@@ -13,12 +15,13 @@ export const languageLabels: Record<CodeLanguage, string> = {
   go: 'Go',
 };
 
-type Category = 'appearance' | 'interview' | 'editor';
+type Category = 'appearance' | 'interview' | 'editor' | 'model';
 
 const categories: [Category, string][] = [
   ['appearance', 'Appearance'],
   ['interview', 'Interview'],
   ['editor', 'Editor'],
+  ['model', 'Model'],
 ];
 
 /**
@@ -102,8 +105,13 @@ export function SettingsPanel() {
           checked={settings.highlighting}
           onChange={(highlighting) => change({ highlighting })}
         />
+        <Toggle label="Close brackets and quotes" checked={settings.closeBrackets} onChange={(closeBrackets) => change({ closeBrackets })} />
+        <Toggle label="Highlight matching brackets" checked={settings.matchBrackets} onChange={(matchBrackets) => change({ matchBrackets })} />
+        <Toggle label="Find and replace" checked={settings.findReplace} onChange={(findReplace) => change({ findReplace })} />
+        <Toggle label="Wrap long lines" checked={settings.wrapLines} onChange={(wrapLines) => change({ wrapLines })} />
       </>
     ),
+    model: <ModelPage />,
   };
 
   return (
@@ -142,7 +150,7 @@ export function SettingsPanel() {
           </section>
         </div>
 
-        <p className="settings-note label">Saved on this computer. Nothing here changes how you are judged.</p>
+        <p className="settings-note label">Saved on this computer.</p>
       </div>
     </dialog>
   );
@@ -234,13 +242,12 @@ function LanguagePicker({ value, onChange }: { value: CodeLanguage; onChange: (l
   return (
     <div className="settings-row">
       <label htmlFor={id}>Code language</label>
-      <select id={id} value={value} onChange={(event) => onChange(event.target.value as CodeLanguage)}>
-        {Object.entries(languageLabels).map(([language, label]) => (
-          <option key={language} value={language}>
-            {label}
-          </option>
-        ))}
-      </select>
+      <Picker
+        id={id}
+        value={value}
+        options={Object.entries(languageLabels).map(([language, label]) => ({ value: language, label }))}
+        onChange={(language) => onChange(language as CodeLanguage)}
+      />
     </div>
   );
 }

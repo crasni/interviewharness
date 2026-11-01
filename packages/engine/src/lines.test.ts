@@ -30,6 +30,12 @@ describe('the example-lines file', () => {
     expect(lines.next('backchannel')).toBe('Mm-hm.');
   });
 
+  it('fills in the minutes left where a line has a place for them', () => {
+    const lines = createLineBook('## Time reminder\n- About {minutes} minutes left. {minutes} is plenty.');
+
+    expect(lines.next('time-reminder', { minutes: 5 })).toBe('About 5 minutes left. 5 is plenty.');
+  });
+
   it('rejects a heading that is not a known situation, so a typo fails at load', () => {
     expect(() => createLineBook('## Backchanel\n- Mm-hm.')).toThrow('Unknown situation "Backchanel"');
   });

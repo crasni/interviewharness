@@ -1,8 +1,12 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 
-// Workspace packages ship TypeScript source, so bundle them instead of externalizing.
-const bundleWorkspace = { exclude: ['@interviewharness/core', '@interviewharness/engine'] };
+// Workspace packages ship TypeScript source, so bundle them instead of externalizing. pi-ai is a
+// dependency of providers only, so the app can't load it by name at run time: bundle it too (only the
+// provider SDKs we register end up in the app).
+const bundleWorkspace = {
+  exclude: ['@interviewharness/core', '@interviewharness/engine', '@interviewharness/providers', '@earendil-works/pi-ai'],
+};
 
 export default defineConfig({
   main: {

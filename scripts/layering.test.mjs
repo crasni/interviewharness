@@ -18,6 +18,18 @@ const forbidden = [
   ['packages/engine/src/x.ts', "import '@interviewharness/desktop';"],
   ['packages/engine/src/x.ts', "import '../../../apps/desktop/src/shared/api.ts';"],
   ['packages/engine/src/x.ts', "import 'electron';"],
+  ['packages/engine/src/x.ts', "import '@interviewharness/providers';"],
+  ['packages/engine/src/x.ts', "import '../../providers/src/index.ts';"],
+  ['packages/engine/src/x.ts', "import '@earendil-works/pi-ai';"],
+  ['packages/providers/src/x.ts', "import '@interviewharness/desktop';"],
+  ['packages/providers/src/x.ts', "import '../../../apps/desktop/src/shared/api.ts';"],
+  ['packages/providers/src/x.ts', "import 'electron';"],
+  ['apps/desktop/src/main/x.ts', "import '@earendil-works/pi-ai';"],
+  ['apps/desktop/src/main/x.ts', "import '@earendil-works/pi-ai/models';"],
+  // The renderer runs in the browser: values from providers would pull pi-ai and Node in with them.
+  ['apps/desktop/src/renderer/src/x.ts', "import { createProviders } from '@interviewharness/providers';"],
+  ['apps/desktop/src/shared/x.ts', "import { createProviders } from '@interviewharness/providers';"],
+  ['apps/desktop/src/shared/x.ts', "import '@earendil-works/pi-ai';"],
 ];
 
 for (const [file, source] of forbidden) {
@@ -30,6 +42,11 @@ const allowed = [
   ['packages/engine/src/x.ts', "import '@interviewharness/core';"],
   ['packages/engine/src/x.ts', "import './round.ts';"],
   ['apps/desktop/src/main/x.ts', "import '@interviewharness/engine';"],
+  ['packages/providers/src/x.ts', "import '@interviewharness/engine';"],
+  ['packages/providers/src/x.ts', "import '@earendil-works/pi-ai';"],
+  ['apps/desktop/src/main/x.ts', "import '@interviewharness/providers';"],
+  ['apps/desktop/src/shared/x.ts', "import type { ModelChoice } from '@interviewharness/providers';"],
+  ['apps/desktop/src/shared/x.ts', "import { defaultOllamaAddress } from '@interviewharness/providers/defaults';"],
 ];
 
 for (const [file, source] of allowed) {

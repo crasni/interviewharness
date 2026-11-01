@@ -1,11 +1,18 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { createLineBook } from '@interviewharness/engine';
+import { createLineBook, gradeRound, type GradingEntry, modelErrorKind, type RoundLog, type RoundRecord } from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
-import { channels, isCandidateSignal, isTheme } from '../shared/api.ts';
+// The app icon from brand/ (png/app-icon-512.png); `?asset` gives its path in the build.
+import icon from '../../resources/icon.png?asset';
+import { channels, type FeedbackResult, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
+import { writeFileAtomically } from './atomic-write.ts';
+import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
+import { setUpModels } from './model-setup.ts';
+import { loadProblems } from './problems.ts';
+import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
 
 const systemClock = { now: () => performance.now() };
@@ -13,37 +20,106 @@ const systemClock = { now: () => performance.now() };
 const dataDir = () => process.env.INTERVIEWHARNESS_DATA_DIR ?? app.getPath('userData');
 // With a throwaway folder, keep everything there (browser storage too), so tests never touch the real profile.
 if (process.env.INTERVIEWHARNESS_DATA_DIR) app.setPath('userData', process.env.INTERVIEWHARNESS_DATA_DIR);
+// v0.0's data folder was named after the npm package; the app's name (productName) now names it.
+else carryOverOldDataFolder(join(app.getPath('appData'), '@interviewharness', 'desktop'), dataDir());
+
+const settings = openSettingsFile(dataDir());
+
+/** Changes settings from main, and tells every window. */
+function changeSettings(changes: Parameters<typeof settings.change>[0]) {
+  const values = settings.change(changes);
+  for (const each of BrowserWindow.getAllWindows()) each.webContents.send(channels.settingsChanged, values);
+  return values;
+}
+
+// Only Two sum so far (v0.1.2 adds more); every folder is read and checked at startup all the same.
+const problem = loadProblems().get('two-sum')!;
 
 let window: BrowserWindow | null = null;
-let round: ActiveRound | null = null;
+/** A round's folder: its events.jsonl, and later its feedback.json. */
+type RoundFolder = { dir: string; log: RoundLog };
+
+let round: (ActiveRound & RoundFolder) | null = null;
+// The round that ended last, and its Feedback as it's being written.
+let ended: (RoundFolder & { record: RoundRecord; feedback: Promise<FeedbackResult> }) | null = null;
+
+const models = setUpModels({ dataDir: dataDir(), settings: { values: settings.values, change: changeSettings }, window: () => window });
 
 // Only coding rounds exist so far; the start screen shows the others as disabled.
 const availableKinds: readonly RoundKind[] = ['coding'];
 
-/** Stops the round in progress, if any, and returns how it ended. */
-function endCurrentRound() {
-  const ended = round?.snapshot() ?? null;
-  round?.stop();
+/** Stops the round in progress, if any, and returns it as it ended. Nothing is graded: see End round. */
+function endCurrentRound(code?: unknown) {
+  if (!round) return null;
+  const stopped = round;
   round = null;
-  return ended;
+  stopped.stop(isCodeSnapshot(code) ? code : undefined);
+  return stopped;
+}
+
+/**
+ * Grades a round and saves the Feedback, whole (scores included, no credentials), as feedback.json in its
+ * folder. The renderer gets the words only. Never rejects: a failure comes back as one, for Try again.
+ */
+async function writeFeedback(record: RoundRecord, { dir, log }: RoundFolder): Promise<FeedbackResult> {
+  // A round where the candidate said nothing has nothing to grade, however long it ran.
+  if (!record.transcript.some((line) => line.who === 'candidate')) return { ok: false, error: 'nothing-said' };
+  const grader = await models.feedbackModel();
+  if (!grader) return { ok: false, error: 'no-model' };
+  const startedAt = systemClock.now();
+  // How the verdict was reached (or why it wasn't) goes in the round's log, so it can be replayed and checked.
+  const logGrading = (grading: Omit<GradingEntry['grading'], 'model' | 'ms'>) =>
+    log.write({ at: systemClock.now(), grading: { model: grader.model.identity, ms: systemClock.now() - startedAt, ...grading } });
+  try {
+    const feedback = await gradeRound({ model: grader.model, problem, record, rough: grader.rough });
+    logGrading({ outcome: 'written', verdict: feedback.verdict, samples: feedback.samples });
+    await writeFileAtomically(join(dir, 'feedback.json'), `${JSON.stringify(feedback, null, 2)}\n`);
+    const { verdict, why, wentWell, toFix, rough } = feedback;
+    return { ok: true, verdict, why, wentWell, toFix, rough };
+  } catch (error) {
+    logGrading({ outcome: 'failed', error: modelErrorKind(error) });
+    console.error('Could not write the Feedback:', error);
+    return { ok: false, error: modelErrorKind(error) };
+  }
 }
 
 ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
   if (!availableKinds.includes(kind)) throw new Error(`Round kind not available yet: ${kind}`);
   endCurrentRound();
-  round = runRound({
+  const model = models.interviewerModel();
+  const log = createEventsLog(dataDir(), new Date());
+  const running = runRound({
     kind,
     clock: systemClock,
     lines: createLineBook(linesFile),
-    log: createEventsLog(dataDir(), new Date()),
-    onDecision: (decision) => window?.webContents.send(channels.decision, decision),
+    log,
+    model,
+    problem,
+    toneGuide: linesFile,
+    onEvent: (event) => window?.webContents.send(channels.decision, event),
   });
+  round = { ...running, dir: log.dir, log };
   return round.snapshot();
 });
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
 
-ipcMain.handle(channels.endRound, endCurrentRound);
+// The candidate ended the round: its Feedback starts being written at once.
+ipcMain.handle(channels.endRound, (_event, code: unknown) => {
+  const stopped = endCurrentRound(code);
+  if (!stopped) return null;
+  const record = stopped.record();
+  ended = { record, dir: stopped.dir, log: stopped.log, feedback: writeFeedback(record, stopped) };
+  return stopped.snapshot();
+});
+
+ipcMain.handle(channels.feedbackResult, (): Promise<FeedbackResult> => ended?.feedback ?? Promise.resolve({ ok: false, error: 'no-round' }));
+
+ipcMain.handle(channels.feedbackRetry, (): Promise<FeedbackResult> => {
+  if (!ended) return Promise.resolve({ ok: false, error: 'no-round' });
+  ended.feedback = writeFeedback(ended.record, ended);
+  return ended.feedback;
+});
 
 ipcMain.on(channels.signal, (_event, signal: unknown) => {
   if (isCandidateSignal(signal)) round?.signal(signal);
@@ -56,6 +132,28 @@ ipcMain.handle(channels.setTheme, (_event, theme: unknown) => {
   return nativeTheme.shouldUseDarkColors;
 });
 
+ipcMain.handle(channels.getSettings, () => ({ values: settings.values(), fresh: settings.fresh }));
+
+ipcMain.on(channels.changeSettings, (event, changes: unknown) => {
+  const values = settings.change(changes); // validated there: the renderer is not trusted
+  // The window that made the change already shows it; any other is told.
+  for (const other of BrowserWindow.getAllWindows()) {
+    if (other.webContents !== event.sender) other.webContents.send(channels.settingsChanged, values);
+  }
+});
+
+ipcMain.handle(channels.continueWithChatGPT, () => models.continueWithChatGPT());
+
+ipcMain.on(channels.cancelLogin, () => models.cancelLogin());
+
+ipcMain.handle(channels.providers, () => models.providers());
+
+ipcMain.handle(channels.listModels, (_event, provider: unknown, connection: unknown) => models.list(provider, connection));
+
+ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect(connection));
+
+ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
+
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
 
@@ -64,6 +162,7 @@ function createWindow() {
     width: 1280,
     height: 800,
     show: !hidden,
+    icon,
     ...windowChromeOptions(),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
@@ -87,11 +186,14 @@ function createWindow() {
 if (!app.isPackaged) app.commandLine.appendSwitch('log-level', '3');
 
 void app.whenReady().then(() => {
+  // Windows and Linux take the icon from the window; a packaged Mac app takes it from its bundle.
+  if (!app.isPackaged) app.dock?.setIcon(icon);
   installAppMenu();
   createWindow();
 });
 
 app.on('window-all-closed', () => {
   endCurrentRound();
-  app.quit();
+  // The last change may still be on its way to disk.
+  void settings.flush().finally(() => app.quit());
 });

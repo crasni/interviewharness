@@ -1,0 +1,179 @@
+/* One window tall: the head and the way out stay put; only the feedback between them scrolls. */
+.feedback {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(var(--reading-width), 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-6);
+}
+
+.feedback-head {
+  display: grid;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+}
+
+.feedback-heading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Hairlines above and below mark where the text scrolls under; the scrollbar is darker than elsewhere. */
+.feedback-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-3) var(--space-6) 0;
+  overflow-y: auto;
+  border-top: var(--rule);
+  border-bottom: var(--rule);
+  scrollbar-gutter: stable;
+}
+
+.feedback-body:focus-visible {
+  outline-offset: calc(-1 * var(--hairline));
+}
+
+.feedback-body::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  background-clip: padding-box;
+}
+
+.feedback-foot {
+  display: flex;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+}
+
+/* Writing, or why it couldn't be written. */
+.feedback-status {
+  display: grid;
+  gap: var(--space-2);
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
+}
+
+.feedback-status-note {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--muted);
+}
+
+.feedback-rough {
+  font-weight: var(--weight-regular);
+}
+
+.feedback-title {
+  font-family: var(--font-voice);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
+}
+
+.feedback-heading p {
+  color: var(--muted);
+}
+
+/*
+ * The verdict leads the page: one raised card holding the call in large type, and below it the
+ * six levels as a quiet scale with the given one inked. Nothing here looks pressable: it's an answer.
+ */
+.feedback-verdict {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.verdict-given {
+  font-family: var(--font-voice);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
+}
+
+.verdict-scale {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  margin-top: var(--space-2);
+  border-top: var(--hairline) solid var(--line);
+}
+
+.verdict-scale li {
+  position: relative;
+  padding-top: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  text-align: center;
+  color: var(--muted);
+}
+
+/* The given level: its stretch of the track inked, its name in ink. */
+.verdict-scale li[aria-current='true'] {
+  color: var(--ink);
+  font-weight: var(--weight-bold);
+}
+
+.verdict-scale li[aria-current='true']::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--hairline)) 0 auto;
+  height: var(--hairline);
+  background: var(--ink);
+}
+
+.feedback-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.feedback-section > p {
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
+}
+
+.feedback-section-title {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-bold);
+}
+
+/* Each section's points sit together on one card, a hairline between them. */
+.feedback-points {
+  list-style: none;
+  background: var(--surface);
+  border: var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.feedback-points li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.feedback-points li + li {
+  border-top: var(--rule);
+}
+
+.feedback-points p {
+  line-height: var(--leading-lg);
+}
+
+.feedback-moment {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-lg);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

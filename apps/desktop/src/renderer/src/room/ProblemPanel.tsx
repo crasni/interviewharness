@@ -1,7 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { marked } from 'marked';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
-import problemFile from '../../../../../../content/problems/two-sum.md?raw';
+import problemFile from '../../../../../../content/problems/two-sum/statement.md?raw';
 
 // The problem is our own bundled content file, not user input, so rendering its HTML is safe.
 const problemHtml = marked.parse(problemFile, { async: false });

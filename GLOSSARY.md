@@ -11,7 +11,7 @@ One complete mock interview with an interviewer, from start to verdict, of one k
 _Avoid_: Session, interview, mode
 
 **Phase**:
-One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Wrap-up. The debrief comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
+One stage of a round with its own goal; a coding round runs Clarify, Approach, Code, Test, Complexity, Follow-up, Wrap-up. Follow-up (the problem's follow-up questions) happens only when the candidate finishes early. The phase follows what the candidate is doing, ahead or back. Feedback comes after the round, not as a phase of it. The interviewer leads the move to the next phase but never forces the candidate past one.
 _Avoid_: Step, stage, section
 
 **Interviewer**:
@@ -21,6 +21,10 @@ _Avoid_: Bot, assistant, persona
 **Candidate**:
 The person practising in a round.
 _Avoid_: User, interviewee, student
+
+**Check**:
+A second, separate look at the interviewer's words before they're said, on turns where help could slip in: do they name a mistake, give a hint, or describe the solution? Its verdict, not the interviewer's own label, is what's recorded and graded.
+_Avoid_: Guardrail, filter, review
 
 ### Turn-taking
 
@@ -40,15 +44,43 @@ _Avoid_: Ack, filler
 A short spoken reply after the candidate's turn ends ("Okay, that makes sense") that takes the floor briefly and hands it back.
 _Avoid_: Backchannel, reply
 
+**Check-in**:
+A neutral line from the interviewer after a long stretch with no talking or typing ("Want to talk me through where you are?"), in words the model writes. If the silence goes on, it checks in again, waiting twice as long each time. It never hints or names a mistake: one that does is rejected (the second in a silence goes through the check) and a reviewed check-in line from the example lines is said instead. It stops once the candidate declines help, until they get back to work.
+_Avoid_: Nudge, prompt, reminder
+
+**Time reminder**:
+A line from the interviewer saying how much time is left ("Just so you know, we have about 15 minutes left."), said as written from the example lines at a pause, with 15 and with 5 minutes left. It says nothing about what to do with the time. At time, one closing line asks for the candidate's questions and turns to Wrap-up; only End round ends the round.
+_Avoid_: Check-in, warning, countdown
+
+**Closing line**:
+The one reviewed line the interviewer says at a pause once the round's time is up ("That's about time. Do you have any questions for me?"). It asks for the candidate's questions and moves the round to Wrap-up, but never ends it: only End round does (ADR 0018).
+_Avoid_: Goodbye, time's up, ending
+
 ### Help and feedback
 
-**Hint**:
-Help the interviewer gives toward the next step, never the answer. The candidate never sees a hint count or budget; hints used only shape the feedback afterwards.
-_Avoid_: Clue, help, hints left
+**Candidate turn**:
+What the candidate is doing with a turn, as the interviewer hears it: thinking aloud, a murmur, a clarifying question, seeking affirmation, asking for help, being stuck, explaining, saying they're done, answering the interviewer, agreeing, declining, or small talk. The interviewer's reply follows from it (ADR 0017).
+_Avoid_: Intent, message type, utterance class
 
-**Debrief**:
-The interviewer's written feedback after a round: a verdict, what went well and what to fix, each point tied to a moment in the round.
-_Avoid_: Report, scorecard, results, stats
+**Hint**:
+Help toward the next step, one rung of the problem's hint ladder at a time and never the answer. Given only when the candidate asks, or accepts the interviewer's offer; offered only when they say they're stuck or after repeated failed attempts (ADR 0017). Hints used lower the problem-solving score, as in a real interview, but the candidate never sees a hint count or budget.
+_Avoid_: Clue, hints left
+
+**Offer of help**:
+The interviewer asking whether the candidate wants a hint ("Want a hint?"), without giving one. Made only when the candidate says they're stuck or after two failed attempts since the last hint, and not again once they decline, until they say they're stuck or ask (ADR 0017). Accepting it counts as asking for help.
+_Avoid_: Hint, suggestion, nudge
+
+**Probe**:
+One short, neutral question about an answer the candidate handed over that looks wrong or ignores a constraint they agreed to, so they check it themselves ("Where does the data live while you sort it?", "What does seen hold after index 1?"). It never says the answer is wrong, the fix or the right answer, and goes through the check. In the interviewer's own words. One per answer, not per line: their reply to it gets none, fixed or not, though a new, different answer in the same turn may get its own; never more than two in a row. Never asked mid-work, or for a valid answer that differs from the reference. A mistake found right after a probe isn't credited as found on their own (ADR 0017).
+_Avoid_: Hint, nudge, follow-up
+
+**Failed attempt**:
+Something the candidate says they tried that didn't work: a trace or a run gave the wrong result, or an idea fell through. Counted since the last hint, to decide when an offer of help may come.
+_Avoid_: Mistake, error, wrong answer
+
+**Feedback**:
+The interviewer's written assessment after a round: a verdict, what went well and what to fix, each point tied to a moment in the round. Each area is scored inside the app to reach the verdict, but the candidate never sees a score.
+_Avoid_: Debrief, report, scorecard, results, stats
 
 **Verdict**:
 The interviewer's overall call at the end of a round, on a six-level scale: Strong hire, Hire, Lean hire, Lean no hire, No hire, Strong no hire. Always given with reasons.

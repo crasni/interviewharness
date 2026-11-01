@@ -1,12 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import { createFloorManager, startRound } from './index.ts';
+import {
+  createFloorManager,
+  type Decision,
+  fallbackSituation,
+  floorRules,
+  type FloorLogEntry,
+  type FloorManagerOptions,
+  type LaterPhase,
+  type Signal,
+  startRound,
+  type TurnReplyKind,
+} from './index.ts';
 import { fakeClock, fakeLog, testLines } from './test/fakes.ts';
 
-function setup({ skipIntro = true } = {}) {
+/** The test's stand-in for the model's understanding of a sentence. */
+function understood(text: string): { as: TurnReplyKind; agreed: boolean } {
+  if (/^(hmm|uh)/i.test(text)) return { as: 'quiet', agreed: false };
+  if (/^so (if|then)/i.test(text)) return { as: 'backchannel', agreed: false };
+  if (/^(yes|sure)\b/i.test(text)) return { as: 'ack', agreed: true };
+  if (/that'?s it|i'?m done/i.test(text)) return { as: 'offer', agreed: false };
+  return { as: text.endsWith('?') ? 'answer' : 'ack', agreed: false };
+}
+
+function setup({ skipIntro = true, ...heldBack }: { skipIntro?: boolean } & Pick<FloorManagerOptions, 'checkInsHeldBack' | 'timeHeldBack'> = {}) {
   const clock = fakeClock(10_000);
-  const log = fakeLog();
+  const log = fakeLog<FloorLogEntry>();
   const round = startRound('coding', clock);
-  const floor = createFloorManager({ clock, round, lines: testLines(), log });
+  const lines = testLines();
+  const manager = createFloorManager({ clock, round, lines, log, ...heldBack });
+  // The words for each reply arrive at once, as the example line for it: these tests are about the
+  // Floor Manager's timing, not about where the words come from (the interviewer's tests cover that).
+  // What the candidate meant is the model's to understand; here a stand-in reads the test's own sentences.
+  let lastSaid = '';
+  let offered: LaterPhase | null = null;
+  const floor = {
+    onSignal(signal: Signal): Decision {
+      if (signal.type === 'said') lastSaid = signal.text;
+      const decision = manager.onSignal(signal);
+      if (decision.kind !== 'preparing') return decision;
+      const line = lines.next(fallbackSituation(decision.reply));
+      let spoken: Decision;
+      if (decision.reply.kind !== 'turn') {
+        spoken = manager.onSignal({ type: 'words', line });
+      } else {
+        const { as, agreed } = understood(lastSaid);
+        // Agreeing to an offer: the model hears the conversation in the offered phase.
+        if (agreed && offered) manager.onSignal({ type: 'phase-reached', phase: offered });
+        spoken = manager.onSignal({ type: 'words', line, as });
+      }
+      if (spoken.kind === 'suggest-phase') offered = spoken.next;
+      return spoken;
+    },
+  };
 
   /** Advances time in 100 ms ticks, as the app does, and returns every decision made. */
   function wait(ms: number) {
@@ -27,16 +72,11 @@ function setup({ skipIntro = true } = {}) {
   return { clock, log, floor, round, wait };
 }
 
-/** Waits (up to 30 min) until the interviewer suggests moving on, then accepts. Returns the move-on decision. */
-function acceptNextSuggestion({ floor, wait }: ReturnType<typeof setup>) {
-  for (let i = 0; i < 180 && !wait(10_000).some((d) => d.kind === 'suggest-phase'); i++);
-  return floor.onSignal({ type: 'phase-answer', accept: true });
-}
-
-/** Lets Clarify run long, waits for the suggestion to finish, and returns the helpers. */
-function suggested() {
+/** The candidate says they're done and the interviewer offers the next phase; returns the helpers. */
+function offered() {
   const helpers = setup();
-  helpers.wait(5 * 60_000 + 5_000);
+  helpers.floor.onSignal({ type: 'said', text: "I think that's it." });
+  helpers.wait(1_000);
   return helpers;
 }
 
@@ -86,13 +126,13 @@ describe('the Floor Manager', () => {
     wait(1_000);
 
     expect(log.entries).toEqual([
-      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
-      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 } },
+      { at: 20_000, signal: { type: 'talk-start' }, decision: { kind: 'silent' }, state: { talking: true, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 0, silenceMs: null, sinceBackchannelMs: null, idleMs: 0, checkIns: 0, roundLeftMs: 2_690_000, phase: 'clarify', phaseElapsedMs: 10_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0, checkInsHeldBack: null, timeHeldBack: null } },
+      { at: 22_000, signal: { type: 'talk-end' }, decision: { kind: 'silent' }, state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 0, sinceBackchannelMs: null, idleMs: 0, checkIns: 0, roundLeftMs: 2_688_000, phase: 'clarify', phaseElapsedMs: 12_000, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0, checkInsHeldBack: null, timeHeldBack: null } },
       {
         at: 22_800,
         signal: { type: 'tick' },
         decision: { kind: 'backchannel', line: 'Mm-hm.' },
-        state: { talking: false, interviewerSpeaking: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, lastSaid: null, quietAfterTurnMs: null, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0 },
+        state: { talking: false, interviewerSpeaking: false, interviewerPreparing: false, talkMs: 2_000, silenceMs: 800, sinceBackchannelMs: 0, idleMs: 800, checkIns: 0, roundLeftMs: 2_687_200, phase: 'clarify', phaseElapsedMs: 12_800, suggestedPhase: null, notYets: 0, suggestAgainInMs: 0, checkInsHeldBack: null, timeHeldBack: null },
       },
     ]);
   });
@@ -141,7 +181,7 @@ describe('the Floor Manager', () => {
       const decisions = wait(1_000).filter((d) => d.kind !== 'silent');
 
       expect(decisions).toEqual([
-        { kind: 'answer', line: 'Good question. You can assume the input fits in memory.', speakingMs: expect.any(Number) },
+        { kind: 'answer', line: expect.any(String), speakingMs: expect.any(Number) },
       ]);
     });
 
@@ -201,6 +241,31 @@ describe('the Floor Manager', () => {
     expect(wait(1_000).filter((d) => d.kind !== 'silent').map((d) => d.kind)).toEqual(['ack']);
   });
 
+  describe('held back', () => {
+    const heldTicks = (log: { entries: FloorLogEntry[] }, field: 'checkInsHeldBack' | 'timeHeldBack') =>
+      log.entries.filter((e) => e.signal.type === 'tick' && e.decision.kind === 'silent' && e.state[field] !== null);
+
+    it('logs once, with the reason, a check-in that was due but held back because the candidate declined help', () => {
+      const { wait, log } = setup({ checkInsHeldBack: () => 'declined-help' });
+
+      const decisions = wait(3 * floorRules.checkInAfterIdle);
+
+      expect(decisions.every((d) => d.kind === 'silent')).toBe(true);
+      expect(heldTicks(log, 'checkInsHeldBack')).toEqual([expect.objectContaining({ state: expect.objectContaining({ checkInsHeldBack: 'declined-help' }) })]);
+    });
+
+    it('logs each time reminder and the closing line held back after the goodbye, with the reason', () => {
+      const { wait, log } = setup({ checkInsHeldBack: () => 'said-goodbye', timeHeldBack: () => 'said-goodbye' });
+
+      const decisions = wait(50 * 60_000);
+
+      expect(decisions.every((d) => d.kind === 'silent')).toBe(true);
+      // The first check-in held back, then the two reminders and the closing line, each logged at the tick it came due.
+      expect(heldTicks(log, 'timeHeldBack').map((e) => Math.round(e.state.roundLeftMs / 60_000))).toEqual([42, 15, 5, 0]);
+      expect(heldTicks(log, 'timeHeldBack').every((e) => e.state.timeHeldBack === 'said-goodbye')).toBe(true);
+    });
+  });
+
   describe('phases', () => {
     it('opens the round with an intro after a moment', () => {
       const { wait } = setup({ skipIntro: false });
@@ -214,102 +279,6 @@ describe('the Floor Manager', () => {
       });
     });
 
-    it('suggests moving on when a phase runs past its share of the time', () => {
-      const { wait, round } = setup();
-
-      const suggestions = wait(5 * 60_000).filter((d) => d.kind === 'suggest-phase');
-
-      expect(suggestions).toEqual([
-        { kind: 'suggest-phase', next: 'approach', line: 'Want to talk through your approach?', speakingMs: expect.any(Number) },
-      ]);
-      expect(round.snapshot().phase).toBe('clarify'); // a suggestion, not a move
-    });
-
-    it('moves on when the candidate accepts', () => {
-      const { floor, round } = suggested();
-
-      const decision = floor.onSignal({ type: 'phase-answer', accept: true });
-
-      expect(round.snapshot().phase).toBe('approach');
-      expect(decision).toMatchObject({ kind: 'move-on', phase: 'approach', line: 'Sounds good.' });
-    });
-
-    it('keeps the phase when the candidate declines, and waits longer each time before asking again', () => {
-      const { floor, round, wait } = suggested();
-      const minutesUntilNextSuggestion = () => {
-        for (let minute = 1; minute <= 30; minute++) {
-          if (wait(60_000).some((d) => d.kind === 'suggest-phase')) return minute;
-        }
-        return null;
-      };
-
-      floor.onSignal({ type: 'phase-answer', accept: false });
-      expect(minutesUntilNextSuggestion()).toBe(2);
-      floor.onSignal({ type: 'phase-answer', accept: false });
-      expect(minutesUntilNextSuggestion()).toBe(4);
-      expect(round.snapshot().phase).toBe('clarify');
-    });
-
-    it('treats carrying on talking as "not yet"', () => {
-      const { floor, round, wait } = suggested();
-
-      floor.onSignal({ type: 'talk-start' });
-      wait(3_000);
-      floor.onSignal({ type: 'talk-end' });
-
-      expect(round.snapshot().phase).toBe('clarify');
-      expect(wait(60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
-    it('never moves on without the candidate agreeing', () => {
-      const { round, wait } = suggested();
-
-      wait(40 * 60_000);
-
-      expect(round.snapshot().phase).toBe('clarify');
-    });
-
-    it('opens wrap-up by asking if the candidate has questions', () => {
-      const helpers = setup();
-      const { round, wait } = helpers;
-      let decision;
-      while (round.snapshot().phase !== 'wrap-up') decision = acceptNextSuggestion(helpers);
-
-      expect(decision).toMatchObject({
-        kind: 'move-on',
-        phase: 'wrap-up',
-        line: "That's about time. Do you have any questions for me?",
-      });
-      expect(wait(20 * 60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
-    it('suggests moving on when the candidate says they are done', () => {
-      const { floor, wait } = setup();
-
-      floor.onSignal({ type: 'said', text: "I think that's it." });
-      const spokenNext = wait(1_000).find((d) => d.kind !== 'silent');
-
-      expect(spokenNext).toMatchObject({ kind: 'suggest-phase', next: 'approach' });
-    });
-
-    it('suggests moving on after a long silence once the candidate has finished their turn', () => {
-      const { floor, wait } = setup();
-      floor.onSignal({ type: 'said', text: 'So the input is a list of integers.' });
-
-      const decisions = wait(20_000).filter((d) => d.kind !== 'silent').map((d) => d.kind);
-
-      expect(decisions.slice(0, 3)).toEqual(['ack', 'done-speaking', 'suggest-phase']);
-    });
-
-    it('does not take a pause mid-turn for being done', () => {
-      const { floor, wait } = setup();
-      floor.onSignal({ type: 'talk-start' });
-      wait(3_000);
-      floor.onSignal({ type: 'talk-end' });
-
-      expect(wait(60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
     it('holds the intro while the candidate is already talking', () => {
       const { floor, wait } = setup({ skipIntro: false });
       floor.onSignal({ type: 'talk-start' });
@@ -318,6 +287,70 @@ describe('the Floor Manager', () => {
 
       floor.onSignal({ type: 'talk-end' });
       expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'intro' });
+    });
+
+    it('never pushes a phase on the clock: the candidate drives the round', () => {
+      const { floor, round, wait } = setup();
+      floor.onSignal({ type: 'said', text: 'I would use a hash map.' });
+
+      const decisions = wait(40 * 60_000);
+
+      expect(decisions.some((d) => d.kind === 'suggest-phase')).toBe(false);
+      expect(round.snapshot().phase).toBe('clarify');
+    });
+
+    it('offers the next phase when the candidate is heard as done', () => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text: "I think that's it." });
+
+      expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'suggest-phase', next: 'approach' });
+    });
+
+    it('moves on when the candidate agrees, in their own words', () => {
+      const { floor, round, wait } = offered();
+      wait(5_000);
+
+      floor.onSignal({ type: 'said', text: "Sure, let's do it." });
+      wait(1_000);
+
+      expect(round.snapshot().phase).toBe('approach');
+    });
+
+    it('takes carrying on, instead of agreeing, as "not yet", and tells the room', () => {
+      const { floor, round, wait } = offered();
+      wait(5_000);
+
+      floor.onSignal({ type: 'said', text: 'One more thing about negative numbers.' });
+
+      expect(wait(1_000).map((d) => d.kind)).toContain('suggestion-withdrawn');
+      expect(round.snapshot().phase).toBe('clarify');
+    });
+
+    it('withdraws an offer nobody answers', () => {
+      const { wait } = offered();
+
+      expect(wait(2 * 60_000).map((d) => d.kind)).toContain('suggestion-withdrawn');
+    });
+  });
+
+  describe('replies that keep listening', () => {
+    it('stays quiet when the model hears the candidate thinking aloud: it never takes the floor', () => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text: 'hmm, so maybe two loops' });
+      const decisions = wait(3_000).filter((d) => d.kind !== 'silent');
+
+      expect(decisions).toEqual([{ kind: 'quiet' }]); // no line, so nothing to finish speaking
+    });
+
+    it('nods without taking the floor, when a brief "mm-hm" fits', () => {
+      const { floor, wait } = setup();
+
+      floor.onSignal({ type: 'said', text: 'so if I keep a map of seen values' });
+      const decisions = wait(3_000).filter((d) => d.kind !== 'silent');
+
+      expect(decisions.map((d) => d.kind)).toEqual(['backchannel']); // and no done-speaking: it never held the floor
     });
   });
 
@@ -330,102 +363,6 @@ describe('the Floor Manager', () => {
     const decisions = wait(2_000).filter((d) => d.kind !== 'silent').map((d) => d.kind);
 
     expect(decisions).toEqual(['intro']);
-  });
-
-  describe('phases: regressions from review', () => {
-    function inPhaseAfterMoveOn() {
-      const helpers = setup();
-      const { floor, wait } = helpers;
-      floor.onSignal({ type: 'said', text: 'The input is a list of integers.' }); // the candidate has spoken
-      wait(5 * 60_000);
-      floor.onSignal({ type: 'phase-answer', accept: true });
-      return helpers;
-    }
-
-    it('does not take the quiet right after moving on as being done', () => {
-      const { round, wait } = inPhaseAfterMoveOn();
-
-      expect(round.snapshot().phase).toBe('approach');
-      expect(wait(60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
-    it('stays quiet in wrap-up, even after the candidate has spoken', () => {
-      const helpers = setup();
-      const { floor, round, wait } = helpers;
-      while (round.snapshot().phase !== 'wrap-up') acceptNextSuggestion(helpers);
-      floor.onSignal({ type: 'said', text: 'How big is the team?' });
-      floor.onSignal({ type: 'said', text: 'Thanks, that was helpful.' });
-
-      expect(() => wait(60_000)).not.toThrow();
-      expect(wait(60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
-    it('accepts a suggestion said in words', () => {
-      const { floor, round, wait } = suggested();
-
-      floor.onSignal({ type: 'said', text: "Yes, let's move on." });
-      wait(1_000);
-
-      expect(round.snapshot().phase).toBe('approach');
-    });
-
-    it('does not take the quiet after answering a question as being done', () => {
-      const { floor, wait } = setup();
-      floor.onSignal({ type: 'said', text: 'Can the numbers be negative?' });
-
-      expect(wait(60_000).some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
-    it('suggests moving on when the candidate says they are done, even soon after a "not yet"', () => {
-      const { floor, wait } = suggested();
-      floor.onSignal({ type: 'phase-answer', accept: false });
-      wait(10_000);
-
-      floor.onSignal({ type: 'said', text: "Okay, I think that's it." });
-
-      expect(wait(1_000).find((d) => d.kind !== 'silent')).toMatchObject({ kind: 'suggest-phase' });
-    });
-
-    it('withdraws a suggestion nobody answers, and can suggest again later', () => {
-      const { wait } = suggested();
-
-      const kinds = wait(5 * 60_000).filter((d) => d.kind !== 'silent').map((d) => d.kind);
-
-      expect(kinds[0]).toBe('suggestion-withdrawn');
-      expect(kinds).toContain('suggest-phase');
-    });
-
-    it('tells the room when carrying on talking withdraws the suggestion', () => {
-      const { floor, wait } = suggested();
-
-      floor.onSignal({ type: 'talk-start' });
-
-      expect(wait(200).map((d) => d.kind)).toContain('suggestion-withdrawn');
-    });
-  });
-
-  describe('editor activity', () => {
-    it('is not quiet: typing code keeps the interviewer from taking silence as "done"', () => {
-      const { floor, wait } = setup();
-      floor.onSignal({ type: 'said', text: "Okay, I'll write it now." });
-      wait(3_000); // acknowledged
-
-      const decisions = [];
-      for (let second = 0; second < 30; second++) {
-        floor.onSignal({ type: 'editor-activity' });
-        decisions.push(...wait(1_000));
-      }
-
-      expect(decisions.some((d) => d.kind === 'suggest-phase')).toBe(false);
-    });
-
-    it('does not answer a suggestion either way', () => {
-      const { floor, wait } = suggested();
-
-      floor.onSignal({ type: 'editor-activity' });
-
-      expect(wait(1_000).some((d) => d.kind === 'suggestion-withdrawn')).toBe(false);
-    });
   });
 
   describe('the end of the round', () => {
@@ -441,5 +378,84 @@ describe('the Floor Manager', () => {
       });
       expect(wait(60 * 60_000).every((d) => d.kind === 'silent')).toBe(true);
     });
+  });
+});
+
+describe('the check-in', () => {
+  const checkIns = (decisions: Decision[]) => decisions.filter((d) => d.kind === 'check-in');
+
+  it('says a line after a long stretch with no talking, saying or typing', () => {
+    const { wait } = setup();
+
+    const decisions = wait(floorRules.checkInAfterIdle + 1_000);
+
+    expect(checkIns(decisions)).toEqual([
+      { kind: 'check-in', nth: 1, line: 'Take your time. Talk it through whenever you like.', speakingMs: expect.any(Number) },
+    ]);
+  });
+
+  it('checks in again if the silence goes on, waiting twice as long each time', () => {
+    const { wait } = setup();
+    const minute = 60_000;
+
+    const at = wait(20 * minute)
+      .map((d, tick) => [d, tick] as const)
+      .filter(([d]) => d.kind === 'check-in')
+      .map(([d, tick]) => [(d as { nth: number }).nth, Math.round((tick * 100) / 30_000) / 2]);
+
+    // 2.5 minutes, then 5 more, then 10 more (plus a few seconds each time for the line itself).
+    expect(at.map(([nth]) => nth)).toEqual([1, 2, 3]);
+    expect(at.map(([, minutes]) => minutes)).toEqual([2.5, 7.5, 17.5]);
+  });
+
+  it('starts over once the candidate does something', () => {
+    const { floor, wait } = setup();
+    wait(floorRules.checkInAfterIdle + 1_000);
+
+    floor.onSignal({ type: 'editor-activity' });
+
+    expect(checkIns(wait(floorRules.checkInAfterIdle + 10_000))).toEqual([expect.objectContaining({ nth: 1 })]);
+  });
+
+  it('counts typing as doing something', () => {
+    const { floor, wait } = setup();
+    const decisions = [];
+
+    for (let i = 0; i < 10; i++) {
+      decisions.push(...wait(30_000));
+      floor.onSignal({ type: 'editor-activity' });
+    }
+
+    expect(checkIns(decisions)).toHaveLength(0);
+  });
+
+  it('counts the silence from when the candidate stops talking, not from when they started', () => {
+    const { floor, wait } = setup();
+    floor.onSignal({ type: 'talk-start' });
+    wait(floorRules.checkInAfterIdle + 30_000); // a long spoken turn, with nothing typed or said
+    floor.onSignal({ type: 'talk-end' });
+
+    expect(checkIns(wait(10_000))).toHaveLength(0);
+  });
+
+  it('never checks in while the candidate is talking', () => {
+    const { floor, wait } = setup();
+    floor.onSignal({ type: 'talk-start' });
+
+    expect(checkIns(wait(3 * floorRules.checkInAfterIdle))).toHaveLength(0);
+  });
+
+  it('logs each check-in with the state behind it: a free floor, after the idle time', () => {
+    const { log, wait } = setup();
+
+    wait(30 * 60_000);
+
+    // The moment it decided to check in, before the words arrived.
+    const logged = log.entries.filter((e) => e.decision.kind === 'preparing' && e.decision.reply.kind === 'check-in');
+    expect(logged.length).toBeGreaterThan(0);
+    for (const entry of logged) {
+      expect(entry.state).toMatchObject({ suggestedPhase: null, talking: false, interviewerSpeaking: false });
+      expect(entry.state.idleMs).toBeGreaterThanOrEqual(floorRules.checkInAfterIdle);
+    }
   });
 });

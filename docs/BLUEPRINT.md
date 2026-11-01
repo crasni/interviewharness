@@ -240,7 +240,7 @@ Frontmatter holds the knobs; the body holds tone, phase scripts and probe banks.
 | **Renderer** (Vite + React) | UI, CodeMirror, Excalidraw, AudioWorklet mic capture (with echo cancellation), Silero VAD, **TTS playback**. Never sees API keys. |
 | **Main** | Windows, IPC, `safeStorage` keys, the provider layer (pi-ai), sessions, storage, spawning CLIs (`codex`, `claude`) |
 | **Utility process: voice** | sherpa-onnx-node (local streaming STT, Kokoro TTS synthesis → PCM sent to the renderer for playback), Smart Turn via onnxruntime-node, cloud STT sockets (Deepgram Flux) |
-| **Utility process: runner** | Pyodide / QuickJS workers, native toolchains in the sandbox, test harness |
+| **Runner** | Pyodide / QuickJS in module Web Workers inside a hidden sandboxed renderer served from `app://` (Pyodide in a Node utility process can reach the file system: `docs/research/09-v01-code-runner.md`); native toolchains in an OS sandbox later |
 | **Interview engine** (pure TS, runs in main) | Floor Manager, phase machine, persona loader, interviewer agent, grader |
 
 No Next.js and no local HTTP port; IPC only. This avoids LearnHarness's random-port and packaging bugs.
@@ -338,13 +338,14 @@ Packages that stand alone and could become separate open-source wins: **`board-g
 
 | Milestone | Scope | "Wow" moment |
 |---|---|---|
-| **v0.0 Interview room** | Real Electron scaffold; start, room and debrief screens; early Floor Manager with canned lines, no AI, no mic (spec: `.scratch/v0-0/spec.md`) | The look and feel |
-| **v0.1 Coding, text-first** (2–3 wk) | Providers (pi-ai + OpenAI-compatible + Ollama), safeStorage, CodeMirror, Pyodide/QuickJS runner, phase machine, 10 original problems, scorecard with evidence | A real interview on a local model, offline |
-| **v0.2 Voice** (3–4 wk) | AudioWorklet, Silero, Smart Turn, sherpa-onnx local STT + Kokoro, Deepgram Flux, Floor Manager v1, backchannels, barge-in, push-to-talk | **"It stayed quiet while I thought, and said 'mm-hm'"** |
-| **v0.3 Debrief and evals** | Replay timeline, decision ticks, floor eval harness, grader median sampling | "Why did it stay quiet here?" made visible |
+| **v0.0 Interview room** | Real Electron scaffold; start, room and debrief (now Feedback) screens; early Floor Manager with canned lines, no AI, no mic (spec: `.scratch/v0-0/spec.md`) | The look and feel |
+| **v0.1 Coding, text-first** | **v0.1.0** (spec: `.scratch/v0-1-0/spec.md`): providers (pi-ai: ChatGPT plan, then Ollama, then API keys; ADR 0016), safeStorage, settings.json, AI interviewer on Two sum, graded Feedback. **v0.1.2:** 10 original problems. No code runner. | A real interview with your own model |
+| **v0.2 Voice** (3–4 wk) | AudioWorklet, Silero, Smart Turn, sherpa-onnx local STT + Kokoro, Deepgram Flux, Floor Manager v1 with the AI floor classifier, backchannels, barge-in, push-to-talk | **"It stayed quiet while I thought, and said 'mm-hm'"** |
+| **v0.3 Code runner** | Pyodide/QuickJS in a sandboxed worker (`docs/research/09-v01-code-runner.md`), hidden tests, run results for the interviewer and Feedback | "Run it" during the round |
+| **v0.3+ Feedback and evals** | Replay timeline, decision ticks, floor eval harness | "Why did it stay quiet here?" made visible |
 | **v0.4 System design** | Excalidraw mono theme, board-graph, design phases and checklist, AI sketches suggestions back as ghost elements | AI critiques *your diagram* |
 | **v0.5 AI-assisted round** | Multi-file repo, assistant pane, prompt/paste logging, verification grading | The only place to practice Meta-style AI rounds |
-| **v1.0** | Native-toolchain sandbox (Java/C++/Go), Claude Code CLI provider, ChatGPT partner sign-in (if approved), 50+ problems, signed builds | Polished launch |
+| **v1.0** | Native-toolchain sandbox (Java/C++/Go), Claude Code CLI provider, 50+ problems, signed builds | Polished launch |
 
 ---
 

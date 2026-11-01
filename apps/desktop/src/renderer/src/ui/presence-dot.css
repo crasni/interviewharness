@@ -16,6 +16,12 @@
   animation: presence-breathe var(--breathe) var(--ease) infinite;
 }
 
+.presence[data-state='preparing'] .presence-dot {
+  /* About to speak: the breathing stops at full size, the way a person draws breath before talking. */
+  transform: scale(1);
+  transition: transform var(--fade) var(--ease);
+}
+
 .presence[data-state='nodding'] .presence-dot {
   animation: presence-nod var(--nod) var(--ease) 1;
 }

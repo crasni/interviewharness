@@ -1,12 +1,26 @@
+/* Exactly the window's height, with the title and what to do next centred together in it. When they
+   don't fit, the title stays and only what's under it scrolls (the model step scrolls just its rows). */
 .start {
   position: relative;
-  display: grid;
-  align-content: center;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: center;
   gap: var(--space-12);
-  min-height: 100%;
-  padding: var(--space-16) var(--space-6);
+  height: 100%;
+  padding: var(--space-12) var(--space-6);
   text-align: center;
+}
+
+.start-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .start-settings {
@@ -16,6 +30,7 @@
 }
 
 .start-head {
+  flex: none;
   display: grid;
   gap: var(--space-3);
 }
@@ -52,4 +67,45 @@
   min-width: 220px;
   min-height: 40px;
   font-size: var(--text-md);
+}
+
+/* The step before a first round: picking the interviewer's model. As tall as its content, at most the
+   space left; then its rows scroll and its action stays in view. */
+.model-step {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-6);
+  width: min(520px, 100%);
+  max-height: 100%;
+  min-height: 0;
+}
+
+.model-step-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.model-step-title {
+  font-family: var(--font-voice);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-medium);
+}
+
+.model-step-lede {
+  color: var(--muted);
+}
+
+/* A note that needs reading once, with its way to dismiss it. */
+.start-note {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  max-width: 460px;
+  padding: var(--space-4) var(--space-6);
+  border: var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }

@@ -12,8 +12,20 @@ test.afterEach(async () => {
 });
 
 test('there is no File / Edit / View menu bar', async () => {
-  const menuBarVisible = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isMenuBarVisible());
-  expect(menuBarVisible).toBe(false);
+  const { menuBarVisible, menus } = await app.evaluate(({ BrowserWindow, Menu }) => ({
+    menuBarVisible: BrowserWindow.getAllWindows()[0]!.isMenuBarVisible(),
+    menus: Menu.getApplicationMenu()?.items.map((item) => item.role ?? item.label) ?? [],
+  }));
+  if (process.platform === 'darwin') {
+    // A Mac always shows its menu bar at the top of the screen. The app keeps Edit there (copy and paste
+    // need it), but no File or View. (An unpackaged build also gets Electron's own Develop menu.)
+    const names = menus.map((m) => m.toLowerCase());
+    expect(names).toEqual(expect.arrayContaining(['appmenu', 'editmenu', 'windowmenu']));
+    expect(names).not.toEqual(expect.arrayContaining(['filemenu']));
+    expect(names).not.toEqual(expect.arrayContaining(['viewmenu']));
+  } else {
+    expect(menuBarVisible).toBe(false);
+  }
 });
 
 test('Ctrl+= zooms in without Shift, Ctrl+- zooms out, Ctrl+0 resets', async () => {
