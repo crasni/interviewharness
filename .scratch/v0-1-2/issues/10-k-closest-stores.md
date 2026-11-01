@@ -4,11 +4,11 @@
 
 **Blocked by:** 01, 02
 
-**Status:** ready-for-agent
+**Status:** done (draft; awaits the owner's review)
 
-- [ ] The folder loads in the app and passes the content test
-- [ ] The reference passes its own tests in the reference check
-- [ ] No text, title or example taken from LeetCode or another site
-- [ ] Solvable in a 45-minute round at its difficulty
+- [x] The folder loads in the app and passes the content test
+- [x] The reference passes its own tests in the reference check
+- [x] No text, title or example taken from LeetCode or another site
+- [x] Solvable in a 45-minute round at its difficulty
 
 Spec: `.scratch/v0-1-2/spec.md`.
