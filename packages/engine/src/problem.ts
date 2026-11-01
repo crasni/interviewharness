@@ -22,7 +22,7 @@ export interface Problem {
 export interface ProblemDetails {
   title: string;
   pattern: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: Difficulty;
   license: string;
   credits: string[];
   source: string;
@@ -56,7 +56,9 @@ export interface ClassTests {
   cases: { id: string; description: string; calls: [string, ...unknown[]][]; expected: unknown[] }[];
 }
 
-const difficulties = ['easy', 'medium', 'hard'] as const;
+/** Easiest first. */
+export const difficulties = ['easy', 'medium', 'hard'] as const;
+export type Difficulty = (typeof difficulties)[number];
 
 /** Reads a problem folder, given as file path (relative to the folder) → text. Throws on anything missing or wrong. */
 export function readProblem(name: string, files: Record<string, string>): Problem {
@@ -128,11 +130,12 @@ function readTests(text: string, fail: (message: string) => never): ProblemTests
   } catch (error) {
     return fail(`tests.json isn't valid JSON: ${String(error)}`);
   }
-  const tests = raw as { function?: unknown; class?: unknown; cases?: unknown };
+  const tests = raw as { function?: unknown; class?: unknown; unordered?: unknown; cases?: unknown };
   if (typeof tests.function === 'string' && typeof tests.class === 'string') {
     return fail('tests.json needs a function or a class, not both');
   }
   const isClass = typeof tests.class === 'string';
+  if ('unordered' in tests && (isClass || typeof tests.unordered !== 'boolean')) fail('tests.json: unordered is true or false, for a function only');
   if ((!isClass && typeof tests.function !== 'string') || !Array.isArray(tests.cases) || !tests.cases.length) {
     return fail('tests.json needs a function or class name and a list of cases');
   }

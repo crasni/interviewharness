@@ -1,9 +1,10 @@
+import type { Difficulty } from '@interviewharness/engine';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ProblemChoice } from '../../../shared/api.ts';
 import { iconProps } from '../ui/IconButton.tsx';
 
-const difficultyLabels = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+const difficultyLabels: Record<Difficulty, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 /** "Done once", "Done twice", "Done 3 times"; nothing for a problem never done. */
 function doneLabel(times: number) {

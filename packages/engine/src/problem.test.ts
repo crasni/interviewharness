@@ -96,6 +96,13 @@ describe('tests for a class', () => {
     );
   });
 
+  it('refuses unordered unless it is true or false, on a function', () => {
+    expect(() => readProblem('pair-sum', withTests({ function: 'f', unordered: 'yes', cases: [{ id: 'a', description: 'd', input: {}, expected: [] }] }))).toThrow(
+      'pair-sum: tests.json: unordered is true or false, for a function only',
+    );
+    expect(() => readProblem('cache', withTests({ class: 'Cache', unordered: true, cases: [cache] }))).toThrow('unordered');
+  });
+
   it('refuses tests that name both a function and a class', () => {
     expect(() => readProblem('cache', withTests({ function: 'f', class: 'Cache', cases: [cache] }))).toThrow(
       'cache: tests.json needs a function or a class, not both',

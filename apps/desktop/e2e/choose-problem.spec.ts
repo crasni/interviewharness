@@ -22,7 +22,8 @@ test('Choose a problem lists the problems by title and difficulty, never their t
   await expect(list.getByRole('listitem').first()).toContainText('Balanced brackets');
   await expect(list.getByRole('listitem').last()).toContainText('Fewest coins');
   await expect(list.getByRole('button', { name: /^Two sum/ })).toContainText('Easy');
-  for (const topic of ['Hash map', 'Stack', 'Heap', 'Dynamic programming']) await expect(list).not.toContainText(topic);
+  const topics = ['Hash map', 'Stack', 'Intervals', 'Sliding window', 'Binary search', 'Grid BFS', 'Heap', 'LRU cache', 'Topological sort', 'Dynamic programming'];
+  for (const topic of topics) await expect(list).not.toContainText(topic);
   // Nothing done yet, so no count shows.
   await expect(list).not.toContainText('Done');
   await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
@@ -49,6 +50,7 @@ test('each problem says how many rounds were done on it, counted from the saved 
   const { app, window } = await launchApp({
     seed: (dataDir) => {
       saveRound(dataDir, '2026-11-01T10-00-00-000Z', JSON.stringify({ at: 0, started: { kind: 'coding', problem: 'two-sum' } }));
+      saveRound(dataDir, '2026-11-01T11-00-00-000Z', JSON.stringify({ at: 0, started: { kind: 'coding', problem: 'course-order' } }));
       // Rounds from before v0.1.2 name no problem: they were all Two sum.
       saveRound(dataDir, '2026-10-30T10-00-00-000Z', JSON.stringify({ at: 0, signal: { type: 'tick' } }));
       // A log that can't be read is skipped, not fatal.
@@ -57,7 +59,10 @@ test('each problem says how many rounds were done on it, counted from the saved 
   });
 
   await window.getByRole('button', { name: 'Choose a problem' }).click();
-  await expect(problemList(window).getByRole('button', { name: /^Two sum/ })).toContainText('Done twice');
+  const list = problemList(window);
+  await expect(list.getByRole('button', { name: /^Two sum/ })).toContainText('Done twice');
+  await expect(list.getByRole('button', { name: /^Course order/ })).toContainText('Done once');
+  await expect(list.getByRole('button', { name: /^Fewest coins/ })).not.toContainText('Done');
 
   await closeApp(app);
 });

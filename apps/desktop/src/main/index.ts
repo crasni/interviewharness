@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
 import {
   createLineBook,
+  difficulties,
   gradeRound,
   type GradingEntry,
   modelErrorKind,
@@ -124,13 +125,11 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => 
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
 
-const byDifficulty = { easy: 0, medium: 1, hard: 2 };
-
 ipcMain.handle(channels.problems, (): ProblemChoice[] => {
   const done = roundsByProblem(dataDir());
   return [...problems.values()]
     .map(({ name, details: { title, difficulty } }) => ({ name, title, difficulty, timesDone: done.get(name) ?? 0 }))
-    .sort((a, b) => byDifficulty[a.difficulty] - byDifficulty[b.difficulty] || a.title.localeCompare(b.title));
+    .sort((a, b) => difficulties.indexOf(a.difficulty) - difficulties.indexOf(b.difficulty) || a.title.localeCompare(b.title));
 });
 
 // The candidate ended the round: its Feedback starts being written at once.

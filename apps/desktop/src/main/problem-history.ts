@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { closeSync, openSync, readdirSync, readSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -21,9 +21,18 @@ export function roundsByProblem(dataDir: string): Map<string, number> {
   return counts;
 }
 
+/** The problem a round's log names in its first entry, reading only the start of the log (it can be long). */
 function problemOf(file: string): string | null {
   try {
-    const text = readFileSync(file, 'utf8');
+    const start = Buffer.alloc(4096);
+    const fd = openSync(file, 'r');
+    let read: number;
+    try {
+      read = readSync(fd, start, 0, start.length, 0);
+    } finally {
+      closeSync(fd);
+    }
+    const text = start.toString('utf8', 0, read);
     const end = text.indexOf('\n');
     const first: unknown = JSON.parse(end === -1 ? text : text.slice(0, end));
     const started = (first as { started?: { problem?: unknown } } | null)?.started;

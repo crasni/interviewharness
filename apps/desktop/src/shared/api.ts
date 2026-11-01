@@ -1,5 +1,5 @@
 import type { RoundKind } from '@interviewharness/core';
-import type { CodeSnapshot, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
+import type { CodeSnapshot, Difficulty, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
 import type { Verdict } from '@interviewharness/core';
 import type { Connection, ModelListing, Server } from '@interviewharness/providers';
 import type { ModelChoice, Settings } from './settings.ts';
@@ -31,7 +31,7 @@ export interface RoundProblem {
 export interface ProblemChoice {
   name: string;
   title: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: Difficulty;
   /** Rounds done on it so far, counted from the saved rounds. */
   timesDone: number;
 }
