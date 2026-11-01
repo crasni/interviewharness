@@ -8,7 +8,7 @@ import { Picker } from '../ui/Picker.tsx';
 import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
 import { AddList, PickedHead } from './AddList.tsx';
 import { type AddableItem, addable } from './addable.ts';
-import { useChatGPTLogin } from './useChatGPTLogin.ts';
+import { type SignInProvider, useSignIn } from './useSignIn.ts';
 import { useConnect } from './useConnect.ts';
 import './models.css';
 
@@ -21,6 +21,22 @@ const keysAndServers = addable.filter(asksForKey);
 
 /** The row an item's fields belong to. */
 const wayOf = (item: AddableItem): Way => (item.fields === 'sign-in' ? 'chatgpt' : item.fields === 'running' ? 'ollama' : 'key');
+
+/** What a sign-in says, before and after, and the model it starts on. */
+const signIns: Record<SignInProvider, { button: string; before: string; after: string; preferred: string | undefined }> = {
+  chatgpt: {
+    button: 'Continue with ChatGPT',
+    before: 'Uses your ChatGPT plan. Signs in through your browser.',
+    after: 'Signed in · uses your ChatGPT plan.',
+    preferred: defaultChatGPTModel,
+  },
+  openrouter: {
+    button: 'Sign in with OpenRouter',
+    before: 'Uses your OpenRouter credits. Signs in through your browser, with no key to copy.',
+    after: 'Signed in · uses your OpenRouter credits.',
+    preferred: defaultModels.openrouter,
+  },
+};
 
 const plural = (n: number) => `${n} ${n === 1 ? 'model' : 'models'}`;
 
@@ -47,20 +63,25 @@ export function ModelSetup({
   const { settings } = useSettings();
   const ids = { way: useId(), chatgptModel: useId(), ollamaModel: useId(), ollamaAddress: useId(), key: useId(), address: useId(), model: useId() };
   const [way, setWay] = useState<Way | null>(item ? wayOf(item) : null);
-  const login = useChatGPTLogin({ onUnencrypted });
+  // What the sign-in row signs in to: ChatGPT, unless OpenRouter's sign-in was picked from what can be added.
+  const signInProvider: SignInProvider = item?.fields === 'sign-in' && item.provider === 'openrouter' ? 'openrouter' : 'chatgpt';
+  const signInCopy = signIns[signInProvider];
+  const login = useSignIn({ provider: signInProvider, onUnencrypted });
   const check = useConnect({ onUnencrypted });
 
-  // A ChatGPT login already saved: then the row offers its models instead of signing in again.
+  // A sign-in already saved: then the row offers its models instead of signing in again.
   const [chatgpt, setChatgpt] = useState<{ signedIn: boolean; models: { value: string; label: string }[] }>({ signedIn: false, models: [] });
   const [chatgptModel, setChatgptModel] = useState('');
+  const lookForSignIn = useCallback(async () => {
+    const found = (await window.harness.models.providers()).find((p) => p.provider === signInProvider);
+    if (!found?.signedIn) return;
+    setChatgpt({ signedIn: true, models: found.models.map((m) => ({ value: m.id, label: m.name })) });
+    const { preferred } = signIns[signInProvider];
+    setChatgptModel(found.models.some((m) => m.id === preferred) ? preferred! : (found.models[0]?.id ?? ''));
+  }, [signInProvider]);
   useEffect(() => {
-    void window.harness.models.providers().then((all) => {
-      const found = all.find((p) => p.provider === 'chatgpt');
-      if (!found?.connected) return;
-      setChatgpt({ signedIn: true, models: found.models.map((m) => ({ value: m.id, label: m.name })) });
-      setChatgptModel(found.models.some((m) => m.id === defaultChatGPTModel) ? defaultChatGPTModel : (found.models[0]?.id ?? ''));
-    });
-  }, []);
+    void lookForSignIn();
+  }, [lookForSignIn]);
 
   // Ollama, looked for at once, so its row can say something true and be picked first when it's there.
   // A second look keeps the last answer on show until the new one comes.
@@ -123,9 +144,14 @@ export function ModelSetup({
         ? {
             label: 'Use this model',
             ready: !!chatgptModel,
-            run: async () => (await check.connect({ slot: 'interviewer', provider: 'chatgpt', model: chatgptModel })) && onDone?.(),
+            run: async () => (await check.connect({ slot: 'interviewer', provider: signInProvider, model: chatgptModel })) && onDone?.(),
           }
-        : { label: 'Continue with ChatGPT', ready: true, run: async () => (await login.start()) && onDone?.() }
+        : {
+            label: signInCopy.button,
+            ready: true,
+            // ChatGPT's sign-in picks its model; OpenRouter's then offers its models to pick from.
+            run: async () => (await login.start()) && (signInProvider === 'chatgpt' ? onDone?.() : await lookForSignIn()),
+          }
       : way === 'ollama'
         ? {
             label: 'Use this model',
@@ -145,7 +171,7 @@ export function ModelSetup({
           : null;
   const checkingModel = way === 'chatgpt' ? chatgptModel : way === 'ollama' ? ollamaModel : keyModel;
 
-  const chatgptDescription = chatgpt.signedIn ? 'Signed in · uses your ChatGPT plan.' : 'Uses your ChatGPT plan. Signs in through your browser.';
+  const chatgptDescription = chatgpt.signedIn ? signInCopy.after : signInCopy.before;
   const chatgptFields = chatgpt.signedIn && (
     <div className="model-setup-field">
       <label htmlFor={ids.chatgptModel}>Model</label>

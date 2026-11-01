@@ -156,6 +156,8 @@ ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect
 ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
 ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
 
+ipcMain.handle(channels.signInToOpenRouter, () => models.signInToOpenRouter());
+
 // "Get a key": the renderer names a provider; only that provider's key page, from the table, is opened.
 ipcMain.on(channels.openKeyPage, (_event, provider: unknown) => {
   const page = keyPageFor(provider);

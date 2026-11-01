@@ -57,6 +57,8 @@ export const addable: readonly AddableItem[] = [
     provider: 'server',
     fields: 'server',
   },
+
+  { id: 'openrouter-sign-in', group: 'sign-in', name: 'OpenRouter', provider: 'openrouter', fields: 'sign-in' },
 ];
 
 export interface FoundGroup {

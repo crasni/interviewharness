@@ -6,8 +6,8 @@ Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Sign in completes through the browser and returns by itself; cancelling saves nothing
-- [ ] Tested against a fake OpenRouter on loopback
-- [ ] Signed in, the row says so and offers Sign out
+- [x] Sign in completes through the browser and returns by itself; cancelling saves nothing
+- [x] Tested against a fake OpenRouter on loopback
+- [x] Signed in, the row says so and offers Sign out
