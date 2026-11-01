@@ -1,7 +1,9 @@
+import { ArrowUpRight } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useId, useState } from 'react';
 import type { ModelList } from '../../../shared/api.ts';
 import { defaultChatGPTModel, defaultModels } from '@interviewharness/providers/defaults';
 import { useSettings } from '../settings/settings.tsx';
+import { iconProps } from '../ui/IconButton.tsx';
 import { Picker } from '../ui/Picker.tsx';
 import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
 import { AddList, PickedHead } from './AddList.tsx';
@@ -206,6 +208,13 @@ export function ModelSetup({
         <label htmlFor={ids.key}>{server ? 'Key, if it needs one' : 'API key'}</label>
         <input id={ids.key} type="password" value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
       </div>
+      {provider && !server && (
+        // Main opens only this provider's key page, from the table of key providers.
+        <button type="button" className="model-setup-aside with-icon" data-motion="out" onClick={() => window.harness.models.openKeyPage(provider)}>
+          <ArrowUpRight {...iconProps} size={16} />
+          Get a key
+        </button>
+      )}
       {server && !keyModels && (
         <button type="button" className="model-setup-aside" disabled={!serverAddress} onClick={() => void findServerModels()}>
           Find models

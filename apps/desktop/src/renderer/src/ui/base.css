@@ -114,6 +114,10 @@ button[data-motion='nudge']:hover:not(:disabled) svg {
   transform: translateX(-2px); /* back: leans the way it goes */
 }
 
+button[data-motion='out']:hover:not(:disabled) svg {
+  transform: translate(2px, -2px); /* opens a page in the browser: leans out of the app */
+}
+
 button[data-motion='grow']:hover:not(:disabled) svg {
   transform: scale(1.2); /* add: the plus grows */
 }
