@@ -24,8 +24,7 @@ describe("v0.1's one server becomes a named server", () => {
       smallModels: [`server/${migratedServerId}/qwen/qwen3-8b`, 'ollama/qwen3:8b'],
     });
     // What it makes is valid in the new shape.
-    const { version: _, ...settings } = migrated;
-    expect(validSettings(settings)).toEqual(settings);
+    expect(validSettings(migrated)).toEqual({ ...migrated, version: undefined });
   });
 
   it('leaves no server, and nothing picked from one, when there was none', () => {

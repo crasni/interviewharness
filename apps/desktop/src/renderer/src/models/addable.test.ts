@@ -8,7 +8,7 @@ describe('what can be added', () => {
     expect(names(searchAddable(addable, ''))).toEqual([
       ['Plans you pay for', ['ChatGPT']],
       ['API keys', ['OpenAI', 'Anthropic', 'Google', 'OpenRouter']],
-      ['On this computer or your network', ['Ollama', 'OpenAI-compatible server']],
+      ['On this computer or your network', ['Ollama', 'Custom server']],
     ]);
   });
 
@@ -16,9 +16,9 @@ describe('what can be added', () => {
     expect(names(searchAddable(addable, 'open'))).toEqual([
       ['Plans you pay for', ['ChatGPT']],
       ['API keys', ['OpenAI', 'OpenRouter']],
-      ['On this computer or your network', ['OpenAI-compatible server']],
+      ['On this computer or your network', ['Custom server']],
     ]);
-    expect(names(searchAddable(addable, 'LM studio'))).toEqual([['On this computer or your network', ['OpenAI-compatible server']]]);
+    expect(names(searchAddable(addable, 'LM studio'))).toEqual([['On this computer or your network', ['Custom server']]]);
     expect(names(searchAddable(addable, 'gemini'))).toEqual([['API keys', ['Google']]]);
   });
 
@@ -30,7 +30,7 @@ describe('what can be added', () => {
     const keysAndServers = addable.filter((item) => item.fields === 'key' || item.fields === 'server');
     expect(names(searchAddable(keysAndServers, ''))).toEqual([
       ['API keys', ['OpenAI', 'Anthropic', 'Google', 'OpenRouter']],
-      ['On this computer or your network', ['OpenAI-compatible server']],
+      ['On this computer or your network', ['Custom server']],
     ]);
   });
 
