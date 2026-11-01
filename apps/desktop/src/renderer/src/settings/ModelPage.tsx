@@ -145,13 +145,13 @@ export function ModelPage() {
                 {answers(p) && <RefreshButton refreshing={looking.refreshing} onClick={() => void looking.run()} />}
                 {p.provider !== 'ollama' && (
                   <>
-                    {p.provider !== 'chatgpt' && p.provider !== 'server' && (
+                    {p.provider !== 'chatgpt' && p.provider !== 'server' && !p.signedIn && (
                       <button type="button" onClick={() => setSetup({ item: addable.find((item) => item.provider === p.provider) ?? null, replacing: true })}>
                         Replace
                       </button>
                     )}
                     <button type="button" onClick={() => void remove(p.provider)}>
-                      {p.provider === 'chatgpt' ? 'Sign out' : 'Remove'}
+                      {p.provider === 'chatgpt' || p.signedIn ? 'Sign out' : 'Remove'}
                     </button>
                   </>
                 )}
@@ -208,6 +208,6 @@ function connectionState(p: ProviderStatus, serverAddress: string) {
     case 'server':
       return p.connected ? serverAddress : `Not answering at ${serverAddress}`;
     default:
-      return 'Key saved';
+      return p.signedIn ? 'Signed in' : 'Key saved';
   }
 }

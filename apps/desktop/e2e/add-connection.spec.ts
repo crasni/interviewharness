@@ -28,12 +28,12 @@ test('Add lists every kind of connection in groups, and typing filters across al
   ({ app, window, dataDir } = await launchApp());
   await openAdd();
 
-  expect(await groupNames(well())).toEqual(['Plans you pay for', 'API keys', 'On this computer or your network']);
+  expect(await groupNames(well())).toEqual(['Plans you pay for', 'Sign in', 'API keys', 'On this computer or your network']);
   await expect(well().getByRole('option', { name: 'ChatGPT' })).toBeVisible();
 
   // The search field has the keyboard as soon as the list opens.
   await window.keyboard.type('open');
-  await expect(well().getByRole('option')).toHaveText(['ChatGPT', 'OpenAI', 'OpenRouter', 'OpenAI-compatible server']);
+  await expect(well().getByRole('option')).toHaveText(['ChatGPT', 'OpenRouter', 'OpenAI', 'OpenRouter', 'OpenAI-compatible server']);
   await well().getByRole('combobox', { name: 'Search' }).fill('lm studio');
   await expect(well().getByRole('option')).toHaveText(['OpenAI-compatible server']);
 });
@@ -53,7 +53,9 @@ test('picking an item from the keyboard shows only its fields, and Cancel goes b
   ({ app, window, dataDir } = await launchApp());
   await openAdd();
 
+  // OpenRouter is there twice: to sign in to, first, and with an API key, next.
   await window.keyboard.type('router');
+  await window.keyboard.press('ArrowDown');
   await window.keyboard.press('Enter');
 
   await expect(well().getByRole('heading', { name: 'OpenRouter' })).toBeVisible();
@@ -64,7 +66,7 @@ test('picking an item from the keyboard shows only its fields, and Cancel goes b
   await expect(well().getByRole('button', { name: 'Check and save' })).toBeDisabled();
 
   await well().getByRole('button', { name: 'Cancel' }).click();
-  await expect(well().getByRole('option', { name: 'OpenRouter' })).toBeVisible();
+  await expect(well().getByRole('group', { name: 'API keys' }).getByRole('option', { name: 'OpenRouter' })).toBeVisible();
   await well().getByRole('button', { name: 'Cancel' }).click();
   await expect(well()).toHaveCount(0);
 });
