@@ -63,15 +63,20 @@ export interface HarnessApi {
     providers(): Promise<ProviderStatus[]>;
     /** A provider's models, reached through an address or key not saved yet if given. */
     list(provider: ModelChoice['provider'], connection?: Connection): Promise<ModelList>;
-    /** Checks that a model answers, then saves it for its slot with its address and key (announced through settings.onChange). */
+    /**
+     * Checks that a model answers, then adds it to your models and picks it for its slot, saving the address
+     * and key it was reached with (announced through settings.onChange). Used to add a connection and to add a model.
+     */
     connect(connection: ModelConnection): Promise<ConnectResult>;
-    /** Forgets a provider's login or key (a server's address too), and unpicks its models (announced through settings.onChange). */
+    /** Forgets a provider's login or key (a server's address too), and removes its models from your models (announced through settings.onChange). */
     logout(provider: ModelChoice['provider']): Promise<void>;
     /**
      * Opens OpenRouter's sign-in in the browser and resolves once it comes back, with the key OpenRouter
      * issues saved. Picks no model. Cancelled with cancelLogin.
      */
     signInToOpenRouter(): Promise<LoginResult>;
+    /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
+    removeModel(model: ModelChoice): Promise<void>;
   };
 }
 
@@ -140,6 +145,7 @@ export const channels = {
   connect: 'models:connect',
   logout: 'models:logout',
   signInToOpenRouter: 'models:openrouter-sign-in',
+  removeModel: 'models:remove-model',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

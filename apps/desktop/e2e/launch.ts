@@ -12,7 +12,8 @@ export const stopTalkingButton = (window: Page) => window.getByRole('button', { 
  * - `model`: a script of replies for the interviewer's words (the engine's scriptedModel). Without one,
  *   it says the example lines as written. No test ever reaches a real model.
  * - `modelPicked`: a new data folder starts with a model already picked, so Start works at once.
- *   False shows the first-run step instead.
+ *   False shows the first-run step instead. The seed is a v0.1 (version 1) file on purpose: every launch
+ *   migrates it, so its model, chatgpt/gpt-5-mini, becomes the first of your models.
  * - `ollamaAddress`: where the app looks for Ollama, e.g. a fakeOllama. By default nothing listens there,
  *   so a real Ollama on the machine running the tests is never found.
  */

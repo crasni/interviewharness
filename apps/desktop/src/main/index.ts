@@ -153,6 +153,7 @@ ipcMain.handle(channels.listModels, (_event, provider: unknown, connection: unkn
 ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect(connection));
 
 ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
+ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
 
 ipcMain.handle(channels.signInToOpenRouter, () => models.signInToOpenRouter());
 

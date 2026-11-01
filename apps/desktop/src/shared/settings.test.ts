@@ -12,9 +12,11 @@ describe('model settings', () => {
   });
 
   it('logging out of a provider unpicks its models, and keeps the rest', () => {
-    const settings = { ...defaultSettings, interviewerModel: chatgpt('gpt-5-mini'), feedbackModel: chatgpt('gpt-5.5') };
+    const local = { provider: 'ollama' as const, model: 'qwen3:0.6b' };
+    const settings = { ...defaultSettings, yourModels: [chatgpt('gpt-5-mini'), local, chatgpt('gpt-5.5')], interviewerModel: chatgpt('gpt-5-mini'), feedbackModel: chatgpt('gpt-5.5') };
 
-    expect(settingsAfterLogout(settings, 'chatgpt')).toEqual({ interviewerModel: null, feedbackModel: null });
+    expect(settingsAfterLogout(settings, 'chatgpt')).toEqual({ yourModels: [local], interviewerModel: null, feedbackModel: null });
+    expect(settingsAfterLogout({ ...settings, feedbackModel: local }, 'chatgpt')).toEqual({ yourModels: [local], interviewerModel: null });
   });
 
   it('keeps only well-formed model choices and marks', () => {

@@ -1,7 +1,7 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
 import { type Connection, type KeyProviderName, keyProviders, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import type { ConnectResult, ModelConnection, ModelList } from '../shared/api.ts';
-import { isServerAddress, type Settings } from '../shared/settings.ts';
+import { isModelChoice, isServerAddress, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
 
 /** Each provider as the candidate knows it. */
 export const providerNames: Record<ProviderName, string> = {
@@ -41,7 +41,7 @@ function isModelConnection(value: unknown): value is ModelConnection {
 }
 
 /**
- * Picking a model for a slot. The model is asked for one short reply first, through the address or
+ * Adding a model to your models, into a slot. The model is asked for one short reply first, through the address or
  * key the candidate just entered, and only a model that answers is saved, with that address and key.
  * Anything that fails leaves everything as it was, and says why in plain words.
  */
@@ -81,10 +81,25 @@ export function modelChooser({
       const unencryptedNote = savesKey && !encrypted() && !settings.values().unencryptedLoginNoted;
       settings.change({
         ...(address && hasAddress(provider) ? { [addressSettings[provider]]: address } : {}),
+        yourModels: withYourModel(settings.values().yourModels, choice),
         ...(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice }),
         ...(unencryptedNote ? { unencryptedLoginNoted: true } : {}),
       });
       return { ok: true, unencryptedNote };
+    },
+
+    /** Takes a model off your models, and unpicks it wherever it was picked. */
+    removeModel(model: unknown) {
+      if (!isModelChoice(model)) return;
+      settings.change(settingsAfterRemoving(settings.values(), model));
+    },
+
+    /** Forgets a provider's login or key (a server's address too), and removes its models from your models. */
+    async removeConnection(provider: unknown) {
+      // Ollama has nothing to forget.
+      if (!isProviderName(provider) || provider === 'ollama') return;
+      await providers.logout(provider);
+      settings.change({ ...settingsAfterLogout(settings.values(), provider), ...(provider === 'server' ? { serverAddress: '' } : {}) });
     },
   };
 }
