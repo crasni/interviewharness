@@ -8,7 +8,7 @@ The interviewer runs on "any model", and candidates arrive with very different a
 - **Several named custom servers**, each **OpenAI- or Anthropic-compatible**, replacing the single "other server". This covers LM Studio, llama.cpp, vLLM, Jan's own server, LiteLLM and company gateways.
 - **OpenRouter sign-in** next to pasting a key.
 - **Plans whose terms are unclear for apps like ours (Kimi, MiniMax) are not named.** Anyone who wants them adds them as a custom server.
-- **Plans we can't use are shown with a one-line reason** when searched for (e.g. "Z.ai Coding Plan can't be used here. A Z.ai API key can."), instead of being silently missing.
+- **Plans we can't use don't appear at all**, not even in search. (The research suggested a one-line reason in search results; the owner chose to leave them out.)
 - **Claude plans wait.** The only allowed route is the user's own `claude` CLI (AGENTS.md). Its speed will be measured after the voice work, once the Floor Manager has a measured budget.
 
 ## Refused
