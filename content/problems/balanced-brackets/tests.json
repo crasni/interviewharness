@@ -1,0 +1,12 @@
+{
+  "function": "is_balanced",
+  "cases": [
+    { "id": "first-example", "description": "The first example from the statement", "input": { "s": "{[]}()" }, "expected": true },
+    { "id": "crossing-pairs", "description": "Pairs that cross, though every kind is counted evenly", "input": { "s": "([)]" }, "expected": false },
+    { "id": "left-open", "description": "An opening bracket that's never closed", "input": { "s": "(()" }, "expected": false },
+    { "id": "empty", "description": "The empty string is balanced", "input": { "s": "" }, "expected": true },
+    { "id": "closes-first", "description": "A closing bracket before any opening one", "input": { "s": ")(" }, "expected": false },
+    { "id": "wrong-kind", "description": "A pair of different kinds", "input": { "s": "(]" }, "expected": false },
+    { "id": "deep-nesting", "description": "Several kinds nested inside each other", "input": { "s": "{[({[]})]}" }, "expected": true }
+  ]
+}
