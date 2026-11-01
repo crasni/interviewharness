@@ -33,7 +33,9 @@ export type Settings = {
   /** Dragged sizes in px; null means the default size. */
   problemWidth: number | null;
   conversationHeight: number | null;
-  /** The model that writes the interviewer's words. A round can't start without one. Logins live in the credential store. */
+  /** Your models: every model the candidate added, each checked to answer when it was. The pickers list only these. */
+  yourModels: ModelChoice[];
+  /** The model that writes the interviewer's words, one of your models. A round can't start without one. Logins live in the credential store. */
   interviewerModel: ModelChoice | null;
   /** The model that writes the Feedback, if not the interviewer's (a stronger one, say). */
   feedbackModel: ModelChoice | null;
@@ -61,6 +63,7 @@ export const defaultSettings: Settings = {
   wrapLines: true,
   problemWidth: null,
   conversationHeight: null,
+  yourModels: [],
   interviewerModel: null,
   feedbackModel: null,
   smallModels: [],
@@ -89,12 +92,14 @@ export function isServerAddress(value: unknown): value is string {
     return false;
   }
 }
-const isModelChoice = (value: unknown): value is ModelChoice | null => {
-  if (value === null) return true;
-  if (typeof value !== 'object') return false;
+/** A well-formed model choice; nothing else rides along with it (a key, say). */
+export const isModelChoice = (value: unknown): value is ModelChoice => {
+  if (typeof value !== 'object' || value === null) return false;
   const { provider, model, ...rest } = value as Record<string, unknown>;
   return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && !Object.keys(rest).length;
 };
+
+const isPickedModel = (value: unknown): value is ModelChoice | null => value === null || isModelChoice(value);
 
 const isModelKeys = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((key) => typeof key === 'string' && key.includes('/'));
@@ -113,8 +118,9 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   wrapLines: isBoolean,
   problemWidth: isSize,
   conversationHeight: isSize,
-  interviewerModel: isModelChoice,
-  feedbackModel: isModelChoice,
+  yourModels: (value): value is ModelChoice[] => Array.isArray(value) && value.every(isModelChoice),
+  interviewerModel: isPickedModel,
+  feedbackModel: isPickedModel,
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
@@ -137,6 +143,12 @@ export function validSettings(raw: unknown): Partial<Settings> {
 
 /** A model's name as one string, e.g. "chatgpt/gpt-5-mini". */
 export const modelKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`;
+
+const sameModel = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;
+
+/** Your models with `choice` added at the end, unless it's already one of them. */
+export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
+  models.some((m) => sameModel(m, choice)) ? models : [...models, { provider: choice.provider, model: choice.model }];
 
 /** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
 export function choiceFromKey(key: string): ModelChoice | null {
