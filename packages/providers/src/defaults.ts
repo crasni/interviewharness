@@ -16,3 +16,7 @@ export const defaultModels: Partial<Record<'chatgpt' | 'openai' | 'openrouter', 
 
 /** Where Ollama listens unless the candidate changes it. */
 export const defaultOllamaAddress = 'http://localhost:11434';
+
+/** The API formats a server of the candidate's own can speak: OpenAI's Chat Completions, or Anthropic's Messages. */
+export const serverFormats = ['openai', 'anthropic'] as const;
+export type ServerFormat = (typeof serverFormats)[number];

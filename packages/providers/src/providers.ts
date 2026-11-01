@@ -15,7 +15,6 @@ import {
   Type,
 } from '@earendil-works/pi-ai';
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
-import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { ANTHROPIC_MODELS } from '@earendil-works/pi-ai/providers/anthropic.models';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
@@ -24,18 +23,21 @@ import { openrouterProvider } from '@earendil-works/pi-ai/providers/openrouter';
 import { type Model, ModelError, type ModelErrorKind, type ModelRequest } from '@interviewharness/engine';
 import { type ChatGPTLoginConfig, chatgptOAuth } from './chatgpt-login.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
+import { adoptOldServerKey, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
 export type ProviderName = 'chatgpt' | 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
 
-/** The providers reached with an API key the candidate pastes. A server's key is optional. */
-export type KeyProviderName = 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
-export const keyProviders: readonly KeyProviderName[] = ['openai', 'anthropic', 'google', 'openrouter', 'server'];
+/** The providers reached with an API key the candidate pastes. (A server's optional key is saved per server.) */
+export type KeyProviderName = 'openai' | 'anthropic' | 'google' | 'openrouter';
+export const keyProviders: readonly KeyProviderName[] = ['openai', 'anthropic', 'google', 'openrouter'];
 
 /** Which provider and model a slot uses. Stored in settings.json; never holds a credential. */
 export interface ModelChoice {
   provider: ProviderName;
   model: string;
+  /** For a model on one of the candidate's servers: which server (its id). */
+  server?: string;
 }
 
 export { defaultChatGPTModel } from './defaults.ts';
@@ -56,7 +58,7 @@ export interface ModelListing {
   small: boolean;
 }
 
-type PiProviderName = Exclude<ProviderName, 'ollama'>;
+type PiProviderName = Exclude<ProviderName, 'ollama' | 'server'>;
 
 /**
  * Our provider names, and the pi-ai provider each one runs on, which is also where its credential is
@@ -68,7 +70,6 @@ const piProviderIds: Record<PiProviderName, string> = {
   anthropic: 'anthropic',
   google: 'google',
   openrouter: 'openrouter',
-  server: 'server',
 };
 
 /**
@@ -104,10 +105,17 @@ function forgetAmbientVariables() {
   for (const name of Object.keys(process.env)) if (ambientVariables.test(name)) delete process.env[name];
 }
 
+/** The id a server being added is tried under, before it's saved with one of its own. */
+const newServer = 'new';
+
 /** How to reach a provider before it's saved: an address the candidate typed, a key they pasted. */
 export interface Connection {
   address?: string;
   key?: string;
+  /** A server's API format, when it's new or being changed. */
+  format?: ServerFormat;
+  /** Which of the candidate's servers, when listing a saved one's models (or a new one's, with no id yet). */
+  server?: string;
 }
 
 export interface ProvidersOptions {
@@ -121,8 +129,8 @@ export interface ProvidersOptions {
   signIn?: ChatGPTLoginConfig;
   /** Where Ollama listens; the candidate can change it. */
   ollamaAddress?: () => string;
-  /** The address of another OpenAI-compatible server (LM Studio, llama.cpp, vLLM), ending in its API path, e.g. http://localhost:1234/v1. */
-  serverAddress?: () => string;
+  /** The candidate's own servers (LM Studio, llama.cpp, vLLM, a gateway), each OpenAI- or Anthropic-compatible. */
+  servers?: () => readonly Server[];
   /** Tests send a provider's requests to a fake server on loopback with this. */
   baseUrls?: Partial<Record<PiProviderName, string>>;
 }
@@ -137,7 +145,7 @@ export interface ChatGPTLoginOptions {
 
 /** The app's models: logging in to providers, and models that speak the engine's model interface. */
 export function createProviders(options: ProvidersOptions): Providers {
-  const { credentials, appVersion, fetch: fetchFn, signIn, ollamaAddress = () => defaultOllamaAddress, serverAddress = () => '', baseUrls = {} } = options;
+  const { credentials, appVersion, fetch: fetchFn, signIn, ollamaAddress = () => defaultOllamaAddress, servers = () => [], baseUrls = {} } = options;
   forgetAmbientVariables();
   const models = createModels({
     credentials,
@@ -169,58 +177,50 @@ export function createProviders(options: ProvidersOptions): Providers {
   models.setProvider({ ...googleProvider(), auth: savedKeyOnly('Gemini API key') });
   // OpenRouter's own login is left out too: a pasted key is the one way in.
   models.setProvider({ ...openrouterProvider(), auth: savedKeyOnly('OpenRouter API key') });
-  models.setProvider(
-    createProvider({ id: piProviderIds.server, name: 'OpenAI-compatible server', auth: savedKeyOnly('Server key', { optional: true }), models: [], api: openAICompletionsApi() }),
-  );
-
-  /** A model on the candidate's server, described from its id alone: servers say little about their models. */
-  const serverModel = (id: string): PiModel<'openai-completions'> => ({
-    id,
-    name: id,
-    api: 'openai-completions',
-    provider: piProviderIds.server,
-    baseUrl: serverAddress(),
-    reasoning: false,
-    input: ['text'],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 32768,
-    maxTokens: 4096,
-  });
-
   /** The pi-ai model for a choice, sent to a test's fake server when one is given. */
   function piModelFor(choice: ModelChoice & { provider: PiProviderName }): PiModel<Api> | undefined {
-    const model = choice.provider === 'server' ? serverModel(choice.model) : models.getModel(piProviderIds[choice.provider], choice.model);
+    const model = models.getModel(piProviderIds[choice.provider], choice.model);
     const baseUrl = baseUrls[choice.provider];
     return model && baseUrl ? { ...model, baseUrl } : model;
   }
 
-  /** The models the candidate's server serves. */
-  async function serverModels(): Promise<ModelListing[]> {
-    const address = serverAddress();
-    if (!address) throw new ModelError('other', 'No server address');
-    const key = await credentials.read(piProviderIds.server);
-    let response: Response;
-    try {
-      response = await (fetchFn ?? fetch)(`${address.replace(/\/+$/, '')}/models`, {
-        headers: key?.type === 'api_key' && key.key ? { authorization: `Bearer ${key.key}` } : {},
-      });
-    } catch {
-      throw new ModelError('offline', `Nothing answered at ${address}`);
-    }
-    if (!response.ok) throw new ModelError(errorKind(String(response.status)), `The server answered ${response.status}`);
-    const { data = [] } = (await response.json()) as { data?: { id: string }[] };
-    return data.map((model) => ({ id: model.id, name: model.id, local: true, small: false }));
+  // Each server is its own pi-ai provider, so its key is looked up under its own id. Registered when first used.
+  const registered = new Set<string>();
+  function serverPiModel(choice: ModelChoice): PiModel<Api> | undefined {
+    const server = servers().find((each) => each.id === choice.server);
+    if (!server) return undefined;
+    if (!registered.has(server.id)) models.setProvider(serverProvider(server.id));
+    registered.add(server.id);
+    return serverModel(server, choice.model);
   }
 
-  /** These providers, but reaching `provider` through a connection that isn't saved yet. Nothing is saved by it. */
-  function withConnection(provider: ProviderName, connection: Connection = {}): Providers {
-    if (!connection.address && !connection.key) return providers;
-    const { address, key } = connection;
+  /** A server as `connection` describes it (a saved one, maybe with a new address, format or key; or a new one), and its key. */
+  async function reachServer(connection: Connection): Promise<{ server: Server; key: string | undefined }> {
+    const id = connection.server ?? newServer;
+    const saved = servers().find((each) => each.id === id);
+    if (!saved && !connection.address) throw new ModelError('other', 'No such server');
+    const server: Server = { id, name: saved?.name ?? '', address: connection.address ?? saved!.address, format: connection.format ?? saved?.format ?? 'openai' };
+    const stored = connection.key?.trim() ? undefined : await credentials.read(serverCredentialId(id));
+    return { server, key: connection.key?.trim() || (stored?.type === 'api_key' ? stored.key : undefined) };
+  }
+
+  /** These providers, but reaching `provider` (or server `server`) through a connection that isn't saved yet. Nothing is saved by it. */
+  function withConnection(provider: ProviderName, connection: Connection = {}, server = connection.server ?? newServer): Providers {
+    if (!connection.address && !connection.key && !connection.format) return providers;
+    const { address, key, format } = connection;
+    if (provider === 'server') {
+      const saved = servers().find((each) => each.id === server);
+      const tried: Server = { id: server, name: saved?.name ?? '', address: address ?? saved?.address ?? '', format: format ?? saved?.format ?? 'openai' };
+      return createProviders({
+        ...options,
+        credentials: key ? withKey(credentials, serverCredentialId(server), key.trim()) : credentials,
+        servers: () => [...servers().filter((each) => each.id !== server), tried],
+      });
+    }
     return createProviders({
       ...options,
       credentials: key && provider !== 'ollama' && provider !== 'chatgpt' ? withKey(credentials, piProviderIds[provider], key.trim()) : credentials,
       ollamaAddress: provider === 'ollama' && address ? () => address : ollamaAddress,
-      serverAddress: provider === 'server' && address ? () => address : serverAddress,
     });
   }
 
@@ -263,24 +263,42 @@ export function createProviders(options: ProvidersOptions): Providers {
       await credentials.modify(piProviderIds[provider], async () => ({ type: 'api_key', key: key.trim() }));
     },
 
-    /** Forgets the login or key for a provider. Ollama has none. */
+    /** Forgets the login or key for a provider. Ollama has none; a server's key is forgotten with `forgetServer`. */
     async logout(provider: ProviderName) {
-      if (provider !== 'ollama') await models.logout(piProviderIds[provider]);
+      if (provider !== 'ollama' && provider !== 'server') await models.logout(piProviderIds[provider]);
     },
 
     /** Whether a provider has a saved login or key. */
     async isLoggedIn(provider: ProviderName) {
-      return provider !== 'ollama' && (await credentials.read(piProviderIds[provider])) !== undefined;
+      return provider !== 'ollama' && provider !== 'server' && (await credentials.read(piProviderIds[provider])) !== undefined;
+    },
+
+    /** Saves the key for one of the candidate's servers, replacing any before it. */
+    async saveServerKey(server: string, key: string) {
+      await credentials.modify(serverCredentialId(server), async () => ({ type: 'api_key', key: key.trim() }));
+    },
+
+    /** Forgets a server's key, if it had one. */
+    async forgetServer(server: string) {
+      await credentials.delete(serverCredentialId(server));
+    },
+
+    /** Moves the key v0.1 kept for its one server to `server`, the server it became. */
+    async adoptOldServerKey(server: string) {
+      await adoptOldServerKey(credentials, server);
     },
 
     /**
      * The models a provider offers: for Ollama and servers, the ones installed; for the rest, newest first.
-     * A connection lists them at an address, or with a key, not saved yet.
+     * A connection lists them at an address, or with a key, not saved yet; for a server, it names which one.
      */
     async listModels(provider: ProviderName, connection?: Connection): Promise<ModelListing[]> {
+      if (provider === 'server') {
+        const { server, key } = await reachServer(connection ?? {});
+        return serverModels(server, key, fetchFn ?? fetch);
+      }
       if (connection) return withConnection(provider, connection).listModels(provider);
       if (provider === 'ollama') return ollamaModels(ollamaAddress(), fetchFn ?? fetch, smallModelParameters);
-      if (provider === 'server') return serverModels();
       return models
         .getModels(piProviderIds[provider])
         .filter((model) => !/realtime/.test(model.id))
@@ -292,6 +310,7 @@ export function createProviders(options: ProvidersOptions): Providers {
     model(choice: ModelChoice): Model {
       const { provider } = choice;
       if (provider === 'ollama') return ollamaModel(ollamaAddress, fetchFn ?? fetch, choice);
+      if (provider === 'server') return piModel(models, () => serverPiModel(choice), choice, fetchFn);
       return piModel(models, () => piModelFor({ ...choice, provider }), choice, fetchFn);
     },
 
@@ -303,7 +322,7 @@ export function createProviders(options: ProvidersOptions): Providers {
     async check(choice: ModelChoice, connection?: Connection, timeoutMs = 60_000) {
       const timeout = AbortSignal.timeout(timeoutMs);
       try {
-        await withConnection(choice.provider, connection)
+        await withConnection(choice.provider, connection, choice.server)
           .model(choice)
           .streamText({ purpose: 'setup-check', system: 'Reply with the single word OK.', messages: [{ role: 'user', text: 'Are you there?' }], maxOutputTokens: 16, signal: timeout });
       } catch (error) {
@@ -338,6 +357,9 @@ export interface Providers {
   saveKey(provider: KeyProviderName, key: string): Promise<void>;
   logout(provider: ProviderName): Promise<void>;
   isLoggedIn(provider: ProviderName): Promise<boolean>;
+  saveServerKey(server: string, key: string): Promise<void>;
+  forgetServer(server: string): Promise<void>;
+  adoptOldServerKey(server: string): Promise<void>;
   listModels(provider: ProviderName, connection?: Connection): Promise<ModelListing[]>;
   model(choice: ModelChoice): Model;
   check(choice: ModelChoice, connection?: Connection, timeoutMs?: number): Promise<void>;
