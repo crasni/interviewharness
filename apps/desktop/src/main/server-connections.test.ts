@@ -154,6 +154,10 @@ describe('server errors name the field to fix', () => {
     expect(await servers.list({ address: fake.origin, format: 'anthropic' })).toMatchObject({ ok: true, models: [{ id: 'qwen3-8b' }] });
   });
 
+  it('a server that no longer exists, rather than its address', async () => {
+    expect(await servers.list({ server: 'gone' })).toEqual({ ok: false, error: "That server has been removed." });
+  });
+
   it('refuses a request the renderer made up', async () => {
     for (const made of [null, { name: 'x' }, { slot: 'interviewer', name: 'x', address: 'file:///etc', format: 'openai', model: 'm' }, { slot: 'interviewer', name: 'x', address: fake.origin, format: 'gemini', model: 'm' }, { slot: 'interviewer', name: 'x', address: fake.origin, format: 'openai', model: 'm', key: 'k'.repeat(501) }]) {
       expect(await servers.add(made)).toMatchObject({ ok: false });

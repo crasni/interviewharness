@@ -22,6 +22,19 @@ export interface Server {
   format: ServerFormat;
 }
 
+/** The id a server not saved yet (being added) is tried under, before it's saved with an id of its own. */
+export const unsavedServerId = 'new';
+
+/**
+ * The server a request describes: a saved one (`server`, its id), with any `address` or `format` given in place
+ * of its own; or, with no saved one, a server not saved yet at `address`. Null when there's neither.
+ */
+export function resolveServer(saved: readonly Server[], { server: id = unsavedServerId, address, format }: { server?: string; address?: string; format?: ServerFormat }): Server | null {
+  const found = saved.find((each) => each.id === id);
+  if (!found && !address) return null;
+  return { id, name: found?.name ?? '', address: address ?? found!.address, format: format ?? found?.format ?? 'openai' };
+}
+
 /** Where a server's key is kept: under its own id, so two servers never share or replace each other's key. */
 export const serverCredentialId = (server: string) => `server:${server}`;
 

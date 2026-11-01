@@ -26,7 +26,7 @@ import { registerKeyProviders } from './key-provider-factories.ts';
 import { keyProviderTable, type TableKeyProviderName } from './key-providers.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
 import { type OpenRouterLoginConfig, openrouterOAuth } from './openrouter-login.ts';
-import { adoptOldServerKey, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
+import { adoptOldServerKey, resolveServer, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
 export type ProviderName = 'chatgpt' | 'ollama' | KeyProviderName | 'server';
@@ -101,9 +101,6 @@ const ambientVariables = /^(OPENAI|PI|ANTHROPIC|GEMINI|GOOGLE|OPENROUTER)_/;
 function forgetAmbientVariables() {
   for (const name of Object.keys(process.env)) if (ambientVariables.test(name)) delete process.env[name];
 }
-
-/** The id a server being added is tried under, before it's saved with one of its own. */
-const newServer = 'new';
 
 /** How to reach a provider before it's saved: an address the candidate typed, a key they pasted. */
 export interface Connection {
@@ -204,25 +201,23 @@ export function createProviders(options: ProvidersOptions): Providers {
 
   /** A server as `connection` describes it (a saved one, maybe with a new address, format or key; or a new one), and its key. */
   async function reachServer(connection: Connection): Promise<{ server: Server; key: string | undefined }> {
-    const id = connection.server ?? newServer;
-    const saved = servers().find((each) => each.id === id);
-    if (!saved && !connection.address) throw new ModelError('other', 'No such server');
-    const server: Server = { id, name: saved?.name ?? '', address: connection.address ?? saved!.address, format: connection.format ?? saved?.format ?? 'openai' };
-    const stored = connection.key?.trim() ? undefined : await credentials.read(serverCredentialId(id));
+    const server = resolveServer(servers(), connection);
+    if (!server) throw new ModelError('other', 'No such server');
+    const stored = connection.key?.trim() ? undefined : await credentials.read(serverCredentialId(server.id));
     return { server, key: connection.key?.trim() || (stored?.type === 'api_key' ? stored.key : undefined) };
   }
 
   /** These providers, but reaching `provider` (or server `server`) through a connection that isn't saved yet. Nothing is saved by it. */
-  function withConnection(provider: ProviderName, connection: Connection = {}, server = connection.server ?? newServer): Providers {
+  function withConnection(provider: ProviderName, connection: Connection = {}, server = connection.server): Providers {
     if (!connection.address && !connection.key && !connection.format) return providers;
-    const { address, key, format } = connection;
+    const { address, key } = connection;
     if (provider === 'server') {
-      const saved = servers().find((each) => each.id === server);
-      const tried: Server = { id: server, name: saved?.name ?? '', address: address ?? saved?.address ?? '', format: format ?? saved?.format ?? 'openai' };
+      const tried = resolveServer(servers(), { ...connection, server });
+      if (!tried) throw new ModelError('other', 'No such server');
       return createProviders({
         ...options,
-        credentials: key ? withKey(credentials, serverCredentialId(server), key.trim()) : credentials,
-        servers: () => [...servers().filter((each) => each.id !== server), tried],
+        credentials: key ? withKey(credentials, serverCredentialId(tried.id), key.trim()) : credentials,
+        servers: () => [...servers().filter((each) => each.id !== tried.id), tried],
       });
     }
     return createProviders({

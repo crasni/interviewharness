@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
-import type { ModelChoice, Providers, Server } from '@interviewharness/providers';
+import { type ModelChoice, type Providers, resolveServer, type Server } from '@interviewharness/providers';
 import { serverFormats } from '@interviewharness/providers/defaults';
 import type { ConnectResult, ModelList, ServerListing, ServerSetup } from '../shared/api.ts';
 import { isServerAddress, isServerId, isServerName, type Settings, settingsAfterAdding, settingsAfterRemovingServer, withYourModel } from '../shared/settings.ts';
 
 const isFormat = (value: unknown): value is Server['format'] => (serverFormats as readonly unknown[]).includes(value);
 const isKey = (value: unknown): value is string | undefined => value === undefined || (typeof value === 'string' && value.length <= 500);
+/** What's wrong with an address that isn't a web address. */
+const addressError = 'Address: enter a web address starting with http:// or https://, e.g. http://localhost:1234/v1.';
 const isModelId = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 200;
 
 /** Checks a server's setup arriving over IPC, all but the fields the candidate types freely (named in plain errors instead). */
@@ -49,7 +51,7 @@ export function serverConnections({
     if (!isServerName(name)) return 'Name: give the server a name, so you can tell it apart.';
     const taken = settings.values().servers.some((each) => each.id !== server && each.name.trim().toLowerCase() === name.trim().toLowerCase());
     if (taken) return `Name: another server is called "${name.trim()}". Pick another name.`;
-    if (!isServerAddress(address)) return 'Address: enter a web address starting with http:// or https://, e.g. http://localhost:1234/v1.';
+    if (!isServerAddress(address)) return addressError;
     if (!isModelId(model)) return 'Model: pick a model, or type its id.';
     return null;
   }
@@ -85,15 +87,14 @@ export function serverConnections({
     /** A server's models: a saved one's, or through an address, format or key not saved yet. */
     async list(request: unknown): Promise<ModelList> {
       if (!isServerListing(request)) return { ok: false, error: "Those models can't be listed." };
-      const saved = settings.values().servers.find((each) => each.id === request.server);
-      const address = request.address ?? saved?.address;
-      const format = request.format ?? saved?.format ?? 'openai';
-      if (!isServerAddress(address)) return { ok: false, error: 'Address: enter a web address starting with http:// or https://, e.g. http://localhost:1234/v1.' };
+      const server = resolveServer(settings.values().servers, request);
+      if (!server) return { ok: false, error: 'That server has been removed.' };
+      if (!isServerAddress(server.address)) return { ok: false, error: addressError };
       try {
         return { ok: true, models: await providers.listModels('server', request) };
       } catch (error) {
         const key = request.key?.trim() || undefined;
-        return { ok: false, error: plainServerError(modelErrorKind(error), { address, format, key }, error, 'list') };
+        return { ok: false, error: plainServerError(modelErrorKind(error), { ...server, key }, error, 'list') };
       }
     },
 
