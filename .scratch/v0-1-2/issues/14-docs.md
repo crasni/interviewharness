@@ -4,10 +4,10 @@
 
 **Blocked by:** 01–13
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Glossary entry for Problem
-- [ ] STATUS and BLUEPRINT updated
-- [ ] The "unpractised first" mode is on a later list
+- [x] Glossary entry for Problem
+- [x] STATUS and BLUEPRINT updated
+- [x] The "unpractised first" mode is on a later list
 
 Spec: `.scratch/v0-1-2/spec.md`.

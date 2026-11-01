@@ -22,6 +22,10 @@ _Avoid_: Bot, assistant, persona
 The person practising in a round.
 _Avoid_: User, interviewee, student
 
+**Problem**:
+One coding question a round is on, kept as plain files: the statement the candidate reads, the interviewer's notes with a hint ladder and follow-ups, a reference solution that's never revealed, and test cases. Start coding round picks one at random; Choose a problem picks one by title.
+_Avoid_: Question, exercise, challenge, task
+
 **Check**:
 A second, separate look at the interviewer's words before they're said, on turns where help could slip in: do they name a mistake, give a hint, or describe the solution? Its verdict, not the interviewer's own label, is what's recorded and graded.
 _Avoid_: Guardrail, filter, review
