@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defaultSettings, isModelChoice, type ModelChoice, type Settings, validSettings, withYourModel } from '../shared/settings.ts';
 import { type WriteOptions, writeFileAtomically } from './atomic-write.ts';
+import { oneServerBecomesNamed } from './server-migration.ts';
 
 /** The shape settings.json is written in. Bump it, and add a migration below, when a setting changes meaning. */
 export const settingsVersion = 2;
@@ -14,8 +15,11 @@ const pickedModelsBecomeYourModels: Migration = (raw) => ({
   yourModels: [raw.interviewerModel, raw.feedbackModel].filter(isModelChoice).reduce(withYourModel, [] as ModelChoice[]),
 });
 
-/** Version 1 → 2 in steps, each changing one thing. A step for another setting of v0.1.1 joins this list. */
-const toVersion2: Migration[] = [pickedModelsBecomeYourModels];
+/**
+ * Version 1 → 2 in steps, each changing one thing. A step for another setting of v0.1.1 joins this list.
+ * The server becomes a named one first, so the model picked from it joins your models naming its server.
+ */
+const toVersion2: Migration[] = [oneServerBecomesNamed, pickedModelsBecomeYourModels];
 
 /** Each migration takes a file of its key's version to the next version. */
 const settingsMigrations: Record<number, Migration> = {
