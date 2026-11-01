@@ -103,7 +103,7 @@ export async function serverModels(server: Server, key: string | undefined, fetc
   }
   return (Array.isArray(listed.data) ? listed.data : [])
     .filter((model): model is { id: string; display_name?: unknown } => typeof model?.id === 'string')
-    .map((model) => ({ id: model.id, name: typeof model.display_name === 'string' && model.display_name ? model.display_name : model.id, local: true, small: false }));
+    .map((model) => ({ id: model.id, name: typeof model.display_name === 'string' && model.display_name ? model.display_name : model.id, small: false }));
 }
 
 const statusKind = (status: number): ModelErrorKind => (status === 401 || status === 403 ? 'auth' : status === 429 ? 'rate-limit' : 'other');

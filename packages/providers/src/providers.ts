@@ -55,8 +55,6 @@ export const smallModelParameters = 14e9;
 export interface ModelListing {
   id: string;
   name: string;
-  /** Runs on this computer (Ollama and other local servers). */
-  local: boolean;
   /** Counts as small (see `smallModelParameters`), so the Feedback it writes is marked rough. */
   small: boolean;
 }
@@ -332,7 +330,7 @@ export function createProviders(options: ProvidersOptions): Providers {
       return models
         .getModels(piProviderIds[provider])
         .filter((model) => !/realtime/.test(model.id))
-        .map((model) => ({ id: model.id, name: model.name, local: false, small: false }))
+        .map((model) => ({ id: model.id, name: model.name, small: false }))
         .reverse();
     },
 

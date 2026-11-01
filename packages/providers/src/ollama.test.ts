@@ -45,13 +45,13 @@ describe('Ollama on this computer', () => {
     ]);
   });
 
-  it('lists the installed models that can chat, as local, with the ones under the size threshold marked small', async () => {
+  it('lists the installed models that can chat, with the ones under the size threshold marked small', async () => {
     const listed = await providersAt(ollama.origin).listModels('ollama');
 
     expect(listed).toEqual([
-      { id: 'llama3.1:8b', name: 'llama3.1:8b', local: true, small: true },
-      { id: 'qwen2.5:32b', name: 'qwen2.5:32b', local: true, small: false },
-      { id: 'qwen3:8b', name: 'qwen3:8b', local: true, small: true },
+      { id: 'llama3.1:8b', name: 'llama3.1:8b', small: true },
+      { id: 'qwen2.5:32b', name: 'qwen2.5:32b', small: false },
+      { id: 'qwen3:8b', name: 'qwen3:8b', small: true },
     ]);
   });
 
