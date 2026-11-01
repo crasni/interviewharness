@@ -42,4 +42,24 @@ export default tseslint.config(
     files: ['apps/**'],
     rules: forbid(piAi),
   },
+  // The renderer runs in the browser, and shared/ is part of it: values from providers would pull pi-ai and
+  // Node in with them (the dev server doesn't tree-shake them away). Its types are fine, and /defaults is plain data.
+  {
+    files: ['apps/desktop/src/renderer/**', 'apps/desktop/src/shared/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@interviewharness/providers',
+              allowTypeImports: true,
+              message: 'The renderer may take only types from providers; plain values belong in @interviewharness/providers/defaults.',
+            },
+          ],
+          patterns: [{ group: [piAi, `${piAi}/*`], message: 'Layering: core ← engine ← providers ← app. This import points the wrong way.' }],
+        },
+      ],
+    },
+  },
 );

@@ -1,4 +1,5 @@
-import { defaultOllamaAddress, type ModelChoice } from '@interviewharness/providers';
+import type { ModelChoice } from '@interviewharness/providers';
+import { defaultOllamaAddress } from '@interviewharness/providers/defaults';
 import { isTheme, type Theme } from './api.ts';
 
 export type { ModelChoice };

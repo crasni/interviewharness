@@ -1,8 +1,7 @@
 import { type Model, ModelError, type ModelRequest, type ModelUsage } from '@interviewharness/engine';
 import type { ModelChoice, ModelListing } from './providers.ts';
 
-/** Where Ollama listens unless the candidate changes it. */
-export const defaultOllamaAddress = 'http://localhost:11434';
+export { defaultOllamaAddress } from './defaults.ts';
 
 /** Parses Ollama's parameter size ("8.0B", "270M") into a count. Unknown sizes are NaN. */
 function parameterCount(size: string | undefined) {
