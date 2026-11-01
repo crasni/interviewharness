@@ -1,5 +1,5 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
-import { closeApp, launchApp } from './launch.ts';
+import { choose, closeApp, launchApp } from './launch.ts';
 
 let app: ElectronApplication;
 let window: Page;
@@ -121,7 +121,7 @@ test('the code language changes indentation live, and the code stays', async () 
 
   await openSettings();
   await showCategory('Editor');
-  await settings().getByLabel('Code language').selectOption('JavaScript');
+  await choose(settings(), 'Code language', 'JavaScript');
   await window.keyboard.press('Escape');
   await expect(editor()).toContainText('def f():');
 

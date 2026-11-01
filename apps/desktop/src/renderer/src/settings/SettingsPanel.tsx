@@ -1,6 +1,7 @@
 import { RotateCcw, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
+import { Picker } from '../ui/Picker.tsx';
 import { type CodeLanguage, type Settings, type TextSize, type Theme, useSettings } from './settings.tsx';
 import { ModelPage } from './ModelPage.tsx';
 import './settings.css';
@@ -237,13 +238,12 @@ function LanguagePicker({ value, onChange }: { value: CodeLanguage; onChange: (l
   return (
     <div className="settings-row">
       <label htmlFor={id}>Code language</label>
-      <select id={id} value={value} onChange={(event) => onChange(event.target.value as CodeLanguage)}>
-        {Object.entries(languageLabels).map(([language, label]) => (
-          <option key={language} value={language}>
-            {label}
-          </option>
-        ))}
-      </select>
+      <Picker
+        id={id}
+        value={value}
+        options={Object.entries(languageLabels).map(([language, label]) => ({ value: language, label }))}
+        onChange={(language) => onChange(language as CodeLanguage)}
+      />
     </div>
   );
 }

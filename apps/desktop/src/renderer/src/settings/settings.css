@@ -218,16 +218,6 @@
   transform: translateX(14px);
 }
 
-.settings select {
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--ink);
-  background: var(--surface);
-  border: var(--rule);
-  border-radius: var(--radius-control);
-  padding: var(--space-1) var(--space-3);
-  min-height: 32px;
-}
 
 /* Settings → Model: where models come from, one row each, with its state and what can be done. */
 .connections {
