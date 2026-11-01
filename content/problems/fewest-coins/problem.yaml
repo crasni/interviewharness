@@ -1,0 +1,8 @@
+# The problem's details. The statement, interviewer notes, reference solution and tests sit beside this file.
+title: Fewest coins
+pattern: Dynamic programming
+difficulty: hard
+license: CC-BY-4.0
+credits:
+  - InterviewHarness contributors
+source: original
