@@ -423,6 +423,8 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
       throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
     });
     if (!auth) throw new ModelError('auth', 'Not logged in');
+    // A provider's error may quote the key it was sent (a saved one too); it goes no further than this.
+    const unquoted = (message: string) => withoutSecret(message, auth.auth.apiKey);
     const stream = models.stream(
       model,
       { systemPrompt: request.system, messages, tools: extra.tools },
@@ -441,7 +443,7 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
     for await (const event of stream) {
       if (event.type === 'text_delta') onText?.(event.delta);
       if (event.type === 'error') {
-        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage);
+        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage && unquoted(event.error.errorMessage));
       }
       if (event.type === 'done') return event.message;
     }
@@ -490,6 +492,11 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
       }
     },
   };
+}
+
+/** `message` with `secret` (a key or token that was sent) taken out. Our placeholder for no key isn't one. */
+function withoutSecret(message: string, secret: string | undefined) {
+  return secret && secret !== 'none' ? message.replaceAll(secret, '…') : message;
 }
 
 /** The tool choice that forces one named tool, which each API spells its own way. */

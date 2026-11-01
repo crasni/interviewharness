@@ -170,6 +170,16 @@ describe('editing and removing a server', () => {
     expect(credentials.entries.get('server:s1')).toEqual({ type: 'api_key', key: 'old-key' });
   });
 
+  it('never repeats the saved key, when an error quotes it', async () => {
+    const quoting = { status: 400, body: JSON.stringify({ error: { message: 'Bad request from old-key' } }) };
+    fake.reply(quoting);
+
+    const result = await servers.edit({ server: 's1', name: 'Home', address: `${fake.origin}/v1`, format: 'openai', model: 'qwen3-8b' });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(JSON.stringify(result)).not.toContain('old-key');
+  });
+
   it('removing it forgets its key and takes its models off your models and the slots', async () => {
     await chooser.removeConnection('server', 's1');
 

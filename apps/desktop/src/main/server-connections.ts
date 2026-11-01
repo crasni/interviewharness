@@ -121,7 +121,8 @@ export function serverConnections({
 
 /**
  * Why a server didn't answer, or its models couldn't be listed, starting with the field to fix
- * ("Address: …", "Key: …", "Model: …"). Never repeats a key.
+ * ("Address: …", "Key: …", "Model: …"). Never repeats a key: the providers take the key they sent out of
+ * their errors (a saved one too), and a key typed in is taken out here as well.
  */
 export function plainServerError(
   kind: ModelErrorKind,
