@@ -1,8 +1,8 @@
-import type { ModelChoice } from '@interviewharness/providers';
-import { defaultOllamaAddress } from '@interviewharness/providers/defaults';
+import type { ModelChoice, Server } from '@interviewharness/providers';
+import { defaultOllamaAddress, serverFormats } from '@interviewharness/providers/defaults';
 import { isTheme, type Theme } from './api.ts';
 
-export type { ModelChoice };
+export type { ModelChoice, Server };
 
 export const textSizes = ['small', 'medium', 'large'] as const;
 export type TextSize = (typeof textSizes)[number];
@@ -43,8 +43,8 @@ export type Settings = {
   unencryptedLoginNoted: boolean;
   /** Where Ollama listens on this computer. */
   ollamaAddress: string;
-  /** Another OpenAI-compatible server (LM Studio, llama.cpp, vLLM), with its API path, e.g. http://localhost:1234/v1. Empty when none. */
-  serverAddress: string;
+  /** The candidate's own servers (LM Studio, llama.cpp, vLLM, a gateway), each by name. Their keys live in the credential store. */
+  servers: Server[];
 };
 
 export const defaultSettings: Settings = {
@@ -66,7 +66,7 @@ export const defaultSettings: Settings = {
   smallModels: [],
   unencryptedLoginNoted: false,
   ollamaAddress: defaultOllamaAddress,
-  serverAddress: '',
+  servers: [],
 };
 
 const oneOf =
@@ -89,12 +89,29 @@ export function isServerAddress(value: unknown): value is string {
     return false;
   }
 }
+/** A server's id: made by the app, so plain; never holds a slash, which `modelKey` relies on. */
+export const isServerId = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,64}$/.test(value);
+
 const isModelChoice = (value: unknown): value is ModelChoice | null => {
   if (value === null) return true;
   if (typeof value !== 'object') return false;
-  const { provider, model, ...rest } = value as Record<string, unknown>;
-  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && !Object.keys(rest).length;
+  const { provider, model, server, ...rest } = value as Record<string, unknown>;
+  // A server's model names its server; no other model names one.
+  const serverNamed = provider === 'server' ? isServerId(server) : server === undefined;
+  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && serverNamed && !Object.keys(rest).length;
 };
+
+/** A server's name, as the candidate typed it: something to tell it by, and short. */
+export const isServerName = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 80;
+
+const isServer = (value: unknown): value is Server => {
+  if (typeof value !== 'object' || value === null) return false;
+  const { id, name, address, format, ...rest } = value as Record<string, unknown>;
+  return isServerId(id) && isServerName(name) && isServerAddress(address) && (serverFormats as readonly unknown[]).includes(format) && !Object.keys(rest).length;
+};
+
+const isServers = (value: unknown): value is Server[] =>
+  Array.isArray(value) && value.length <= 100 && value.every(isServer) && new Set(value.map((server: Server) => server.id)).size === value.length;
 
 const isModelKeys = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((key) => typeof key === 'string' && key.includes('/'));
@@ -118,7 +135,7 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
-  serverAddress: (value): value is string => value === '' || isServerAddress(value),
+  servers: isServers,
 };
 
 /**
@@ -135,14 +152,19 @@ export function validSettings(raw: unknown): Partial<Settings> {
   return valid as Partial<Settings>;
 }
 
-/** A model's name as one string, e.g. "chatgpt/gpt-5-mini". */
-export const modelKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`;
+/** A model's name as one string, e.g. "chatgpt/gpt-5-mini"; a server's model names its server, e.g. "server/home/qwen3-8b". */
+export const modelKey = (choice: ModelChoice) =>
+  choice.provider === 'server' ? `server/${choice.server}/${choice.model}` : `${choice.provider}/${choice.model}`;
 
 /** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
 export function choiceFromKey(key: string): ModelChoice | null {
   const slash = key.indexOf('/');
-  const choice = { provider: key.slice(0, slash), model: key.slice(slash + 1) };
-  return slash > 0 && isModelChoice(choice) ? (choice as ModelChoice) : null;
+  const provider = key.slice(0, slash);
+  const rest = key.slice(slash + 1);
+  const serverSlash = rest.indexOf('/');
+  const choice = provider === 'server' ? { provider, server: rest.slice(0, serverSlash), model: rest.slice(serverSlash + 1) } : { provider, model: rest };
+  const whole = slash > 0 && (provider !== 'server' || serverSlash > 0);
+  return whole && isModelChoice(choice) ? (choice as ModelChoice) : null;
 }
 
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
@@ -153,5 +175,14 @@ export function settingsAfterLogout(settings: Settings, provider: ModelChoice['p
   const changes: Partial<Settings> = {};
   if (settings.interviewerModel?.provider === provider) changes.interviewerModel = null;
   if (settings.feedbackModel?.provider === provider) changes.feedbackModel = null;
+  return changes;
+}
+
+/** What removing one of the candidate's servers changes: it's gone, and its models are no longer picked. */
+export function settingsAfterRemovingServer(settings: Settings, server: string): Partial<Settings> {
+  const onIt = (choice: ModelChoice | null) => choice?.provider === 'server' && choice.server === server;
+  const changes: Partial<Settings> = { servers: settings.servers.filter((each) => each.id !== server) };
+  if (onIt(settings.interviewerModel)) changes.interviewerModel = null;
+  if (onIt(settings.feedbackModel)) changes.feedbackModel = null;
   return changes;
 }
