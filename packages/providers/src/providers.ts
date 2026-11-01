@@ -23,14 +23,16 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { openrouterProvider } from '@earendil-works/pi-ai/providers/openrouter';
 import { type Model, ModelError, type ModelErrorKind, type ModelRequest } from '@interviewharness/engine';
 import { type ChatGPTLoginConfig, chatgptOAuth } from './chatgpt-login.ts';
+import { registerKeyProviders } from './key-provider-factories.ts';
+import { keyProviderTable, type TableKeyProviderName } from './key-providers.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
-export type ProviderName = 'chatgpt' | 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
+export type ProviderName = 'chatgpt' | 'ollama' | KeyProviderName;
 
-/** The providers reached with an API key the candidate pastes. A server's key is optional. */
-export type KeyProviderName = 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
-export const keyProviders: readonly KeyProviderName[] = ['openai', 'anthropic', 'google', 'openrouter', 'server'];
+/** The providers reached with an API key the candidate pastes: the table's (key-providers.ts), and a server, whose key is optional. */
+export type KeyProviderName = TableKeyProviderName | 'server';
+export const keyProviders: readonly KeyProviderName[] = [...keyProviderTable.map((row) => row.id), 'server'];
 
 /** Which provider and model a slot uses. Stored in settings.json; never holds a credential. */
 export interface ModelChoice {
@@ -64,11 +66,8 @@ type PiProviderName = Exclude<ProviderName, 'ollama'>;
  */
 const piProviderIds: Record<PiProviderName, string> = {
   chatgpt: 'openai',
-  openai: 'openai-key',
-  anthropic: 'anthropic',
-  google: 'google',
-  openrouter: 'openrouter',
   server: 'server',
+  ...(Object.fromEntries(keyProviderTable.map((row) => [row.id, row.piProvider])) as Record<TableKeyProviderName, string>),
 };
 
 /**
@@ -169,6 +168,8 @@ export function createProviders(options: ProvidersOptions): Providers {
   models.setProvider({ ...googleProvider(), auth: savedKeyOnly('Gemini API key') });
   // OpenRouter's own login is left out too: a pasted key is the one way in.
   models.setProvider({ ...openrouterProvider(), auth: savedKeyOnly('OpenRouter API key') });
+  // The table's other key providers: DeepSeek, Mistral, xAI and the rest.
+  registerKeyProviders(models, (name) => savedKeyOnly(name));
   models.setProvider(
     createProvider({ id: piProviderIds.server, name: 'OpenAI-compatible server', auth: savedKeyOnly('Server key', { optional: true }), models: [], api: openAICompletionsApi() }),
   );
@@ -435,6 +436,7 @@ function forcedTool(api: Api, name: string): unknown {
   if (api === 'openai-responses') return { type: 'function', name };
   if (api === 'openai-completions') return { type: 'function', function: { name } };
   if (api === 'anthropic-messages') return { type: 'tool', name };
+  if (api === 'mistral-conversations') return { type: 'function', function: { name } };
   // Google can only require some tool; there is just the one.
   return 'any';
 }
