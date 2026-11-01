@@ -74,16 +74,13 @@ const piProviderIds: Record<PiProviderName, string> = {
 
 /**
  * Auth from the key the candidate saved, and nowhere else: no environment variable, no other tool's
- * login. A server may need no key at all; local servers accept any.
+ * login. (A server, which may need no key, has its own: see servers.ts.)
  */
-function savedKeyOnly(name: string, { optional = false } = {}): ProviderAuth {
+function savedKeyOnly(name: string): ProviderAuth {
   return {
     apiKey: {
       name,
-      resolve: async ({ credential }) => {
-        if (credential?.key) return { auth: { apiKey: credential.key }, source: 'saved key' };
-        return optional ? { auth: { apiKey: 'none' }, source: 'no key' } : undefined;
-      },
+      resolve: async ({ credential }) => (credential?.key ? { auth: { apiKey: credential.key }, source: 'saved key' } : undefined),
     },
   };
 }
