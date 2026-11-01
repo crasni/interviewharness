@@ -49,5 +49,8 @@ Local markdown under `.scratch/<feature>/` for the owner's work; GitHub Issues o
 ### Triage labels
 The five default roles, written as a `Status:` line in each `.scratch/` ticket. See `docs/agents/triage-labels.md`.
 
+### Git workflow
+A branch per version, its commits kept, merged with a merge commit once the version is done and CI is green. See `docs/agents/git-workflow.md`.
+
 ### Domain docs
 Single-context: `GLOSSARY.md` at the root plus `docs/adr/`; D1–D13 stay in `docs/DECISIONS.md`. See `docs/agents/domain.md`.
