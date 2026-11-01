@@ -154,6 +154,8 @@ ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect
 
 ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
 
+ipcMain.handle(channels.signInToOpenRouter, () => models.signInToOpenRouter());
+
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
 
