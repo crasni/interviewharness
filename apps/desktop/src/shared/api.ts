@@ -20,12 +20,23 @@ export type Theme = (typeof themes)[number];
 /** What the room is told: the interviewer's decisions worth showing, and notices about its model. */
 export type { InterviewerEvent };
 
+/** The round's problem as the candidate sees it: never its notes, hints or reference. */
+export interface RoundProblem {
+  name: string;
+  title: string;
+  statement: string;
+}
+
+/** A round as the room shows it: its state, and the problem it's on. */
+export type RoomSnapshot = RoundSnapshot & { problem: RoundProblem };
+
 // The only surface the renderer has into the main process.
 export interface HarnessApi {
-  startRound(kind: RoundKind): Promise<RoundSnapshot>;
-  roundSnapshot(): Promise<RoundSnapshot | null>;
+  /** Starts a round on the problem named, or on one picked at random when none is. */
+  startRound(kind: RoundKind, problem?: string): Promise<RoomSnapshot>;
+  roundSnapshot(): Promise<RoomSnapshot | null>;
   /** Ends the round in progress, with the code as it was left, and returns how it ended. Grading starts at once. */
-  endRound(code?: CodeSnapshot): Promise<RoundSnapshot | null>;
+  endRound(code?: CodeSnapshot): Promise<RoomSnapshot | null>;
   /** The Feedback on the round that just ended. */
   feedback: {
     /** Resolves once it's written (or has failed). */

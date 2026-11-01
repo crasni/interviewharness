@@ -1,4 +1,4 @@
-import { CODING_PHASES, type CodingPhase } from '@interviewharness/core';
+import { CODING_PHASES, type CodingPhase, type RoundKind } from '@interviewharness/core';
 import {
   type CodeSnapshot,
   createFloorManager,
@@ -320,8 +320,14 @@ export interface ModelCallEntry {
   };
 }
 
-/** Everything the round's log records: the Floor Manager's decisions and the model calls behind its words. */
-export type RoundLogEntry = FloorLogEntry | ModelCallEntry | GradingEntry;
+/** A round's first entry: what kind of round it is and the problem it's on. Rounds from before v0.1.2 have none. */
+export interface RoundStartEntry {
+  at: number;
+  started: { kind: RoundKind; problem: string };
+}
+
+/** Everything the round's log records: how it started, the Floor Manager's decisions and the model calls behind its words. */
+export type RoundLogEntry = RoundStartEntry | FloorLogEntry | ModelCallEntry | GradingEntry;
 
 export interface RoundLog {
   write(entry: RoundLogEntry): void;

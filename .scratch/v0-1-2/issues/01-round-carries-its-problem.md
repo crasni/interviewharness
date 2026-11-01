@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Starting a round with no name picks at random from all loaded problems; with a name, that problem; an unknown name is refused
-- [ ] The problem panel renders the statement from the round snapshot, not a bundled import of Two sum
-- [ ] The round's first log entry names its problem
-- [ ] The interviewer and Feedback grading use the round's problem, not a global one
-- [ ] A desktop test checks every bundled problem has a hint ladder, at least two follow-ups, at least five test cases and a valid difficulty
-- [ ] End-to-end: Start coding round shows a loaded problem's statement and the log names it
+- [x] Starting a round with no name picks at random from all loaded problems; with a name, that problem; an unknown name is refused
+- [x] The problem panel renders the statement from the round snapshot, not a bundled import of Two sum
+- [x] The round's first log entry names its problem
+- [x] The interviewer and Feedback grading use the round's problem, not a global one
+- [x] A desktop test checks every bundled problem has a hint ladder, at least two follow-ups, at least five test cases and a valid difficulty
+- [x] End-to-end: Start coding round shows a loaded problem's statement and the log names it
 
 Spec: `.scratch/v0-1-2/spec.md`.

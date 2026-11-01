@@ -13,6 +13,15 @@ describe('the problems in content/problems', () => {
     });
     expect(problems.get('two-sum')!.statement).toMatch(/^# Two sum\n/);
   });
+
+  it('each have what a round needs: a statement, follow-ups and enough test cases', () => {
+    for (const problem of loadProblems().values()) {
+      expect(problem.statement, problem.name).toMatch(new RegExp(`^# ${problem.details.title}\n`));
+      expect(problem.followUps.length, problem.name).toBeGreaterThanOrEqual(2);
+      expect(problem.tests.cases.length, problem.name).toBeGreaterThanOrEqual(5);
+      expect(problem.details).toMatchObject({ license: 'CC-BY-4.0', source: 'original' });
+    }
+  });
 });
 
 describe("the solution guard, on Two sum's real files", () => {

@@ -1,13 +1,12 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { marked } from 'marked';
+import { useMemo } from 'react';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
-import problemFile from '../../../../../../content/problems/two-sum/statement.md?raw';
 
-// The problem is our own bundled content file, not user input, so rendering its HTML is safe.
-const problemHtml = marked.parse(problemFile, { async: false });
-
-/** The round's problem, read from its plain content file. Can be hidden to give the editor room. */
-export function ProblemPanel({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
+/** The round's problem statement, from its plain content file. Can be hidden to give the editor room. */
+export function ProblemPanel({ statement, shown, onToggle }: { statement: string; shown: boolean; onToggle: () => void }) {
+  // The statement is our own bundled content file, sent by main, not user input, so rendering its HTML is safe.
+  const problemHtml = useMemo(() => marked.parse(statement, { async: false }), [statement]);
   return (
     <section className="problem" aria-label="Problem" data-shown={shown}>
       <IconButton

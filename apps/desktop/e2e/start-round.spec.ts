@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { closeApp, launchApp } from './launch.ts';
+import { closeApp, launchApp, readRoundLog } from './launch.ts';
 
 test('candidate starts a coding round and sees the room', async () => {
   const { app, window } = await launchApp();
@@ -65,6 +65,17 @@ test('Continue with ChatGPT opens the sign-in in the browser, and can be cancell
   await expect(window.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
   await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
   await expect(fetch(url.searchParams.get('redirect_uri')!)).rejects.toThrow(); // the listener is gone
+
+  await closeApp(app);
+});
+
+test("a round starts on a problem, shows its statement and names it in the round's log", async () => {
+  const { app, window, dataDir } = await launchApp();
+
+  await window.getByRole('button', { name: 'Start coding round' }).click();
+  // Two sum is the only problem until the others are written.
+  await expect(window.getByRole('region', { name: 'Problem' }).getByRole('heading', { level: 1 })).toHaveText('Two sum');
+  await expect.poll(() => readRoundLog(dataDir)[0]).toMatchObject({ started: { kind: 'coding', problem: 'two-sum' } });
 
   await closeApp(app);
 });

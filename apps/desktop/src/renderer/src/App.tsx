@@ -1,5 +1,5 @@
-import type { RoundSnapshot } from '@interviewharness/engine';
 import { useState } from 'react';
+import type { RoomSnapshot } from '../../shared/api.ts';
 import type { Settings } from '../../shared/settings.ts';
 import { FeedbackScreen } from './feedback/FeedbackScreen.tsx';
 import { Room } from './room/Room.tsx';
@@ -7,7 +7,7 @@ import { SettingsPanel } from './settings/SettingsPanel.tsx';
 import { SettingsProvider } from './settings/settings.tsx';
 import { StartScreen } from './start/StartScreen.tsx';
 
-type Screen = { name: 'start' } | { name: 'room'; round: RoundSnapshot } | { name: 'feedback'; round: RoundSnapshot };
+type Screen = { name: 'start' } | { name: 'room'; round: RoomSnapshot } | { name: 'feedback'; round: RoomSnapshot };
 
 export function App({ settings }: { settings: Settings }) {
   return (
