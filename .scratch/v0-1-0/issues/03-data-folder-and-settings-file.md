@@ -14,4 +14,4 @@
 - [x] v0.0 preferences in browser storage are carried into settings.json once and then removed from browser storage
 - [x] Unit tests against a temp folder cover atomic writes, a corrupt file and migration; end-to-end tests cover preferences surviving a restart and the v0.0 carry-over
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

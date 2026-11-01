@@ -1,6 +1,6 @@
 # 04: Sign in to OpenRouter
 
-Spec: `.scratch/v0-1c/spec.md` · ADR 0021
+Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **What to build:** OpenRouter offers "Sign in" (its official PKCE flow, which pi-ai implements) next to pasting a key. It opens the browser, comes back by itself to a loopback listener, and saves the key OpenRouter issues in the credential store. As with ChatGPT, only OpenRouter's own sign-in page may be opened.
 

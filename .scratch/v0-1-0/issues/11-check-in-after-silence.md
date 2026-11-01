@@ -12,4 +12,4 @@
 - [x] The check-in is logged with its state
 - [x] Floor Manager tests with the fake clock cover all of the above
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

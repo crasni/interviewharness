@@ -2,9 +2,9 @@
 
 ## Scope cut (2026-10-31)
 
-v0.1a builds only the seven tickets in [issues/](issues/): the four reproduced bugs, help only when asked, sparse time reminders and one goodbye, and a few scripted rounds on a real model. Everything else in this plan that isn't covered by those tickets is put off; [later.md](later.md) lists it. The owner decided: help is offered only when the candidate says directly they're stuck or after repeated failed attempts, and the check keeps ADR 0019's trigger list.
+v0.1.0 builds only the seven tickets in [issues/](issues/): the four reproduced bugs, help only when asked, sparse time reminders and one goodbye, and a few scripted rounds on a real model. Everything else in this plan that isn't covered by those tickets is put off; [later.md](later.md) lists it. The owner decided: help is offered only when the candidate says directly they're stuck or after repeated failed attempts, and the check keeps ADR 0019's trigger list.
 
-## Owner clarification: candidate-led v0.1a (2026-10-30)
+## Owner clarification: candidate-led v0.1.0 (2026-10-30)
 
 This clarification supersedes earlier “quiet but active” language and recommendations to proactively gather missing evidence or choose the next activity.
 
@@ -16,7 +16,7 @@ A poke must not name a defect, suggest a diagnostic case, prescribe the next act
 
 Required behavior tests: productive silence stays quiet; candidate independently moves through approach, coding, and testing; an explicit impasse permits one neutral poke; declined help suppresses repeated checks; missing testing/complexity evidence does not trigger automatic questions. Evaluate unnecessary interventions and preserved candidate initiative, not question count.
 
-Keep this delivery within v0.1a: text interaction, minimal replay tooling, and focused complete-round evaluation. Preserve assistance provenance and current numerical rules; report grading limitations instead of silently changing the rubric.
+Keep this delivery within v0.1.0: text interaction, minimal replay tooling, and focused complete-round evaluation. Preserve assistance provenance and current numerical rules; report grading limitations instead of silently changing the rubric.
 
 
 Date: 2026-10-30

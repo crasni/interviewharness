@@ -2,7 +2,7 @@
 
 _Amended by ADR 0018: the model no longer reports the phase. It reports what the candidate's own words did, and the app keeps the round's state._
 
-_Amended 2026-10-31 (owner, candidate-led v0.1a): no unasked hints. See "Help only when asked" below; it replaces the stuck row and the "Help when stuck" consequence._
+_Amended 2026-10-31 (owner, candidate-led v0.1.0): no unasked hints. See "Help only when asked" below; it replaces the stuck row and the "Help when stuck" consequence._
 
 _Amended 2026-10-31 (owner's round): a wrong answer they hand over gets one probe. See "One probe for a wrong answer" below; it replaces the seeking-affirmation and answering-the-interviewer rows' "one probing question" and "one follow-up"._
 

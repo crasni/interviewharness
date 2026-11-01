@@ -339,7 +339,7 @@ Packages that stand alone and could become separate open-source wins: **`board-g
 | Milestone | Scope | "Wow" moment |
 |---|---|---|
 | **v0.0 Interview room** | Real Electron scaffold; start, room and debrief (now Feedback) screens; early Floor Manager with canned lines, no AI, no mic (spec: `.scratch/v0-0/spec.md`) | The look and feel |
-| **v0.1 Coding, text-first** | **v0.1a** (spec: `.scratch/v0-1/spec.md`): providers (pi-ai: ChatGPT plan, then Ollama, then API keys; ADR 0016), safeStorage, settings.json, AI interviewer on Two sum, graded Feedback. **v0.1b:** 10 original problems. No code runner. | A real interview with your own model |
+| **v0.1 Coding, text-first** | **v0.1.0** (spec: `.scratch/v0-1-0/spec.md`): providers (pi-ai: ChatGPT plan, then Ollama, then API keys; ADR 0016), safeStorage, settings.json, AI interviewer on Two sum, graded Feedback. **v0.1.2:** 10 original problems. No code runner. | A real interview with your own model |
 | **v0.2 Voice** (3–4 wk) | AudioWorklet, Silero, Smart Turn, sherpa-onnx local STT + Kokoro, Deepgram Flux, Floor Manager v1 with the AI floor classifier, backchannels, barge-in, push-to-talk | **"It stayed quiet while I thought, and said 'mm-hm'"** |
 | **v0.3 Code runner** | Pyodide/QuickJS in a sandboxed worker (`docs/research/09-v01-code-runner.md`), hidden tests, run results for the interviewer and Feedback | "Run it" during the round |
 | **v0.3+ Feedback and evals** | Replay timeline, decision ticks, floor eval harness | "Why did it stay quiet here?" made visible |

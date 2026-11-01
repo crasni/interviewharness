@@ -17,4 +17,4 @@
 - [x] A Feedback file is saved in the round's folder with no credentials
 - [x] End-to-end tests cover confirmation, a graded Feedback screen and the retry path
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

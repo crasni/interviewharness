@@ -1,8 +1,8 @@
-# v0.1c: connections
+# v0.1.1: connections
 
 Status: ready-for-agent
 
-Decisions: ADR 0021 (and ADR 0016 for pi-ai, the provider order and no ambient credentials). Research: `docs/research/12-model-picker-patterns.md` (layouts) and `docs/research/13-keys-and-plans.md` (every kind of access, what's allowed, Jan in depth). v0.1c comes before v0.1b's problems (owner, 2026-11-01).
+Decisions: ADR 0021 (and ADR 0016 for pi-ai, the provider order and no ambient credentials). Research: `docs/research/12-model-picker-patterns.md` (layouts) and `docs/research/13-keys-and-plans.md` (every kind of access, what's allowed, Jan in depth). v0.1.1 comes before v0.1.2's problems (owner, 2026-11-01).
 
 ## Problem Statement
 
@@ -12,7 +12,7 @@ And the more a candidate connects, the worse picking a model gets. The Interview
 
 ## Solution
 
-v0.1c turns model access into **connections** and **your models**:
+v0.1.1 turns model access into **connections** and **your models**:
 
 - **Connections** stay one list in Settings → Model: each with a short literal status and its actions. **Add** opens one searchable list grouped by kind: "Plans you pay for", "Sign in", "API keys" and "On this computer or your network". Picking an item shows only its fields; one button checks that a model answers and saves. The Start screen's API key row opens the same list.
 - **Many key providers by name**: DeepSeek, Mistral, xAI, Groq, Moonshot, Together, Fireworks, Cerebras, Hugging Face, Vercel AI Gateway and others pi-ai supports with a plain key.
@@ -124,4 +124,4 @@ v0.1c turns model access into **connections** and **your models**:
 ## Further Notes
 
 - Today's code already has the pieces this builds on: saved-key-only auth, the one-short-reply check with plain errors, the Picker, the RefreshButton, the three-row setup and the Connections list.
-- Docs to update alongside: ADR 0021 if anything here changes it; GLOSSARY (connection, your models); STATUS (v0.1c before v0.1b); BLUEPRINT's roadmap.
+- Docs to update alongside: ADR 0021 if anything here changes it; GLOSSARY (connection, your models); STATUS (v0.1.1 before v0.1.2); BLUEPRINT's roadmap.

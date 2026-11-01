@@ -15,4 +15,4 @@
 - [x] Engine tests with a fake clock and the scripted fake model cover all of the above
 - [x] An end-to-end test with the fake model switched in shows a scripted answer to a question in the room
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

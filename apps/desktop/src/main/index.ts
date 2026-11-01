@@ -32,7 +32,7 @@ function changeSettings(changes: Parameters<typeof settings.change>[0]) {
   return values;
 }
 
-// Only Two sum so far (v0.1b adds more); every folder is read and checked at startup all the same.
+// Only Two sum so far (v0.1.2 adds more); every folder is read and checked at startup all the same.
 const problem = loadProblems().get('two-sum')!;
 
 let window: BrowserWindow | null = null;

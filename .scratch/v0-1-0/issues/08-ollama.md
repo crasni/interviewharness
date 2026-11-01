@@ -13,4 +13,4 @@
 - [x] Adapter tests against a fake loopback server cover listing, streaming, abort, errors and the request options
 - [x] Manually verified once with a real local model (qwen3:0.6b on Ollama 0.34.4, 2026-11-01: listed, checked, streamed with thinking off, structured reply)
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

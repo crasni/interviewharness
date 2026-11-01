@@ -4,8 +4,8 @@ _Owner answers, 2026-10-30. Not yet turned into ADRs or tickets._
 
 ## Scope
 - v0.1 ships in two steps:
-  - **v0.1a:** provider layer, `settings.json`, the AI interviewer on Two sum, graded Feedback.
-  - **v0.1b:** 10 original problems, plus polish.
+  - **v0.1.0:** provider layer, `settings.json`, the AI interviewer on Two sum, graded Feedback.
+  - **v0.1.2:** 10 original problems, plus polish.
 - **No code runner in v0.1.** It moves to v0.3 (v0.1 AI interviewer → v0.2 mic → v0.3 code runner).
 - Every OS is a hard requirement: macOS, Linux and Windows, x64 and arm64 (now in AGENTS.md).
 
@@ -21,7 +21,7 @@ _Owner answers, 2026-10-30. Not yet turned into ADRs or tickets._
 ## Feedback (renamed from "Debrief")
 - "Debrief" is renamed **Feedback** everywhere: UI, code, glossary.
 - Hire scale: the glossary's six levels (Strong hire, Hire, Lean hire, Lean no hire, No hire, Strong no hire). Confirmed later in place of four levels. Scored per area (problem solving, coding, testing, communication), and every point quotes a transcript line.
-- Ships in v0.1a.
+- Ships in v0.1.0.
 
 ## Round 3 (after docs/research/10)
 - **Floor Manager:** keyword rules only in v0.1. The small AI classifier comes with the mic in v0.2.

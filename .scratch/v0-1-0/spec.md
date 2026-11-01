@@ -1,4 +1,4 @@
-# v0.1a: a real AI interviewer
+# v0.1.0: a real AI interviewer
 
 Status: done (2026-11-01: tickets 01–12 done, CI green on macOS, Windows and Linux)
 
@@ -10,7 +10,7 @@ The candidate also has no way to bring their own model. They can't log in with t
 
 ## Solution
 
-v0.1a puts a real model behind the interviewer, while keeping the Floor Manager in charge of *whether* to speak:
+v0.1.0 puts a real model behind the interviewer, while keeping the Floor Manager in charge of *whether* to speak:
 
 - **Pick a model once.** On first launch, the Start screen asks for a model with one short step: **Continue with ChatGPT** (the candidate's plan), **Ollama** (detected automatically on this machine), or an **API key**. After that, models are changed in a new **Model** tab in Settings. Logins and keys are stored encrypted by the operating system.
 - **A real conversation on Two sum.** The Floor Manager still decides when the interviewer speaks, using keyword rules as in v0.0. When it decides to speak, the model writes the words: real answers to clarifying questions, short acknowledgements in the tone of the example-lines file, phase moves, and the intro. The interviewer sees the candidate's code each time they speak. It reads the code when they say they're done, and may ask them to trace an example by hand. It never hints unless asked. After a long silence it checks in once, without a hint.
@@ -85,7 +85,7 @@ v0.1a puts a real model behind the interviewer, while keeping the Floor Manager 
 54. As the owner, I want every interviewer decision logged with its signals, the model used, and how long the reply took, so that I can replay and evaluate rounds.
 55. As the owner, I want every model call's purpose, model and timing logged without keys or tokens, so that I can debug without leaking credentials.
 56. As a contributor, I want the whole round testable with a scripted fake model, so that tests are deterministic and need no network or keys.
-57. As a contributor, I want Two sum stored in the new problem folder format (statement, details, interviewer notes with a hint ladder, reference solution, tests), so that the v0.1b problems follow a proven shape.
+57. As a contributor, I want Two sum stored in the new problem folder format (statement, details, interviewer notes with a hint ladder, reference solution, tests), so that the v0.1.2 problems follow a proven shape.
 58. As a contributor on any OS, I want the app, its tests and its data files to behave the same on macOS, Linux and Windows, so that no platform is second-class.
 
 ## Implementation Decisions
@@ -145,7 +145,7 @@ v0.1a puts a real model behind the interviewer, while keeping the Floor Manager 
 - **Small models:** Ollama requests always set the context size explicitly (large enough for the prompt) and turn thinking off. No tool loops in the interviewer. Replies are capped short.
 
 ### Problem content
-- **Two sum** moves to the problem folder format decided for v0.1b: one folder per problem holding the candidate-facing statement, the problem's details (title, pattern, difficulty, license, credits), interviewer notes with a three-rung hint ladder and follow-ups, a Python reference solution, and test cases with ids (for v0.3's runner and as evidence for grading now). Content readers accept CRLF line endings. Problem names are checked against names Windows reserves and against case-only clashes.
+- **Two sum** moves to the problem folder format decided for v0.1.2: one folder per problem holding the candidate-facing statement, the problem's details (title, pattern, difficulty, license, credits), interviewer notes with a three-rung hint ladder and follow-ups, a Python reference solution, and test cases with ids (for v0.3's runner and as evidence for grading now). Content readers accept CRLF line endings. Problem names are checked against names Windows reserves and against case-only clashes.
 
 ### Feedback
 - Rename **Debrief → Feedback** everywhere: UI copy, components, the screen, tests, glossary, docs. The existing feedback shape (verdict, why, went well, to fix, each point with a time) is kept and extended.
@@ -196,7 +196,7 @@ v0.1a puts a real model behind the interviewer, while keeping the Floor Manager 
 
 ## Out of Scope
 
-- **v0.1b:** the other nine original problems (Claude drafts, the owner reviews).
+- **v0.1.2:** the other nine original problems (Claude drafts, the owner reviews).
 - **The code runner (moved to v0.3):** no Run button, no Pyodide or QuickJS.
 - **The mic (v0.2):** speech detection, STT, TTS (including the browser's built-in voice), the REC mark, and the AI floor classifier.
 - A history screen of past rounds. Rounds are saved but not listed.
@@ -214,4 +214,4 @@ v0.1a puts a real model behind the interviewer, while keeping the Floor Manager 
   - BLUEPRINT roadmap (runner moves to v0.3)
   - BLUEPRINT §5.1 (Pyodide runs in a sandboxed worker, not the utility process)
   - STATUS
-- Research behind this spec: `docs/research/08-v01-providers.md`, `10-v01-interviewer-and-debrief.md`. Decisions: `.scratch/v0-1/grilling.md`.
+- Research behind this spec: `docs/research/08-v01-providers.md`, `10-v01-interviewer-and-debrief.md`. Decisions: `.scratch/v0-1-0/grilling.md`.

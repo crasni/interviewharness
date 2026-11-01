@@ -11,4 +11,4 @@
 - [x] `.gitattributes` exists with `* text=auto eol=lf`, and the repo renormalises cleanly
 - [x] Typecheck, lint, unit and end-to-end tests pass
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

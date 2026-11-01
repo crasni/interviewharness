@@ -13,4 +13,4 @@
 - [x] Engine tests with the scripted fake model cover snapshots, hint rungs, the guard and the done path
 - [x] An end-to-end test shows a hint after asking for one
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

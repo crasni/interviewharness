@@ -12,4 +12,4 @@
 - [x] The small-model rule is documented beside the slots and settable per model
 - [x] End-to-end tests cover the tab with the fake model switched in
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

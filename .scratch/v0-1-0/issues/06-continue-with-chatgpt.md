@@ -14,4 +14,4 @@
 - [x] Adapter tests run the login and chat streaming against a fake loopback server; credential store tests use a temp folder
 - [x] Manually verified once against a real ChatGPT plan
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

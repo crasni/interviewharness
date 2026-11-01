@@ -12,4 +12,4 @@
 - [x] Keys are stored only in the credential store and never shown back in full
 - [x] Adapter tests against a fake loopback server cover each request shape and the error paths
 
-Spec: `.scratch/v0-1/spec.md`.
+Spec: `.scratch/v0-1-0/spec.md`.

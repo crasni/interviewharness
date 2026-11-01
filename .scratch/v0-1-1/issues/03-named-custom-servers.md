@@ -1,6 +1,6 @@
 # 03: Several named custom servers, OpenAI- or Anthropic-compatible
 
-Spec: `.scratch/v0-1c/spec.md` · ADR 0021
+Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **What to build:** "Other server" becomes any number of named servers. Each has a name, an address, an optional key, and an API format (OpenAI-compatible or Anthropic-compatible). Models are fetched from the server with the key just entered; a model id can also be typed. Each server is its own connection row (Refresh, Edit, Remove) and its own group in the slot pickers. The existing single server in settings.json migrates to a server named after its address.
 
