@@ -27,6 +27,15 @@ export interface RoundProblem {
   statement: string;
 }
 
+/** A problem as the Start screen lists it: never its topic, which gives the approach away. */
+export interface ProblemChoice {
+  name: string;
+  title: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  /** Rounds done on it so far, counted from the saved rounds. */
+  timesDone: number;
+}
+
 /** A round as the room shows it: its state, and the problem it's on. */
 export type RoomSnapshot = RoundSnapshot & { problem: RoundProblem };
 
@@ -35,6 +44,8 @@ export interface HarnessApi {
   /** Starts a round on the problem named, or on one picked at random when none is. */
   startRound(kind: RoundKind, problem?: string): Promise<RoomSnapshot>;
   roundSnapshot(): Promise<RoomSnapshot | null>;
+  /** Every problem a round can be on, easiest first. */
+  problems(): Promise<ProblemChoice[]>;
   /** Ends the round in progress, with the code as it was left, and returns how it ended. Grading starts at once. */
   endRound(code?: CodeSnapshot): Promise<RoomSnapshot | null>;
   /** The Feedback on the round that just ended. */
@@ -189,6 +200,7 @@ export type LoginResult =
 export const channels = {
   startRound: 'round:start',
   roundSnapshot: 'round:snapshot',
+  problems: 'problems:list',
   endRound: 'round:end',
   feedbackResult: 'feedback:result',
   feedbackRetry: 'feedback:retry',

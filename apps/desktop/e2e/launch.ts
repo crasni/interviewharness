@@ -16,19 +16,22 @@ export const stopTalkingButton = (window: Page) => window.getByRole('button', { 
  *   migrates it, so its model, chatgpt/gpt-5-mini, becomes the first of your models.
  * - `ollamaAddress`: where the app looks for Ollama, e.g. a fakeOllama. By default nothing listens there,
  *   so a real Ollama on the machine running the tests is never found.
+ * - `seed`: puts files in a new data folder before the app starts (saved rounds, say).
  */
 export async function launchApp({
   dataDir,
   model,
   modelPicked = true,
   ollamaAddress = 'http://127.0.0.1:9',
-}: { dataDir?: string; model?: ModelScript; modelPicked?: boolean; ollamaAddress?: string } = {}) {
+  seed,
+}: { dataDir?: string; model?: ModelScript; modelPicked?: boolean; ollamaAddress?: string; seed?: (dataDir: string) => void } = {}) {
   if (!dataDir) {
     dataDir = mkdtempSync(join(tmpdir(), 'interviewharness-e2e-'));
     if (modelPicked) {
       const settings = { version: 1, interviewerModel: { provider: 'chatgpt', model: 'gpt-5-mini' } };
       writeFileSync(join(dataDir, 'settings.json'), JSON.stringify(settings));
     }
+    seed?.(dataDir);
   }
   const app = await electron.launch({
     args: ['.'],

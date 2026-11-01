@@ -5,13 +5,16 @@ import { roundKinds } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { ModelStep } from './ModelStep.tsx';
+import { ProblemList } from './ProblemList.tsx';
 import './start.css';
 
-export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void }) {
+/** Starts a round of a kind; a coding round on the problem named, or on one picked at random. */
+export function StartScreen({ onStart }: { onStart: (kind: RoundKind, problem?: string) => void }) {
   const { settings, setPanelOpen } = useSettings();
   // A round can't work without a model, so the first one waits for the candidate to pick one.
   const needsModel = settings.interviewerModel === null;
   const [unencryptedNote, setUnencryptedNote] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   return (
     <main className="start">
       <IconButton
@@ -29,6 +32,8 @@ export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void })
       <div className="start-body">
         {needsModel ? (
           <ModelStep onUnencrypted={() => setUnencryptedNote(true)} />
+        ) : choosing ? (
+          <ProblemList onPick={(problem) => onStart('coding', problem)} onBack={() => setChoosing(false)} />
         ) : (
           <>
             {unencryptedNote && (
@@ -44,11 +49,16 @@ export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void })
             )}
             <ul className="start-rounds">
               {roundKinds.map(({ kind, label, startLabel, available }) => (
-                <li key={kind}>
+                <li key={kind} className={kind === 'coding' ? 'start-coding' : undefined}>
                   <button type="button" className={available ? 'primary' : undefined} disabled={!available} onClick={() => onStart(kind)}>
                     {available ? startLabel : label}
                   </button>
                   {!available && <span className="label">Later</span>}
+                  {kind === 'coding' && (
+                    <button type="button" className="start-choose" onClick={() => setChoosing(true)}>
+                      Choose a problem
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

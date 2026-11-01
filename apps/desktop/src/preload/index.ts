@@ -5,6 +5,7 @@ import type { Settings } from '../shared/settings.ts';
 const api: HarnessApi = {
   startRound: (kind, problem) => ipcRenderer.invoke(channels.startRound, kind, problem),
   roundSnapshot: () => ipcRenderer.invoke(channels.roundSnapshot),
+  problems: () => ipcRenderer.invoke(channels.problems),
   endRound: (code) => ipcRenderer.invoke(channels.endRound, code),
   feedback: {
     result: () => ipcRenderer.invoke(channels.feedbackResult),

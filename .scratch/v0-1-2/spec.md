@@ -115,7 +115,7 @@ Claude drafts the nine new problems; the owner reads all of them before v0.1.2 m
 - "Done" counts rounds started, whatever happened in them.
 
 ### Start screen
-- "Choose a problem" is a text link under Start coding round, shown only when Start coding round is. It swaps the round list for the problem list in the same place: a Back control, the heading "Choose a problem", then one row per problem with its title, difficulty (Easy, Medium, Hard) and its done count when above zero ("Done once", "Done twice", "Done 3 times"). The list is in the order of the table above (by difficulty, then as listed).
+- "Choose a problem" is a text link under Start coding round, shown only when Start coding round is. It swaps the round list for the problem list in the same place: a Back control, the heading "Choose a problem", then one row per problem with its title, difficulty (Easy, Medium, Hard) and its done count when above zero ("Done once", "Done twice", "Done 3 times"). The list is ordered by difficulty, then by title.
 - Each row is a button; clicking it starts the coding round on that problem. The list scrolls inside its own region. Styling uses the role tokens only.
 
 ### The reference check

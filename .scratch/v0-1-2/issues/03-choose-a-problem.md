@@ -4,12 +4,12 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The link is under Start coding round and hidden with it when no model is set up
-- [ ] The list shows title, difficulty and done count; no topic; ordered by difficulty then the spec's table
-- [ ] Back returns to the round list; a row starts that problem; keyboard works
-- [ ] Done counts come from saved rounds, old rounds count as Two sum, bad logs are skipped
-- [ ] End-to-end on a throwaway data folder with seeded rounds: "Done once" and "Done twice" on the right rows, a row starts its problem
+- [x] The link is under Start coding round and hidden with it when no model is set up
+- [x] The list shows title, difficulty and done count; no topic; ordered by difficulty, then by title
+- [x] Back returns to the round list; a row starts that problem; keyboard works
+- [x] Done counts come from saved rounds, old rounds count as Two sum, bad logs are skipped
+- [x] End-to-end on a throwaway data folder with seeded rounds: "Done once" and "Done twice" on the right rows, a row starts its problem
 
 Spec: `.scratch/v0-1-2/spec.md`.

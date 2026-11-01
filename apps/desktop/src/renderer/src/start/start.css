@@ -109,3 +109,83 @@
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
 }
+
+/* The coding round's row holds a quiet way to pick the problem, under its Start button. */
+.start-rounds li.start-coding {
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.start-rounds button.start-choose {
+  min-width: 0;
+  min-height: 28px;
+  border-color: transparent;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.start-rounds button.start-choose:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+/* Every problem in place of the rounds: the head stays, the rows scroll inside when they don't fit. */
+.problem-list {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-6);
+  width: min(460px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  text-align: left;
+}
+
+.problem-list-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.problem-list-head button {
+  justify-self: start;
+}
+
+.problem-list-title {
+  font-family: var(--font-voice);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-medium);
+}
+
+.problem-list-rows {
+  list-style: none;
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: var(--rule);
+}
+
+.problem-list-rows li {
+  border-bottom: var(--rule);
+}
+
+.problem-list-rows button {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: 0;
+  font-size: var(--text-md);
+  text-align: left;
+}
+
+.problem-list-facts {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

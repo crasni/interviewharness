@@ -25,7 +25,9 @@ function Screens() {
   switch (screen.name) {
     case 'start':
       return (
-        <StartScreen onStart={async (kind) => setScreen({ name: 'room', round: await window.harness.startRound(kind) })} />
+        <StartScreen
+          onStart={async (kind, problem) => setScreen({ name: 'room', round: await window.harness.startRound(kind, problem) })}
+        />
       );
     case 'room':
       return (

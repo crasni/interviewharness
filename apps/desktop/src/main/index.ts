@@ -13,13 +13,14 @@ import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 // The app icon from brand/ (png/app-icon-512.png); `?asset` gives its path in the build.
 import icon from '../../resources/icon.png?asset';
-import { channels, type FeedbackResult, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
+import { channels, type FeedbackResult, type ProblemChoice, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { writeFileAtomically } from './atomic-write.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
 import { keyPageFor } from './key-pages.ts';
 import { setUpModels } from './model-setup.ts';
+import { roundsByProblem } from './problem-history.ts';
 import { loadProblems } from './problems.ts';
 import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
@@ -122,6 +123,15 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => 
 });
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
+
+const byDifficulty = { easy: 0, medium: 1, hard: 2 };
+
+ipcMain.handle(channels.problems, (): ProblemChoice[] => {
+  const done = roundsByProblem(dataDir());
+  return [...problems.values()]
+    .map(({ name, details: { title, difficulty } }) => ({ name, title, difficulty, timesDone: done.get(name) ?? 0 }))
+    .sort((a, b) => byDifficulty[a.difficulty] - byDifficulty[b.difficulty] || a.title.localeCompare(b.title));
+});
 
 // The candidate ended the round: its Feedback starts being written at once.
 ipcMain.handle(channels.endRound, (_event, code: unknown) => {
