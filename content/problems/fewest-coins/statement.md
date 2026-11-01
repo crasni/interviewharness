@@ -11,7 +11,7 @@ coins = [1, 3, 4]
 amount = 6
 ```
 
-Answer: `2`. Two 3s. Taking the biggest coin first gives 4 + 1 + 1, which is three coins.
+Answer: `2`. Two 3s.
 
 ## Example 2
 

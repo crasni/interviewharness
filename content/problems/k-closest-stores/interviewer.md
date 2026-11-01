@@ -19,7 +19,6 @@ Common mistakes:
 - Measuring from the origin instead of from `home`.
 - Capping a min-heap at k stores: popping its smallest drops the closest store each time, leaving the farthest. (A min-heap of every store, popped k times, is fine: O(n + k log n).)
 - In Python, `heapq` is a min-heap: pushing the negative distance makes it act as a max-heap. Forgetting the minus sign keeps the k farthest stores.
-- Pushing points whose ties can't be compared, when the heap's entries are tuples that fall through to comparing lists.
 
 When the candidate says they're done, a good check is to ask them to trace the second example, with home away from the origin.
 

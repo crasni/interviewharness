@@ -120,7 +120,7 @@ Claude drafts the nine new problems; the owner reads all of them before v0.1.2 m
 
 ### The reference check
 - A small Python script (standard library only) reads every problem folder, imports its reference solution, and runs each test case: the function form calls the function with the input as keyword arguments; the class form replays the calls. It compares results to `expected` and exits non-zero naming each failing case.
-- Where a problem accepts several right answers (Two sum's "any order"), the problem's tests.json may mark the comparison as unordered; the script honours it. Kept as small as the ten problems need.
+- Where a problem accepts several right answers (Two sum's "any order"), the problem's tests.json may mark the comparison as unordered; the script honours it. Kept as small as the ten problems need. Course order accepts any valid order, which the function form can't compare, so its first example (two right orders) is left out of its tests and every case it has has exactly one right order.
 - CI runs it on all three OSes with a pinned Python from actions/setup-python, as its own step, outside `pnpm test`.
 
 ## Testing Decisions

@@ -6,7 +6,7 @@
     { "id": "touching", "description": "Meetings that touch merge, since there's no free time between them", "input": { "meetings": [[600, 660], [660, 720]] }, "expected": [[600, 720]] },
     { "id": "empty", "description": "No meetings at all", "input": { "meetings": [] }, "expected": [] },
     { "id": "one-meeting", "description": "A single meeting", "input": { "meetings": [[480, 510]] }, "expected": [[480, 510]] },
-    { "id": "chain", "description": "Each overlaps the next, so all become one block", "input": { "meetings": [[60, 300], [90, 120], [200, 240], [290, 400]] }, "expected": [[60, 400]] },
+    { "id": "inside-and-past-the-end", "description": "Two meetings inside a long one and one running past its end become one block", "input": { "meetings": [[60, 300], [90, 120], [200, 240], [290, 400]] }, "expected": [[60, 400]] },
     { "id": "all-apart", "description": "No meetings overlap", "input": { "meetings": [[100, 200], [0, 50], [300, 400]] }, "expected": [[0, 50], [100, 200], [300, 400]] },
     { "id": "same-meeting-twice", "description": "The same meeting twice", "input": { "meetings": [[700, 760], [700, 760]] }, "expected": [[700, 760]] }
   ]

@@ -27,7 +27,7 @@ When the candidate says they're done, a good check is to ask them to trace `coun
 
 - Nudge: Think about which courses could be taken first of all.
 - Question: Once you've taken a course, which other courses get closer to being ready, and how would you know when one is ready?
-- Concrete: Keep, for each course, how many of its prerequisites are still untaken, and a queue of courses at zero. What happens when you take one from the queue, and what does it mean if the queue empties before every course is taken?
+- Concrete: Keep track, for each course, of what still stands in its way. Which courses can you take right now, what changes once you take one, and what would it mean to get stuck before every course is taken?
 
 ## Follow-ups
 
