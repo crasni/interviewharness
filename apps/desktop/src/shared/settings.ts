@@ -160,10 +160,17 @@ export function choiceFromKey(key: string): ModelChoice | null {
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
 export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;
 
-/** What logging out of a provider changes: models from it are no longer picked. */
-export function settingsAfterLogout(settings: Settings, provider: ModelChoice['provider']): Partial<Settings> {
-  const changes: Partial<Settings> = {};
-  if (settings.interviewerModel?.provider === provider) changes.interviewerModel = null;
-  if (settings.feedbackModel?.provider === provider) changes.feedbackModel = null;
+/** What removing some of your models changes: they leave your models, and are unpicked wherever they were picked. */
+export function settingsWithout(settings: Settings, removed: (choice: ModelChoice) => boolean): Partial<Settings> {
+  const changes: Partial<Settings> = { yourModels: settings.yourModels.filter((choice) => !removed(choice)) };
+  if (settings.interviewerModel && removed(settings.interviewerModel)) changes.interviewerModel = null;
+  if (settings.feedbackModel && removed(settings.feedbackModel)) changes.feedbackModel = null;
   return changes;
 }
+
+/** What logging out of a provider changes: its models leave your models, and are no longer picked. */
+export const settingsAfterLogout = (settings: Settings, provider: ModelChoice['provider']) =>
+  settingsWithout(settings, (choice) => choice.provider === provider);
+
+/** What removing one of your models changes. */
+export const settingsAfterRemoving = (settings: Settings, model: ModelChoice) => settingsWithout(settings, (choice) => sameModel(choice, model));
