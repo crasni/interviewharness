@@ -152,8 +152,11 @@ ipcMain.handle(channels.listModels, (_event, provider: unknown, connection: unkn
 
 ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect(connection));
 
-ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
+ipcMain.handle(channels.logout, (_event, provider: unknown, server: unknown) => models.logout(provider, server));
 ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
+ipcMain.handle(channels.listServer, (_event, listing: unknown) => models.listServer(listing));
+ipcMain.handle(channels.addServer, (_event, setup: unknown) => models.addServer(setup));
+ipcMain.handle(channels.editServer, (_event, setup: unknown) => models.editServer(setup));
 
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
