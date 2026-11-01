@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { ProviderStatus, Slot } from '../../../shared/api.ts';
-import { choiceFromKey, feedbackModel, type ModelChoice, modelKey } from '../../../shared/settings.ts';
+import { choiceFromKey, feedbackModel, type ModelChoice, modelKey, type Server } from '../../../shared/settings.ts';
 import { AddList, PickedHead } from '../models/AddList.tsx';
 import { type AddableItem, addable } from '../models/addable.ts';
 import { ModelSetup } from '../models/ModelSetup.tsx';
@@ -25,7 +25,7 @@ export function ModelPage() {
    * The well open below the connections: what can be added, then the picked item's fields; or, to replace
    * a key, that provider's fields alone.
    */
-  const [setup, setSetup] = useState<{ item: AddableItem | null; replacing?: boolean } | null>(null);
+  const [setup, setSetup] = useState<{ item: AddableItem | null; replacing?: boolean; editing?: Server } | null>(null);
   const interviewerId = useId();
   const feedbackId = useId();
   const addId = useId();
@@ -33,13 +33,13 @@ export function ModelPage() {
   const [adding, setAdding] = useState<Slot | null>(null);
 
   // Picked models arrive through settings; the connections may have changed with them.
-  useEffect(refresh, [refresh, settings.interviewerModel, settings.feedbackModel, settings.yourModels, settings.serverAddress, settings.ollamaAddress]);
+  useEffect(refresh, [refresh, settings.interviewerModel, settings.feedbackModel, settings.yourModels, settings.servers, settings.ollamaAddress]);
 
   if (!providers.length) return null;
 
   const connected = providers.filter((p) => p.connected);
-  // Ollama is always listed, running or not; a saved server stays listed while it's down, so it can be removed.
-  const listed = providers.filter((p) => p.provider === 'ollama' || p.connected || (p.provider === 'server' && settings.serverAddress));
+  // Ollama is always listed, running or not; a saved server stays listed while it's down, so it can be edited or removed.
+  const listed = providers.filter((p) => p.provider === 'ollama' || p.connected || p.server);
 
   const grader = feedbackModel(settings);
   const graderKey = grader && modelKey(grader);
@@ -52,8 +52,8 @@ export function ModelPage() {
     if (choice) change(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice });
   };
 
-  const remove = async (provider: ProviderStatus['provider']) => {
-    await window.harness.models.logout(provider);
+  const remove = async (p: ProviderStatus) => {
+    await window.harness.models.logout(p.provider, p.server?.id);
     refresh();
   };
 
@@ -76,8 +76,8 @@ export function ModelPage() {
     .map((p) => ({
       label: p.name,
       options: p.models
-        .filter((m) => !settings.yourModels.some((y) => y.provider === p.provider && y.model === m.id))
-        .map((m) => ({ value: modelKey({ provider: p.provider, model: m.id }), label: m.name })),
+        .filter((m) => !settings.yourModels.some((y) => isFrom(p, y) && y.model === m.id))
+        .map((m) => ({ value: modelKey({ provider: p.provider, model: m.id, ...(p.server ? { server: p.server.id } : {}) }), label: m.name })),
     }))
     .filter((g) => g.options.length);
   const add = async (key: string) => {
@@ -189,22 +189,27 @@ export function ModelPage() {
         </div>
         <ul className="connections-list">
           {listed.map((p) => (
-            <li key={p.provider} className="connection">
-              <span className="connection-name">{p.provider === 'chatgpt' ? 'ChatGPT' : p.provider === 'server' ? 'Server' : p.name}</span>
+            <li key={p.server?.id ?? p.provider} className="connection">
+              <span className="connection-name">{p.provider === 'chatgpt' ? 'ChatGPT' : p.name}</span>
               {/* Keyed by what it says, so a new state fades in after a refresh. */}
-              <span className="connection-state" key={looking.refreshing && answers(p) ? 'looking' : connectionState(p, settings.serverAddress)}>
-                {looking.refreshing && answers(p) ? 'Looking…' : connectionState(p, settings.serverAddress)}
+              <span className="connection-state" key={looking.refreshing && answers(p) ? 'looking' : connectionState(p)}>
+                {looking.refreshing && answers(p) ? 'Looking…' : connectionState(p)}
               </span>
               <span className="connection-actions">
                 {answers(p) && <RefreshButton refreshing={looking.refreshing} onClick={() => void looking.run()} />}
                 {p.provider !== 'ollama' && (
                   <>
+                    {p.server && (
+                      <button type="button" onClick={() => setSetup({ item: addable.find((item) => item.fields === 'server') ?? null, editing: p.server })}>
+                        Edit
+                      </button>
+                    )}
                     {p.provider !== 'chatgpt' && p.provider !== 'server' && !p.signedIn && (
                       <button type="button" onClick={() => setSetup({ item: addable.find((item) => item.provider === p.provider) ?? null, replacing: true })}>
                         Replace
                       </button>
                     )}
-                    <button type="button" onClick={() => void remove(p.provider)}>
+                    <button type="button" onClick={() => void remove(p)}>
                       {p.provider === 'chatgpt' || p.signedIn ? 'Sign out' : 'Remove'}
                     </button>
                   </>
@@ -214,17 +219,27 @@ export function ModelPage() {
           ))}
         </ul>
         {setup && (
-          <div className="connections-setup" role="group" aria-label={setup.replacing ? 'Replace the key' : 'Add a connection'}>
+          <div
+            className="connections-setup"
+            role="group"
+            aria-label={setup.editing ? 'Edit the server' : setup.replacing ? 'Replace the key' : 'Add a connection'}
+          >
             {setup.item ? (
               <>
-                {/* Cancel goes back to the list, or closes the well when it opened on one key to replace. */}
-                <PickedHead item={setup.item} onCancel={() => setSetup(setup.replacing ? null : { item: null })} />
+                {/* Cancel goes back to the list, or closes the well when it opened on one connection to change. */}
+                <PickedHead
+                  item={setup.editing ? { ...setup.item, name: setup.editing.name } : setup.item}
+                  onCancel={() => setSetup(setup.replacing || setup.editing ? null : { item: null })}
+                />
                 <p className="settings-hint">
-                  {setup.replacing ? 'Paste the new key. ' : ''}The model you check here becomes the interviewer's model.
+                  {setup.editing
+                    ? 'Changes are saved once a model on the server answers; that model joins your models.'
+                    : `${setup.replacing ? 'Paste the new key. ' : ''}The model you check here becomes the interviewer's model.`}
                 </p>
                 <ModelSetup
-                  key={setup.item.id}
+                  key={setup.editing?.id ?? setup.item.id}
                   item={setup.item}
+                  editing={setup.editing}
                   onDone={() => {
                     setSetup(null);
                     refresh();
@@ -256,7 +271,7 @@ export function ModelPage() {
 function groupByConnection(models: ModelChoice[], providers: ProviderStatus[]): PickerGroup[] {
   const groups: PickerGroup[] = [];
   for (const choice of models) {
-    const from = providers.find((p) => p.provider === choice.provider);
+    const from = providers.find((p) => isFrom(p, choice));
     const label = from?.name ?? choice.provider;
     const option = { value: modelKey(choice), label: from?.models.find((m) => m.id === choice.model)?.name ?? choice.model };
     const group = groups.find((g) => g.label === label);
@@ -266,18 +281,23 @@ function groupByConnection(models: ModelChoice[], providers: ProviderStatus[]): 
   return groups;
 }
 
+/** Whether a model comes from this connection: the same provider, and for a server, the same server. */
+const isFrom = (p: ProviderStatus, choice: ModelChoice) => p.provider === choice.provider && p.server?.id === choice.server;
+
 /** Ollama and a server are connected when they answer, which can change on its own; those rows can be refreshed. */
 const answers = (p: ProviderStatus) => p.provider === 'ollama' || p.provider === 'server';
 
+const plural = (n: number) => `${n} ${n === 1 ? 'model' : 'models'}`;
+
 /** A connection's state in a few words. */
-function connectionState(p: ProviderStatus, serverAddress: string) {
+function connectionState(p: ProviderStatus) {
   switch (p.provider) {
     case 'chatgpt':
       return 'Signed in';
     case 'ollama':
-      return p.connected ? `Running · ${p.models.length} ${p.models.length === 1 ? 'model' : 'models'}` : 'Not running';
+      return p.connected ? `Running · ${plural(p.models.length)}` : 'Not running';
     case 'server':
-      return p.connected ? serverAddress : `Not answering at ${serverAddress}`;
+      return p.connected ? `${p.server?.address} · ${plural(p.models.length)}` : `Not answering at ${p.server?.address}`;
     default:
       return p.signedIn ? 'Signed in' : 'Key saved';
   }

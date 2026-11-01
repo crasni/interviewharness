@@ -1,8 +1,8 @@
-import type { ModelChoice } from '@interviewharness/providers';
-import { defaultOllamaAddress, keyProviderTable } from '@interviewharness/providers/defaults';
+import type { ModelChoice, Server } from '@interviewharness/providers';
+import { defaultOllamaAddress, keyProviderTable, serverFormats } from '@interviewharness/providers/defaults';
 import { isTheme, type Theme } from './api.ts';
 
-export type { ModelChoice };
+export type { ModelChoice, Server };
 
 export const textSizes = ['small', 'medium', 'large'] as const;
 export type TextSize = (typeof textSizes)[number];
@@ -45,8 +45,8 @@ export type Settings = {
   unencryptedLoginNoted: boolean;
   /** Where Ollama listens on this computer. */
   ollamaAddress: string;
-  /** Another OpenAI-compatible server (LM Studio, llama.cpp, vLLM), with its API path, e.g. http://localhost:1234/v1. Empty when none. */
-  serverAddress: string;
+  /** The candidate's own servers (LM Studio, llama.cpp, vLLM, a gateway), each by name. Their keys live in the credential store. */
+  servers: Server[];
 };
 
 export const defaultSettings: Settings = {
@@ -69,7 +69,7 @@ export const defaultSettings: Settings = {
   smallModels: [],
   unencryptedLoginNoted: false,
   ollamaAddress: defaultOllamaAddress,
-  serverAddress: '',
+  servers: [],
 };
 
 const oneOf =
@@ -92,12 +92,29 @@ export function isServerAddress(value: unknown): value is string {
     return false;
   }
 }
+/** A server's id: made by the app, so plain; never holds a slash, which `modelKey` relies on. */
+export const isServerId = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,64}$/.test(value);
+
 /** A well-formed model choice; nothing else rides along with it (a key, say). */
 export const isModelChoice = (value: unknown): value is ModelChoice => {
   if (typeof value !== 'object' || value === null) return false;
-  const { provider, model, ...rest } = value as Record<string, unknown>;
-  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && !Object.keys(rest).length;
+  const { provider, model, server, ...rest } = value as Record<string, unknown>;
+  // A server's model names its server; no other model names one.
+  const serverNamed = provider === 'server' ? isServerId(server) : server === undefined;
+  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && serverNamed && !Object.keys(rest).length;
 };
+
+/** A server's name, as the candidate typed it: something to tell it by, and short. */
+export const isServerName = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 80;
+
+const isServer = (value: unknown): value is Server => {
+  if (typeof value !== 'object' || value === null) return false;
+  const { id, name, address, format, ...rest } = value as Record<string, unknown>;
+  return isServerId(id) && isServerName(name) && isServerAddress(address) && (serverFormats as readonly unknown[]).includes(format) && !Object.keys(rest).length;
+};
+
+const isServers = (value: unknown): value is Server[] =>
+  Array.isArray(value) && value.length <= 100 && value.every(isServer) && new Set(value.map((server: Server) => server.id)).size === value.length;
 
 const isPickedModel = (value: unknown): value is ModelChoice | null => value === null || isModelChoice(value);
 
@@ -124,7 +141,7 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
-  serverAddress: (value): value is string => value === '' || isServerAddress(value),
+  servers: isServers,
 };
 
 /**
@@ -141,20 +158,27 @@ export function validSettings(raw: unknown): Partial<Settings> {
   return valid as Partial<Settings>;
 }
 
-/** A model's name as one string, e.g. "chatgpt/gpt-5-mini". */
-export const modelKey = (choice: ModelChoice) => `${choice.provider}/${choice.model}`;
+/** A model's name as one string, e.g. "chatgpt/gpt-5-mini"; a server's model names its server, e.g. "server/home/qwen3-8b". */
+export const modelKey = (choice: ModelChoice) =>
+  choice.provider === 'server' ? `server/${choice.server}/${choice.model}` : `${choice.provider}/${choice.model}`;
 
-const sameModel = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;
+const sameModel = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model && a.server === b.server;
 
 /** Your models with `choice` added at the end, unless it's already one of them. */
 export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
-  models.some((m) => sameModel(m, choice)) ? models : [...models, { provider: choice.provider, model: choice.model }];
+  models.some((m) => sameModel(m, choice))
+    ? models
+    : [...models, { provider: choice.provider, model: choice.model, ...(choice.provider === 'server' ? { server: choice.server } : {}) }];
 
 /** A model's name back from `modelKey`'s string; the model's own id may hold slashes. Null for a provider that doesn't exist. */
 export function choiceFromKey(key: string): ModelChoice | null {
   const slash = key.indexOf('/');
-  const choice = { provider: key.slice(0, slash), model: key.slice(slash + 1) };
-  return slash > 0 && isModelChoice(choice) ? (choice as ModelChoice) : null;
+  const provider = key.slice(0, slash);
+  const rest = key.slice(slash + 1);
+  const serverSlash = rest.indexOf('/');
+  const choice = provider === 'server' ? { provider, server: rest.slice(0, serverSlash), model: rest.slice(serverSlash + 1) } : { provider, model: rest };
+  const whole = slash > 0 && (provider !== 'server' || serverSlash > 0);
+  return whole && isModelChoice(choice) ? (choice as ModelChoice) : null;
 }
 
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
@@ -174,3 +198,9 @@ export const settingsAfterLogout = (settings: Settings, provider: ModelChoice['p
 
 /** What removing one of your models changes. */
 export const settingsAfterRemoving = (settings: Settings, model: ModelChoice) => settingsWithout(settings, (choice) => sameModel(choice, model));
+
+/** What removing one of the candidate's servers changes: it's gone, and its models leave your models and are no longer picked. */
+export const settingsAfterRemovingServer = (settings: Settings, server: string): Partial<Settings> => ({
+  servers: settings.servers.filter((each) => each.id !== server),
+  ...settingsWithout(settings, (choice) => choice.provider === 'server' && choice.server === server),
+});

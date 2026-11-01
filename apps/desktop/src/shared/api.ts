@@ -1,7 +1,7 @@
 import type { RoundKind } from '@interviewharness/core';
 import type { CodeSnapshot, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
 import type { Verdict } from '@interviewharness/core';
-import type { Connection, ModelListing } from '@interviewharness/providers';
+import type { Connection, ModelListing, Server } from '@interviewharness/providers';
 import type { ModelChoice, Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
@@ -68,8 +68,11 @@ export interface HarnessApi {
      * and key it was reached with (announced through settings.onChange). Used to add a connection and to add a model.
      */
     connect(connection: ModelConnection): Promise<ConnectResult>;
-    /** Forgets a provider's login or key (a server's address too), and removes its models from your models (announced through settings.onChange). */
-    logout(provider: ModelChoice['provider']): Promise<void>;
+    /**
+     * Forgets a provider's login or key, and removes its models from your models (announced through
+     * settings.onChange). For a server, `server` names which one; the server itself is removed too.
+     */
+    logout(provider: ModelChoice['provider'], server?: string): Promise<void>;
     /**
      * Opens OpenRouter's sign-in in the browser and resolves once it comes back, with the key OpenRouter
      * issues saved. Picks no model. Cancelled with cancelLogin.
@@ -79,7 +82,35 @@ export interface HarnessApi {
     removeModel(model: ModelChoice): Promise<void>;
     /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
     openKeyPage(provider: ModelChoice['provider']): void;
+    /** A server's models: a saved one's, or through an address, format or key not saved yet. */
+    listServer(listing: ServerListing): Promise<ModelList>;
+    /** Adds a server once a model on it answers; the model joins your models (announced through settings.onChange). */
+    addServer(setup: ServerSetup): Promise<ConnectResult>;
+    /** Changes a server once a model on it answers; no key typed keeps the saved one. */
+    editServer(setup: ServerSetup & { server: string }): Promise<ConnectResult>;
   };
+}
+
+/** A server's fields as the candidate fills them in, to add it (no `server`) or edit it. The key is never sent back. */
+export interface ServerSetup {
+  server?: string;
+  name: string;
+  address: string;
+  format: Server['format'];
+  /** Typed in; empty when the server needs none, or (editing) to keep the saved one. */
+  key?: string;
+  /** A model on the server, listed or typed, that's checked to answer. */
+  model: string;
+  /** Picks the model for this slot too. */
+  slot?: Slot;
+}
+
+/** Which server's models to list: a saved one (`server`), maybe through new fields, or a new one at `address`. */
+export interface ServerListing {
+  server?: string;
+  address?: string;
+  format?: Server['format'];
+  key?: string;
 }
 
 export interface ProviderStatus {
@@ -94,6 +125,8 @@ export interface ProviderStatus {
   models: ModelListing[];
   /** Why it isn't connected, when that's worth saying (Ollama not running). */
   error?: string;
+  /** For one of the candidate's servers: which, as saved (never its key). */
+  server?: Server;
 }
 
 /** The Feedback as the candidate sees it: words and moments, no scores (those stay in the round's feedback.json). */
@@ -112,6 +145,8 @@ export interface ModelConnection extends Connection {
   slot: Slot;
   provider: ModelChoice['provider'];
   model: string;
+  /** For a model on one of the candidate's saved servers: which. */
+  server?: string;
 }
 
 export type ConnectResult =
@@ -149,6 +184,9 @@ export const channels = {
   signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',
   openKeyPage: 'models:open-key-page',
+  listServer: 'models:server-list',
+  addServer: 'models:server-add',
+  editServer: 'models:server-edit',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

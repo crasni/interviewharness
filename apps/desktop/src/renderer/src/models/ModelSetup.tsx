@@ -10,6 +10,8 @@ import { AddList, PickedHead } from './AddList.tsx';
 import { type AddableItem, addable } from './addable.ts';
 import { type SignInProvider, useSignIn } from './useSignIn.ts';
 import { useConnect } from './useConnect.ts';
+import { useServerSetup } from './useServerSetup.tsx';
+import type { Server } from '../../../shared/settings.ts';
 import './models.css';
 
 /** The three ways the interviewer can get a model, as the Start screen's rows show them. */
@@ -50,24 +52,28 @@ const plural = (n: number) => `${n} ${n === 1 ? 'model' : 'models'}`;
  */
 export function ModelSetup({
   item,
+  editing,
   onDone,
   onUnencrypted,
 }: {
   /** Show only this item's fields. */
   item?: AddableItem;
+  /** With a server `item`: the saved server to edit. */
+  editing?: Server;
   /** After a model is saved or a login comes back. */
   onDone?: () => void;
   /** A login or key was saved without encryption on this machine, which is said once. */
   onUnencrypted?: () => void;
 }) {
   const { settings } = useSettings();
-  const ids = { way: useId(), chatgptModel: useId(), ollamaModel: useId(), ollamaAddress: useId(), key: useId(), address: useId(), model: useId() };
+  const ids = { way: useId(), chatgptModel: useId(), ollamaModel: useId(), ollamaAddress: useId(), key: useId(), model: useId() };
   const [way, setWay] = useState<Way | null>(item ? wayOf(item) : null);
   // What the sign-in row signs in to: ChatGPT, unless OpenRouter's sign-in was picked from what can be added.
   const signInProvider: SignInProvider = item?.fields === 'sign-in' && item.provider === 'openrouter' ? 'openrouter' : 'chatgpt';
   const signInCopy = signIns[signInProvider];
   const login = useSignIn({ provider: signInProvider, onUnencrypted });
   const check = useConnect({ onUnencrypted });
+  const serverSetup = useServerSetup({ server: editing, onDone, onUnencrypted });
 
   // A sign-in already saved: then the row offers its models instead of signing in again.
   const [chatgpt, setChatgpt] = useState<{ signedIn: boolean; models: { value: string; label: string }[] }>({ signedIn: false, models: [] });
@@ -100,10 +106,9 @@ export function ModelSetup({
   }, [lookForOllama, settings.ollamaAddress]);
 
   // A key or a server, once one is picked: a cloud provider's models are known without a key; a server's
-  // once its address is in.
+  // once its address is in (its fields are useServerSetup's).
   const [keyItem, setKeyItem] = useState<AddableItem | null>(item && asksForKey(item) ? item : null);
   const [key, setKey] = useState('');
-  const [serverAddress, setServerAddress] = useState('');
   const [keyModels, setKeyModels] = useState<ModelList | null>(null);
   const [keyModel, setKeyModel] = useState('');
   const provider = keyItem?.provider;
@@ -119,12 +124,6 @@ export function ModelSetup({
       setKeyModel(found.models.some((m) => m.id === preferred) ? preferred! : (found.models[0]?.id ?? ''));
     });
   }, [provider, server]);
-  async function findServerModels() {
-    setKeyModels(null);
-    const found = await window.harness.models.list('server', { address: serverAddress, ...(key ? { key } : {}) });
-    setKeyModels(found);
-    if (found.ok) setKeyModel(found.models[0]?.id ?? '');
-  }
 
   const open = (next: Way) => {
     setWay(next);
@@ -133,11 +132,13 @@ export function ModelSetup({
   const pickKey = (next: AddableItem | null) => {
     setKeyItem(next);
     setKey('');
-    setServerAddress('');
     check.reset();
+    serverSetup.reset();
   };
 
-  const busy = check.step.name === 'checking' || login.step.name === 'waiting';
+  // A server checks and saves through its own setup; everything else through `check`.
+  const checkStep = way === 'key' && server ? serverSetup.step : check.step;
+  const busy = checkStep.name === 'checking' || login.step.name === 'waiting';
   const action =
     way === 'chatgpt'
       ? chatgpt.signedIn
@@ -158,18 +159,19 @@ export function ModelSetup({
             ready: !!ollamaModel && !!ollama?.ok,
             run: async () => (await check.connect({ slot: 'interviewer', provider: 'ollama', model: ollamaModel, address: ollamaAddress })) && onDone?.(),
           }
-        : way === 'key'
-          ? {
-              label: 'Check and save',
-              ready: !!provider && !!keyModel && (server ? !!serverAddress : !!key.trim()),
-              run: async () => {
-                if (!provider) return;
-                const reach = server ? { address: serverAddress, ...(key ? { key } : {}) } : { key };
-                if (await check.connect({ slot: 'interviewer', provider, model: keyModel, ...reach })) onDone?.();
-              },
-            }
-          : null;
-  const checkingModel = way === 'chatgpt' ? chatgptModel : way === 'ollama' ? ollamaModel : keyModel;
+        : way === 'key' && server
+          ? serverSetup.action
+          : way === 'key'
+            ? {
+                label: 'Check and save',
+                ready: !!provider && !!keyModel && !!key.trim(),
+                run: async () => {
+                  if (!provider) return;
+                  if (await check.connect({ slot: 'interviewer', provider, model: keyModel, key })) onDone?.();
+                },
+              }
+            : null;
+  const checkingModel = way === 'chatgpt' ? chatgptModel : way === 'ollama' ? ollamaModel : server ? serverSetup.checking : keyModel;
 
   const chatgptDescription = chatgpt.signedIn ? signInCopy.after : signInCopy.before;
   const chatgptFields = chatgpt.signedIn && (
@@ -214,36 +216,19 @@ export function ModelSetup({
     </>
   );
 
-  const keyFields = (
+  const keyFields = server ? (
+    serverSetup.fields
+  ) : (
     <>
-      {server && (
-        <div className="model-setup-field">
-          <label htmlFor={ids.address}>Server address</label>
-          <input
-            id={ids.address}
-            type="url"
-            placeholder="http://localhost:1234/v1"
-            value={serverAddress}
-            onChange={(event) => setServerAddress(event.target.value)}
-            onBlur={() => serverAddress && void findServerModels()}
-            spellCheck={false}
-          />
-        </div>
-      )}
       <div className="model-setup-field">
-        <label htmlFor={ids.key}>{server ? 'Key, if it needs one' : 'API key'}</label>
+        <label htmlFor={ids.key}>API key</label>
         <input id={ids.key} type="password" value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
       </div>
-      {provider && !server && (
+      {provider && (
         // Main opens only this provider's key page, from the table of key providers.
         <button type="button" className="model-setup-aside with-icon" data-motion="out" onClick={() => window.harness.models.openKeyPage(provider)}>
           <ArrowUpRight {...iconProps} size={16} />
           Get a key
-        </button>
-      )}
-      {server && !keyModels && (
-        <button type="button" className="model-setup-aside" disabled={!serverAddress} onClick={() => void findServerModels()}>
-          Find models
         </button>
       )}
       {keyModels && !keyModels.ok && (
@@ -320,14 +305,14 @@ export function ModelSetup({
           </>
         ) : (
           <>
-            {check.step.name === 'checking' && (
+            {checkStep.name === 'checking' && (
               <p className="model-setup-status" role="status">
                 Checking that {checkingModel} answers…
               </p>
             )}
-            {(check.step.name === 'failed' || login.step.name === 'failed') && (
+            {(checkStep.name === 'failed' || login.step.name === 'failed') && (
               <p className="model-setup-status" role="alert">
-                {check.step.name === 'failed' ? check.step.error : login.step.name === 'failed' ? login.step.error : ''}
+                {checkStep.name === 'failed' ? checkStep.error : login.step.name === 'failed' ? login.step.error : ''}
               </p>
             )}
             <button type="submit" className="primary" disabled={!action?.ready || busy}>

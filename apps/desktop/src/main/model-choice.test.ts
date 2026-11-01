@@ -28,7 +28,7 @@ beforeEach(async () => {
     credentials,
     appVersion: '0.1.0',
     ollamaAddress: () => settings.values().ollamaAddress,
-    serverAddress: () => settings.values().serverAddress,
+    servers: () => settings.values().servers,
     baseUrls: { anthropic: cloud.origin, openrouter: `${cloud.origin}/api/v1` },
   });
   chooser = modelChooser({ providers, settings });
@@ -88,26 +88,6 @@ describe('picking a model, checked before it is saved', () => {
     await chooser.connect({ slot: 'interviewer', provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-wrong' });
 
     expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-old' });
-  });
-
-  it('saves a server that answers, with its address', async () => {
-    cloud.reply({ text: 'OK' });
-
-    const result = await chooser.connect({ slot: 'interviewer', provider: 'server', model: 'local-model', address: `${cloud.origin}/v1` });
-
-    expect(result).toEqual({ ok: true, unencryptedNote: false });
-    expect(settings.values().interviewerModel).toEqual({ provider: 'server', model: 'local-model' });
-    expect(settings.values().serverAddress).toBe(`${cloud.origin}/v1`);
-  });
-
-  it("says plainly when nothing answers at a server's address", async () => {
-    const address = `${cloud.origin}/v1`;
-    await cloud.close();
-
-    const result = await chooser.connect({ slot: 'interviewer', provider: 'server', model: 'local-model', address });
-
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining(`Nothing answered at ${address}`) });
-    expect(settings.values().interviewerModel).toBeNull();
   });
 
   it("says once that a saved key isn't encrypted, on a machine with no keyring", async () => {

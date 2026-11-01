@@ -25,7 +25,8 @@ export type AddGroup = (typeof addGroups)[number]['id'];
  * - `sign-in`: nothing to type; signs in through the browser (once signed in, a model to use).
  * - `running`: finds what's running at an address on this computer; asks for the address only when nothing answers.
  * - `key`: an API key and a model from the provider's list.
- * - `server`: the server's address, a key if it needs one, and a model it lists.
+ * - `server`: a name, the server's address and API format (OpenAI- or Anthropic-compatible), a key if it needs
+ *   one, and a model it lists or one typed in.
  */
 export type Fields = 'sign-in' | 'running' | 'key' | 'server';
 
@@ -49,11 +50,12 @@ export const addable: readonly AddableItem[] = [
   ...keyProviderTable.map(({ id, name, alsoKnownAs }): AddableItem => ({ id, group: 'keys', name, alsoKnownAs: alsoKnownAs && [...alsoKnownAs], provider: id, fields: 'key' })),
 
   { id: 'ollama', group: 'local', name: 'Ollama', alsoKnownAs: ['local'], provider: 'ollama', fields: 'running' },
+  // Any number of them, each by name, in either API format (picked in its fields).
   {
     id: 'server',
     group: 'local',
-    name: 'OpenAI-compatible server',
-    alsoKnownAs: ['LM Studio', 'llama.cpp', 'vLLM', 'Jan', 'LiteLLM', 'local', 'gateway'],
+    name: 'Custom server',
+    alsoKnownAs: ['OpenAI-compatible', 'Anthropic-compatible', 'LM Studio', 'llama.cpp', 'vLLM', 'Jan', 'LiteLLM', 'local', 'gateway'],
     provider: 'server',
     fields: 'server',
   },

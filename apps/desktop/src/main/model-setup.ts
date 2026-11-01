@@ -3,9 +3,10 @@ import { scriptedModel } from '@interviewharness/engine/test';
 import { createProviders, defaultChatGPTModel, keyProviders, type ProviderName } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
 import type { LoginResult, ProviderStatus } from '../shared/api.ts';
-import { feedbackModel, modelKey, type Settings, withYourModel } from '../shared/settings.ts';
+import { feedbackModel, modelKey, type Server, type Settings, withYourModel } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
 import { modelChooser, providerNames } from './model-choice.ts';
+import { migratedServerId } from './server-migration.ts';
 
 /** The only page a login may open: OpenAI's sign-in. Anything else is refused, never handed to the browser. */
 const signInOrigin = 'https://auth.openai.com';
@@ -48,9 +49,13 @@ export function setUpModels({
     credentials,
     appVersion: app.getVersion(),
     ollamaAddress: () => settings.values().ollamaAddress,
-    serverAddress: () => settings.values().serverAddress,
+    servers: () => settings.values().servers,
   });
   const chooser = modelChooser({ providers, settings, encrypted: () => credentials.encrypted() });
+  // v0.1's one server became a named server (settings v1 → v2); its key follows it, once safeStorage is ready.
+  const oldServerKeyMoved = settings.values().servers.some((server) => server.id === migratedServerId)
+    ? app.whenReady().then(() => providers.adoptOldServerKey(migratedServerId)).catch((error: unknown) => console.error("Could not move v0.1's server key:", error))
+    : Promise.resolve();
   // End-to-end tests keep away from any real Ollama on the machine running them.
   const testOllama = app.isPackaged ? undefined : process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS;
   if (testOllama) settings.change({ ollamaAddress: testOllama });
@@ -145,29 +150,40 @@ export function setUpModels({
       return { ok: true, unencryptedNote };
     },
 
-    /** Every provider: ChatGPT and keys are connected once saved; Ollama and a server once they answer. */
+    /** Every provider: ChatGPT and keys are connected once saved; Ollama and each server once they answer. */
     async providers(): Promise<ProviderStatus[]> {
       const names: ProviderName[] = ['chatgpt', 'ollama', ...keyProviders];
-      return Promise.all(
+      const rows = await Promise.all(
         names.map(async (provider): Promise<ProviderStatus> => {
           const name = providerNames[provider];
-          const answers = provider === 'ollama' || (provider === 'server' && settings.values().serverAddress !== '');
-          if (answers) {
+          if (provider === 'ollama') {
             const listed = await chooser.list(provider);
             return listed.ok ? { provider, name, connected: true, models: listed.models } : { provider, name, connected: false, models: [], error: listed.error };
           }
-          const connected = provider !== 'server' && (await providers.isLoggedIn(provider));
+          const connected = await providers.isLoggedIn(provider);
           const signedIn = connected && (await providers.isSignedIn(provider));
           return { provider, name, connected, ...(signedIn ? { signedIn } : {}), models: connected ? await providers.listModels(provider) : [] };
         }),
       );
+      await oldServerKeyMoved;
+      return [...rows, ...(await Promise.all(settings.values().servers.map((server) => serverStatus(chooser, server))))];
     },
 
     list: chooser.list,
     connect: chooser.connect,
     logout: chooser.removeConnection,
     removeModel: chooser.removeModel,
+    listServer: chooser.servers.list,
+    addServer: chooser.servers.add,
+    editServer: chooser.servers.edit,
   };
+}
+
+/** One of the candidate's servers as a connection: connected while it answers with its models. */
+async function serverStatus(chooser: ReturnType<typeof modelChooser>, server: Server): Promise<ProviderStatus> {
+  const listed = await chooser.servers.list({ server: server.id });
+  const row = { provider: 'server' as const, name: server.name, server };
+  return listed.ok ? { ...row, connected: true, models: listed.models } : { ...row, connected: false, models: [], error: listed.error };
 }
 
 /** A login error in words for the candidate. The raw error may quote a server's reply, so it goes no further than this. */

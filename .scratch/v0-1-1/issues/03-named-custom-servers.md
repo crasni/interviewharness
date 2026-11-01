@@ -6,9 +6,9 @@ Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Add, edit and remove several servers; each keeps its own key in the credential store
-- [ ] OpenAI- and Anthropic-format servers both checked and used, tested against fake servers on loopback
-- [ ] Errors name the field to fix (e.g. "The address usually ends in /v1")
-- [ ] settings.json migrates the old single server
+- [x] Add, edit and remove several servers; each keeps its own key in the credential store
+- [x] OpenAI- and Anthropic-format servers both checked and used, tested against fake servers on loopback
+- [x] Errors name the field to fix (e.g. "The address usually ends in /v1")
+- [x] settings.json migrates the old single server

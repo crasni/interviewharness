@@ -1,18 +1,19 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
 import { type Connection, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import type { ConnectResult, ModelConnection, ModelList } from '../shared/api.ts';
-import { isModelChoice, isServerAddress, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
+import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterLogout, settingsAfterRemoving, withYourModel } from '../shared/settings.ts';
+import { plainServerError, serverConnections } from './server-connections.ts';
 
 /** Each provider as the candidate knows it. */
 export const providerNames: Record<ProviderName, string> = {
   chatgpt: 'ChatGPT',
   ollama: 'Ollama',
-  server: 'OpenAI-compatible server',
+  server: 'Server',
   ...(Object.fromEntries(keyProviderTable.map((row) => [row.id, row.name])) as Record<(typeof keyProviderTable)[number]['id'], string>),
 };
 
-/** The providers reached at an address the candidate can change, and the setting that keeps it. */
-export const addressSettings = { ollama: 'ollamaAddress', server: 'serverAddress' } as const satisfies Partial<Record<ProviderName, keyof Settings>>;
+/** The providers reached at an address the candidate can change, and the setting that keeps it. (Servers keep theirs in `servers`.) */
+export const addressSettings = { ollama: 'ollamaAddress' } as const satisfies Partial<Record<ProviderName, keyof Settings>>;
 
 const isKeyProvider = (provider: ProviderName): provider is KeyProviderName => (keyProviders as readonly string[]).includes(provider);
 const hasAddress = (provider: ProviderName): provider is keyof typeof addressSettings => Object.hasOwn(addressSettings, provider);
@@ -30,11 +31,13 @@ function isConnection(provider: ProviderName, value: unknown): value is Connecti
 
 function isModelConnection(value: unknown): value is ModelConnection {
   if (typeof value !== 'object' || value === null) return false;
-  const { slot, provider, model } = value as Record<string, unknown>;
+  const { slot, provider, model, server, ...connection } = value as Record<string, unknown>;
   if (slot !== 'interviewer' && slot !== 'feedback') return false;
   if (!isProviderName(provider)) return false;
   if (typeof model !== 'string' || !model || model.length > 200) return false;
-  return isConnection(provider, value);
+  // A server's model is picked from a saved server (added through serverConnections), by its id.
+  if (provider === 'server') return isServerId(server) && !Object.keys(connection).length;
+  return server === undefined && isConnection(provider, value);
 }
 
 /**
@@ -52,7 +55,11 @@ export function modelChooser({
   /** Whether saved keys are encrypted by the OS (not on Linux with no keyring). */
   encrypted?: () => boolean;
 }) {
+  const servers = serverConnections({ providers, settings, encrypted });
   return {
+    /** The candidate's own servers: list, add, edit (each checked first). */
+    servers,
+
     /** The models a provider offers, reached through an address or key not saved yet if given. */
     async list(provider: unknown, connection: unknown = {}): Promise<ModelList> {
       if (!isProviderName(provider) || !isConnection(provider, connection)) return { ok: false, error: "Those models can't be listed." };
@@ -66,12 +73,15 @@ export function modelChooser({
 
     async connect(request: unknown): Promise<ConnectResult> {
       if (!isModelConnection(request)) return { ok: false, error: "That model can't be picked." };
-      const { slot, provider, model, key, address } = request;
-      const choice: ModelChoice = { provider, model };
+      const { slot, provider, model, key, address, server } = request;
+      const choice: ModelChoice = provider === 'server' ? { provider, server, model } : { provider, model };
+      const onServer = provider === 'server' ? settings.values().servers.find((each) => each.id === server) : undefined;
+      if (provider === 'server' && !onServer) return { ok: false, error: 'That server has been removed.' };
       try {
         await providers.check(choice, { address, key });
       } catch (error) {
-        return { ok: false, error: plainError(modelErrorKind(error), request, error) };
+        const kind = modelErrorKind(error);
+        return { ok: false, error: onServer ? plainServerError(kind, { ...onServer, model }, error, 'check') : plainError(kind, request, error) };
       }
       const savesKey = !!key && isKeyProvider(provider);
       if (savesKey) await providers.saveKey(provider, key);
@@ -91,30 +101,29 @@ export function modelChooser({
       settings.change(settingsAfterRemoving(settings.values(), model));
     },
 
-    /** Forgets a provider's login or key (a server's address too), and removes its models from your models. */
-    async removeConnection(provider: unknown) {
+    /** Forgets a provider's login or key, and removes its models from your models. For a server, `server` says which; it goes too. */
+    async removeConnection(provider: unknown, server?: unknown) {
       // Ollama has nothing to forget.
       if (!isProviderName(provider) || provider === 'ollama') return;
+      if (provider === 'server') return servers.remove(server);
       await providers.logout(provider);
-      settings.change({ ...settingsAfterLogout(settings.values(), provider), ...(provider === 'server' ? { serverAddress: '' } : {}) });
+      settings.change(settingsAfterLogout(settings.values(), provider));
     },
   };
 }
 
 /** Why a model didn't answer, or its models couldn't be listed, in words for the candidate. Never repeats a key. */
 function plainError(kind: ModelErrorKind, { provider, model, key, address }: { provider: ProviderName; model?: string } & Connection, error: unknown) {
-  const name = provider === 'server' ? 'The server' : providerNames[provider];
+  const name = providerNames[provider];
   const it = model ?? 'The model';
   switch (kind) {
     case 'offline':
       if (provider === 'ollama') {
         return `Ollama isn't running at ${address ?? 'its address'}. Open the Ollama app, or run "ollama serve" in a terminal, then try again.`;
       }
-      if (provider === 'server') return `Nothing answered at ${address ?? 'the server address'}. Check that the server is running and the address is right.`;
       return `Couldn't reach ${name}. Check your connection and try again.`;
     case 'auth':
       if (provider === 'chatgpt') return 'Your ChatGPT login has run out. Sign in again.';
-      if (provider === 'server' && !key) return 'The server asks for a key. Add it and try again.';
       return `${name} refused the key. Check it and try again.`;
     case 'rate-limit':
       return `${name} says you've hit a rate limit or used up your quota. Try again later, or check your plan.`;

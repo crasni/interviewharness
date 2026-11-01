@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../shared/settings.ts';
+import { migratedServerId } from './server-migration.ts';
 import { migrateSettings, openSettingsFile } from './settings-file.ts';
 
 const tempDir = () => mkdtempSync(join(tmpdir(), 'interviewharness-settings-'));
@@ -108,6 +109,21 @@ describe('settings migrations', () => {
     const picked = { provider: 'chatgpt', model: 'gpt-5-mini' };
 
     expect(migrateSettings({ version: 1, interviewerModel: picked, feedbackModel: { ...picked } })).toMatchObject({ yourModels: [picked] });
+  });
+
+  it("v0.1's one server becomes a named server, and the model picked from it one of your models", () => {
+    const dir = tempDir();
+    writeFileSync(
+      join(dir, 'settings.json'),
+      JSON.stringify({ version: 1, serverAddress: 'http://localhost:1234/v1', interviewerModel: { provider: 'server', model: 'qwen3-8b' } }),
+    );
+
+    const onServer = { provider: 'server', server: migratedServerId, model: 'qwen3-8b' };
+    expect(openSettingsFile(dir).values()).toMatchObject({
+      servers: [{ id: migratedServerId, name: 'localhost:1234', address: 'http://localhost:1234/v1', format: 'openai' }],
+      interviewerModel: onServer,
+      yourModels: [onServer],
+    });
   });
 
 
