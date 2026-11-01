@@ -71,6 +71,9 @@
   gap: var(--space-5);
   padding: var(--space-6) var(--space-8);
   overflow-y: auto;
+  /* Room for the scrollbar is kept even when there's nothing to scroll, so opening something tall
+     (adding a connection) doesn't shift everything aligned to the right. */
+  scrollbar-gutter: stable;
 }
 
 /* A sentence explaining the setting above it. */
