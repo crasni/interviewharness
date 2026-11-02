@@ -190,26 +190,49 @@ export async function main(argv: string[]) {
   const linesFile = readFileSync(join(repoRoot, 'content', 'interviewer', 'lines.md'), 'utf8');
   const problem = readProblem('two-sum', readFolder(join(repoRoot, 'content', 'problems', 'two-sum')));
   const configured = configuredModel();
-  const effort = values.effort;
-  if (effort !== undefined && !isEffortLevel(effort)) throw new Error(`--effort ${effort} isn't a reasoning effort.`);
-  const choice: ModelChoice = effort ? { ...configured, effort: effort as EffortLevel } : configured;
+  // Several efforts play one after another on one sign-in, each into its own folder: how the defaults are measured.
+  const efforts = values.effort ? values.effort.split(',').map((level) => level.trim()) : [undefined];
+  for (const effort of efforts) if (effort !== undefined && !isEffortLevel(effort)) throw new Error(`--effort ${effort} isn't a reasoning effort.`);
 
   const providers = createProviders({
     credentials: memoryCredentials(),
     appVersion: 'scripted-rounds',
     ...(process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS ? { ollamaAddress: () => process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS! } : {}),
-    servers: () => (serverAddress && choice.server ? [{ id: choice.server, name: 'Server', address: serverAddress, format: serverFormat }] : []),
+    servers: () => (serverAddress && configured.server ? [{ id: configured.server, name: 'Server', address: serverAddress, format: serverFormat }] : []),
   });
-  const levels = providers.effortLevels(choice);
-  if (effort && !levels.includes(effort as EffortLevel)) throw new Error(`${choice.model} reasons at ${levels.join(', ') || 'no levels'}, not ${effort}.`);
-  const model = providers.model(choice);
-  const named = `${choice.provider} / ${choice.model}${model.identity.effort ? `, effort ${model.identity.effort}` : ''}`;
-  console.log(`Model: ${named}.`);
-  await signIns[choice.provider](providers, choice);
+  const levels = providers.effortLevels(configured);
+  for (const effort of efforts) {
+    if (effort && !levels.includes(effort as EffortLevel)) throw new Error(`${configured.model} reasons at ${levels.join(', ') || 'no levels'}, not ${effort}.`);
+  }
+  await signIns[configured.provider](providers, configured);
   const judgeChoice = judgeModel(configured);
-  if (judgeChoice.provider !== choice.provider) await signIns[judgeChoice.provider](providers, judgeChoice);
+  if (judgeChoice.provider !== configured.provider) await signIns[judgeChoice.provider](providers, judgeChoice);
   const judge = providers.model(judgeChoice);
 
+  let failedChecks = 0;
+  for (const effort of efforts) {
+    const choice: ModelChoice = effort ? { ...configured, effort: effort as EffortLevel } : configured;
+    const into = efforts.length > 1 ? join(out, effort!) : out;
+    failedChecks += await playAll({ model: providers.model(choice), judge, judgeChoice, candidates, problem, linesFile, out: into, stamp });
+  }
+  if (efforts.length > 1) console.log(`\nEach effort's rounds are in its own folder under ${out}.`);
+  return failedChecks;
+}
+
+/** Plays every candidate on one model, checks and judges each round, and writes index.md. Returns the checks that failed. */
+async function playAll({ model, judge, judgeChoice, candidates, problem, linesFile, out, stamp }: {
+  model: ReturnType<Providers['model']>;
+  judge: ReturnType<Providers['model']>;
+  judgeChoice: ModelChoice;
+  candidates: typeof scriptedCandidates;
+  problem: ReturnType<typeof readProblem>;
+  linesFile: string;
+  out: string;
+  stamp: string;
+}) {
+  const { identity } = model;
+  const named = `${identity.provider} / ${identity.model}${identity.effort ? `, effort ${identity.effort}` : ''}`;
+  console.log(`Model: ${named}.`);
   mkdirSync(out, { recursive: true });
   const index = [`# Scripted rounds, ${stamp}`, '', `Model: ${named}`, '', whatToLookFor, '', '## Rounds', ''];
   const failed: { candidate: string; failure: RoundFailure }[] = [];
