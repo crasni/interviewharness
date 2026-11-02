@@ -1,0 +1,41 @@
+{
+  "class": "RecentCache",
+  "cases": [
+    {
+      "id": "the-example",
+      "description": "The example from the statement: reading key 1 keeps it, so key 2 is dropped",
+      "calls": [["RecentCache", 2], ["put", 1, 10], ["put", 2, 20], ["get", 1], ["put", 3, 30], ["get", 2], ["get", 3]],
+      "expected": [null, null, null, 10, null, -1, 30]
+    },
+    {
+      "id": "capacity-one",
+      "description": "A cache of one: each new key drops the last",
+      "calls": [["RecentCache", 1], ["put", 1, 1], ["put", 2, 2], ["get", 1], ["get", 2]],
+      "expected": [null, null, null, -1, 2]
+    },
+    {
+      "id": "missing-key",
+      "description": "A key that was never put",
+      "calls": [["RecentCache", 2], ["get", 7], ["put", 7, 70], ["get", 7]],
+      "expected": [null, -1, null, 70]
+    },
+    {
+      "id": "update-drops-nothing",
+      "description": "Changing a key already there drops nothing, and counts as using it",
+      "calls": [["RecentCache", 2], ["put", 1, 10], ["put", 2, 20], ["put", 1, 11], ["put", 3, 30], ["get", 1], ["get", 2], ["get", 3]],
+      "expected": [null, null, null, null, null, 11, -1, 30]
+    },
+    {
+      "id": "without-reads",
+      "description": "With no reads, pairs are dropped in the order they were put",
+      "calls": [["RecentCache", 3], ["put", 1, 1], ["put", 2, 2], ["put", 3, 3], ["put", 4, 4], ["get", 1], ["get", 2], ["get", 4]],
+      "expected": [null, null, null, null, null, -1, 2, 4]
+    },
+    {
+      "id": "failed-read-changes-nothing",
+      "description": "Reading a missing key doesn't change which pair is dropped next",
+      "calls": [["RecentCache", 2], ["put", 1, 1], ["put", 2, 2], ["get", 9], ["put", 3, 3], ["get", 1], ["get", 2]],
+      "expected": [null, null, null, -1, null, -1, 2]
+    }
+  ]
+}

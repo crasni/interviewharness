@@ -1,4 +1,5 @@
-import type { CodeSnapshot, ModelErrorKind, RoundSnapshot } from '@interviewharness/engine';
+import type { CodeSnapshot, ModelErrorKind } from '@interviewharness/engine';
+import type { RoomSnapshot } from '../../../shared/api.ts';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
@@ -18,7 +19,7 @@ import { useThinkingSeconds } from './useThinkingSeconds.ts';
 import { useSubtitle } from './useSubtitle.ts';
 import { useTranscript } from './useTranscript.ts';
 
-export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code: CodeSnapshot) => void }) {
+export function Room({ initial, onEnd }: { initial: RoomSnapshot; onEnd: (code: CodeSnapshot) => void }) {
   const { settings, change, setPanelOpen } = useSettings();
   const [round, setRound] = useState(initial);
   const [presence, setPresence] = useState<PresenceState>('listening');
@@ -187,7 +188,7 @@ export function Room({ initial, onEnd }: { initial: RoundSnapshot; onEnd: (code:
         ref={work}
         style={sizeVar('--problem-width', settings.problemWidth)}
       >
-        <ProblemPanel shown={problemShown} onToggle={() => setProblemShown(!problemShown)} />
+        <ProblemPanel statement={round.problem.statement} shown={problemShown} onToggle={() => setProblemShown(!problemShown)} />
         {problemShown && (
           <Splitter
             label="Resize the problem"

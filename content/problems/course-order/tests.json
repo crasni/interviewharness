@@ -1,0 +1,13 @@
+{
+  "function": "course_order",
+  "cases": [
+    { "id": "cycle", "description": "The second example: three courses that need each other", "input": { "count": 3, "prerequisites": [[0, 1], [1, 2], [2, 0]] }, "expected": [] },
+    { "id": "chain", "description": "Each course needs the one before it; only one order works", "input": { "count": 4, "prerequisites": [[1, 0], [2, 1], [3, 2]] }, "expected": [0, 1, 2, 3] },
+    { "id": "backwards-numbers", "description": "Higher numbers come first; only one order works", "input": { "count": 3, "prerequisites": [[0, 1], [1, 2]] }, "expected": [2, 1, 0] },
+    { "id": "one-course", "description": "A single course with no prerequisites", "input": { "count": 1, "prerequisites": [] }, "expected": [0] },
+    { "id": "needs-itself", "description": "A course that lists itself as a prerequisite", "input": { "count": 2, "prerequisites": [[0, 0]] }, "expected": [] },
+    { "id": "extra-edge", "description": "A shortcut prerequisite that the chain already covers; still one order", "input": { "count": 3, "prerequisites": [[1, 0], [2, 1], [2, 0]] }, "expected": [0, 1, 2] },
+    { "id": "pair-twice", "description": "The same prerequisite listed twice", "input": { "count": 2, "prerequisites": [[1, 0], [1, 0]] }, "expected": [0, 1] },
+    { "id": "cycle-after-a-start", "description": "A course can start, but the rest wait on each other", "input": { "count": 4, "prerequisites": [[1, 0], [2, 1], [3, 2], [1, 3]] }, "expected": [] }
+  ]
+}

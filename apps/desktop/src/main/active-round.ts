@@ -31,8 +31,12 @@ export function runRound(options: {
   const signal = (s: Signal) => interviewer.onSignal(s);
   const ticker = setInterval(() => signal({ type: 'tick' }), tickEvery);
 
+  const { name, details, statement } = options.problem;
+  const problem = { name, title: details.title, statement };
+
   return {
-    snapshot: () => round.snapshot(),
+    problem: options.problem,
+    snapshot: () => ({ ...round.snapshot(), problem }),
     signal,
     /** Ends the round, with the code as the candidate left it. */
     stop(code?: CodeSnapshot) {

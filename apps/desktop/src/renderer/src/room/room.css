@@ -105,6 +105,8 @@
   overflow-y: auto;
   display: grid;
   align-content: start;
+  /* Rows keep their content's height; otherwise a code block, being a scroll container, shrinks to its padding once the text overflows. */
+  grid-auto-rows: max-content;
   gap: var(--space-3);
 }
 

@@ -1,17 +1,27 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
-import { createLineBook, gradeRound, type GradingEntry, modelErrorKind, type RoundLog, type RoundRecord } from '@interviewharness/engine';
+import {
+  createLineBook,
+  difficulties,
+  gradeRound,
+  type GradingEntry,
+  modelErrorKind,
+  type Problem,
+  type RoundLog,
+  type RoundRecord,
+} from '@interviewharness/engine';
 import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 // The app icon from brand/ (png/app-icon-512.png); `?asset` gives its path in the build.
 import icon from '../../resources/icon.png?asset';
-import { channels, type FeedbackResult, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
+import { channels, type FeedbackResult, type ProblemChoice, isCandidateSignal, isCodeSnapshot, isTheme } from '../shared/api.ts';
 import { type ActiveRound, runRound } from './active-round.ts';
 import { writeFileAtomically } from './atomic-write.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
 import { keyPageFor } from './key-pages.ts';
 import { setUpModels } from './model-setup.ts';
+import { roundsByProblem } from './problem-history.ts';
 import { loadProblems } from './problems.ts';
 import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
@@ -33,12 +43,20 @@ function changeSettings(changes: Parameters<typeof settings.change>[0]) {
   return values;
 }
 
-// Only Two sum so far (v0.1.2 adds more); every folder is read and checked at startup all the same.
-const problem = loadProblems().get('two-sum')!;
+// Every folder is read and checked at startup, so a broken problem stops the app rather than a round.
+const problems = loadProblems();
+
+/** The problem named, or one picked at random from all of them when none is. */
+function pickProblem(name: unknown) {
+  if (name === undefined) return [...problems.values()][Math.floor(Math.random() * problems.size)]!;
+  const problem = typeof name === 'string' ? problems.get(name) : undefined;
+  if (!problem) throw new Error(`No such problem: ${String(name)}`);
+  return problem;
+}
 
 let window: BrowserWindow | null = null;
 /** A round's folder: its events.jsonl, and later its feedback.json. */
-type RoundFolder = { dir: string; log: RoundLog };
+type RoundFolder = { dir: string; log: RoundLog; problem: Problem };
 
 let round: (ActiveRound & RoundFolder) | null = null;
 // The round that ended last, and its Feedback as it's being written.
@@ -62,7 +80,7 @@ function endCurrentRound(code?: unknown) {
  * Grades a round and saves the Feedback, whole (scores included, no credentials), as feedback.json in its
  * folder. The renderer gets the words only. Never rejects: a failure comes back as one, for Try again.
  */
-async function writeFeedback(record: RoundRecord, { dir, log }: RoundFolder): Promise<FeedbackResult> {
+async function writeFeedback(record: RoundRecord, { dir, log, problem }: RoundFolder): Promise<FeedbackResult> {
   // A round where the candidate said nothing has nothing to grade, however long it ran.
   if (!record.transcript.some((line) => line.who === 'candidate')) return { ok: false, error: 'nothing-said' };
   const grader = await models.feedbackModel();
@@ -84,11 +102,13 @@ async function writeFeedback(record: RoundRecord, { dir, log }: RoundFolder): Pr
   }
 }
 
-ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
+ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => {
   if (!availableKinds.includes(kind)) throw new Error(`Round kind not available yet: ${kind}`);
+  const problem = pickProblem(name);
   endCurrentRound();
   const model = models.interviewerModel();
   const log = createEventsLog(dataDir(), new Date());
+  log.write({ at: systemClock.now(), started: { kind, problem: problem.name } });
   const running = runRound({
     kind,
     clock: systemClock,
@@ -105,12 +125,19 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind) => {
 
 ipcMain.handle(channels.roundSnapshot, () => round?.snapshot() ?? null);
 
+ipcMain.handle(channels.problems, (): ProblemChoice[] => {
+  const done = roundsByProblem(dataDir());
+  return [...problems.values()]
+    .map(({ name, details: { title, difficulty } }) => ({ name, title, difficulty, timesDone: done.get(name) ?? 0 }))
+    .sort((a, b) => difficulties.indexOf(a.difficulty) - difficulties.indexOf(b.difficulty) || a.title.localeCompare(b.title));
+});
+
 // The candidate ended the round: its Feedback starts being written at once.
 ipcMain.handle(channels.endRound, (_event, code: unknown) => {
   const stopped = endCurrentRound(code);
   if (!stopped) return null;
   const record = stopped.record();
-  ended = { record, dir: stopped.dir, log: stopped.log, feedback: writeFeedback(record, stopped) };
+  ended = { record, dir: stopped.dir, log: stopped.log, problem: stopped.problem, feedback: writeFeedback(record, stopped) };
   return stopped.snapshot();
 });
 

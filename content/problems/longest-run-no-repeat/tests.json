@@ -1,0 +1,12 @@
+{
+  "function": "longest_run",
+  "cases": [
+    { "id": "first-example", "description": "The first example from the statement", "input": { "s": "parallel" }, "expected": 3 },
+    { "id": "one-letter-over-and-over", "description": "The same letter throughout", "input": { "s": "mmmm" }, "expected": 1 },
+    { "id": "no-repeats", "description": "The whole string is the run", "input": { "s": "brisket" }, "expected": 7 },
+    { "id": "empty", "description": "The empty string", "input": { "s": "" }, "expected": 0 },
+    { "id": "left-end-never-goes-back", "description": "A repeat from before the window must not move its left end back", "input": { "s": "abba" }, "expected": 2 },
+    { "id": "case-matters", "description": "Upper and lower case are different letters", "input": { "s": "aAbB" }, "expected": 4 },
+    { "id": "run-in-the-middle", "description": "The longest run is neither at the start nor at the end", "input": { "s": "aabcdeaa" }, "expected": 5 }
+  ]
+}

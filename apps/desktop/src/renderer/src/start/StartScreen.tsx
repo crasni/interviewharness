@@ -5,13 +5,20 @@ import { roundKinds } from '../rounds.ts';
 import { useSettings } from '../settings/settings.tsx';
 import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { ModelStep } from './ModelStep.tsx';
+import { ProblemList } from './ProblemList.tsx';
 import './start.css';
 
-export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void }) {
+// The rounds not built yet, named in one quiet line under the one way to start.
+const later = roundKinds.filter((r) => !r.available).map((r) => r.label.replace(/ round$/, ''));
+const comingLater = later.length ? `${later.join(' and ')} rounds are coming later.` : null;
+
+/** Starts a round of a kind; a coding round on the problem named, or on one picked at random. */
+export function StartScreen({ onStart }: { onStart: (kind: RoundKind, problem?: string) => void }) {
   const { settings, setPanelOpen } = useSettings();
   // A round can't work without a model, so the first one waits for the candidate to pick one.
   const needsModel = settings.interviewerModel === null;
   const [unencryptedNote, setUnencryptedNote] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   return (
     <main className="start">
       <IconButton
@@ -29,6 +36,8 @@ export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void })
       <div className="start-body">
         {needsModel ? (
           <ModelStep onUnencrypted={() => setUnencryptedNote(true)} />
+        ) : choosing ? (
+          <ProblemList onPick={(problem) => onStart('coding', problem)} onBack={() => setChoosing(false)} />
         ) : (
           <>
             {unencryptedNote && (
@@ -42,16 +51,15 @@ export function StartScreen({ onStart }: { onStart: (kind: RoundKind) => void })
                 </button>
               </div>
             )}
-            <ul className="start-rounds">
-              {roundKinds.map(({ kind, label, startLabel, available }) => (
-                <li key={kind}>
-                  <button type="button" className={available ? 'primary' : undefined} disabled={!available} onClick={() => onStart(kind)}>
-                    {available ? startLabel : label}
-                  </button>
-                  {!available && <span className="label">Later</span>}
-                </li>
-              ))}
-            </ul>
+            <div className="start-actions">
+              <button type="button" className="primary start-main" onClick={() => onStart('coding')}>
+                Start coding round
+              </button>
+              <button type="button" className="start-choose" onClick={() => setChoosing(true)}>
+                Choose a problem
+              </button>
+            </div>
+            {comingLater && <p className="start-later">{comingLater}</p>}
           </>
         )}
       </div>

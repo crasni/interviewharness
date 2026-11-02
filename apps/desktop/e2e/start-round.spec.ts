@@ -1,11 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { closeApp, launchApp } from './launch.ts';
+import { closeApp, launchApp, readRoundLog } from './launch.ts';
 
 test('candidate starts a coding round and sees the room', async () => {
   const { app, window } = await launchApp();
 
-  await expect(window.getByRole('button', { name: 'System design round' })).toBeDisabled();
-  await expect(window.getByRole('button', { name: 'AI-assisted round' })).toBeDisabled();
+  // The rounds not built yet are named, not offered as buttons.
+  await expect(window.getByText('System design and AI-assisted rounds are coming later.')).toBeVisible();
+  await expect(window.getByRole('button', { name: /System design|AI-assisted/ })).toHaveCount(0);
 
   await window.getByRole('button', { name: 'Start coding round' }).click();
 
@@ -65,6 +68,20 @@ test('Continue with ChatGPT opens the sign-in in the browser, and can be cancell
   await expect(window.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
   await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
   await expect(fetch(url.searchParams.get('redirect_uri')!)).rejects.toThrow(); // the listener is gone
+
+  await closeApp(app);
+});
+
+test("a round starts on a problem, shows its statement and names it in the round's log", async () => {
+  const { app, window, dataDir } = await launchApp();
+
+  await window.getByRole('button', { name: 'Start coding round' }).click();
+  // Picked at random: whichever it is, the panel and the log agree.
+  const title = await window.getByRole('region', { name: 'Problem' }).getByRole('heading', { level: 1 }).textContent();
+  await expect.poll(() => readRoundLog(dataDir)[0]).toMatchObject({ started: { kind: 'coding', problem: expect.any(String) } });
+  const { problem } = readRoundLog(dataDir)[0].started;
+  const statement = readFileSync(join(import.meta.dirname, '../../../content/problems', problem, 'statement.md'), 'utf8');
+  expect(statement.split(/\r?\n/)[0]).toBe(`# ${title}`);
 
   await closeApp(app);
 });

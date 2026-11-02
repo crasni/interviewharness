@@ -17,13 +17,13 @@ const problem = () => window.getByRole('region', { name: 'Problem' });
 const editor = () => window.getByRole('textbox', { name: 'Code editor' });
 
 test('the problem is shown, and can be hidden and shown again', async () => {
-  await expect(problem().getByRole('heading', { name: 'Two sum' })).toBeVisible();
+  await expect(problem().getByRole('heading', { level: 1 })).toBeVisible();
 
   await window.getByRole('button', { name: 'Hide problem' }).click();
-  await expect(problem().getByRole('heading', { name: 'Two sum' })).toBeHidden();
+  await expect(problem().getByRole('heading', { level: 1 })).toBeHidden();
 
   await window.getByRole('button', { name: 'Show problem' }).click();
-  await expect(problem().getByRole('heading', { name: 'Two sum' })).toBeVisible();
+  await expect(problem().getByRole('heading', { level: 1 })).toBeVisible();
 });
 
 test('the editor takes code, Space types a space, and typing is sent as activity', async () => {
@@ -32,7 +32,7 @@ test('the editor takes code, Space types a space, and typing is sent as activity
 
   await expect(editor()).toContainText('def two_sum(nums, target):');
   await expect(talkButton(window)).toHaveAttribute('aria-pressed', 'false');
-  await expect.poll(() => readRoundLog(dataDir).some((e) => e.signal.type === 'editor-activity')).toBe(true);
+  await expect.poll(() => readRoundLog(dataDir).some((e) => e.signal?.type === 'editor-activity')).toBe(true);
 });
 
 test('the transcript is shown by default with the whole conversation, and hides with a shortcut', async () => {

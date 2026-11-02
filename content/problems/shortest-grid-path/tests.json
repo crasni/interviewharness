@@ -1,0 +1,13 @@
+{
+  "function": "shortest_path",
+  "cases": [
+    { "id": "first-example", "description": "The first example from the statement", "input": { "grid": ["..#", ".##", "..."] }, "expected": 4 },
+    { "id": "walled-in", "description": "No way out of the start", "input": { "grid": [".#", "#."] }, "expected": -1 },
+    { "id": "one-square", "description": "The start is the exit", "input": { "grid": ["."] }, "expected": 0 },
+    { "id": "start-is-a-wall", "description": "The start square is a wall", "input": { "grid": ["#.", ".."] }, "expected": -1 },
+    { "id": "exit-is-a-wall", "description": "The exit square is a wall", "input": { "grid": ["..", ".#"] }, "expected": -1 },
+    { "id": "one-row", "description": "A single row: straight along it", "input": { "grid": ["....."] }, "expected": 4 },
+    { "id": "winding", "description": "The only path winds back on itself", "input": { "grid": ["....", "###.", "....", ".###", "...."] }, "expected": 13 },
+    { "id": "wall-in-the-middle", "description": "A wall in the middle that the shortest path goes round without losing a step", "input": { "grid": ["...", ".#.", "...", "..."] }, "expected": 5 }
+  ]
+}

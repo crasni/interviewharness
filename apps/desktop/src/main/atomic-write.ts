@@ -11,7 +11,8 @@ export interface WriteOptions {
 
 /** Errors Windows gives while an antivirus or indexer briefly holds the file. They pass, so they're worth retrying. */
 const lockedCodes = new Set(['EPERM', 'EBUSY', 'EACCES']);
-const renameAttempts = 5;
+// Seven attempts wait about 3 s in all (50 ms doubling): long enough for a scan of a new file, short enough not to hold up a quit.
+const renameAttempts = 7;
 
 /** Writes to a temporary file, flushes it to disk, then renames it over the real one, so a crash never leaves half a file. */
 export async function writeFileAtomically(

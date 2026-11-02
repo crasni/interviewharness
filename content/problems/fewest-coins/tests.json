@@ -1,0 +1,12 @@
+{
+  "function": "fewest_coins",
+  "cases": [
+    { "id": "first-example", "description": "The first example: taking the biggest coin first isn't fewest", "input": { "coins": [1, 3, 4], "amount": 6 }, "expected": 2 },
+    { "id": "cannot-be-made", "description": "No mix of coins makes the amount", "input": { "coins": [2], "amount": 3 }, "expected": -1 },
+    { "id": "zero", "description": "An amount of 0 needs no coins", "input": { "coins": [1, 5, 10], "amount": 0 }, "expected": 0 },
+    { "id": "everyday-coins", "description": "Coins where taking the biggest first happens to work", "input": { "coins": [1, 5, 10, 25], "amount": 63 }, "expected": 6 },
+    { "id": "no-one-coin", "description": "No coin of 1: some amounts can't be made, others can", "input": { "coins": [5, 7], "amount": 24 }, "expected": 4 },
+    { "id": "unsorted-coins", "description": "Coins in no particular order", "input": { "coins": [9, 6, 5, 1], "amount": 11 }, "expected": 2 },
+    { "id": "one-coin-exactly", "description": "The amount is one of the coins", "input": { "coins": [3, 7, 11], "amount": 11 }, "expected": 1 }
+  ]
+}
