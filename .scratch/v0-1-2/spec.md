@@ -1,6 +1,6 @@
 # v0.1.2: ten problems
 
-Status: ready-for-agent
+Status: done (2026-11-02: tickets 01–14 done; the owner approved the nine drafts)
 
 Decisions: the owner's grilling on 2026-11-02 (in this spec), the v0.1.0 grilling's round 3 (`.scratch/v0-1-0/grilling.md`: the ten topics and the problem folder format) and AGENTS.md (content is CC BY 4.0, no LeetCode text).
 
@@ -145,5 +145,5 @@ Good tests here check what a candidate or contributor would see: a folder accept
 ## Further Notes
 
 - Branch: `release/v0.1.2`, started on top of `release/v0.1.1` while v0.1.1's PR waits for CI; main is merged in once v0.1.1 lands.
-- The spec stays open until the owner approves the nine drafts.
+- The owner approved the nine drafts on 2026-11-02.
 - "Problem" isn't in GLOSSARY.md yet; add it (one coding question, with its statement, interviewer notes, hint ladder, reference and tests).
