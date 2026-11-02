@@ -49,7 +49,7 @@ describe('a model on the ChatGPT plan', () => {
     expect(result).toEqual({ text: 'Yes, it can be empty.', usage: { inputTokens: 120, outputTokens: 7 } });
     expect(pieces.join('')).toBe('Yes, it can be empty.');
     expect(pieces.length).toBeGreaterThan(1);
-    expect(model.identity).toEqual({ provider: 'chatgpt', model: 'gpt-5-mini' });
+    expect(model.identity).toEqual({ provider: 'chatgpt', model: 'gpt-5-mini', effort: 'low' });
   });
 
   it("sends the plan's token, the prompt, and nothing the plan rejects", async () => {

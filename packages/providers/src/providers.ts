@@ -9,6 +9,8 @@ import {
   type Message,
   type Model as PiModel,
   type Models,
+  type ModelThinkingLevel,
+  getSupportedThinkingLevels,
   type ProviderAuth,
   type Tool,
   type ToolCall,
@@ -41,7 +43,15 @@ export interface ModelChoice {
   model: string;
   /** For a model on one of the candidate's servers: which server (its id). */
   server?: string;
+  /** How hard the model reasons before it answers, one of `effortLevels`; absent means `defaultEffort`. */
+  effort?: EffortLevel;
 }
+
+/** A reasoning effort, by the names pi-ai gives each provider's levels. */
+export type EffortLevel = Exclude<ModelThinkingLevel, 'off'>;
+
+/** The effort of a reasoning model nobody set one for: an interviewer reply needs little thought, and every second of it is silence in the room. */
+export const defaultEffort: EffortLevel = 'low';
 
 export { defaultChatGPTModel } from './defaults.ts';
 
@@ -334,6 +344,13 @@ export function createProviders(options: ProvidersOptions): Providers {
         .reverse();
     },
 
+    /** The reasoning efforts a model offers, by the provider's names; none for a model that doesn't reason or isn't known. */
+    effortLevels(choice: ModelChoice): EffortLevel[] {
+      const { provider } = choice;
+      if (provider === 'ollama') return [];
+      return levelsOf(provider === 'server' ? serverPiModel(choice) : piModelFor({ ...choice, provider }));
+    },
+
     /** A model the engine can use. Fails at request time, with a typed error, if it can't be reached. */
     model(choice: ModelChoice): Model {
       const { provider } = choice;
@@ -393,11 +410,19 @@ export interface Providers {
   listModels(provider: ProviderName, connection?: Connection): Promise<ModelListing[]>;
   model(choice: ModelChoice): Model;
   check(choice: ModelChoice, connection?: Connection, timeoutMs?: number): Promise<void>;
+  effortLevels(choice: ModelChoice): EffortLevel[];
   isSmall(choice: ModelChoice): Promise<boolean>;
 }
 
+/** The levels a pi-ai model reasons at, or none for one that doesn't. */
+function levelsOf(model: PiModel<Api> | undefined): EffortLevel[] {
+  return model?.reasoning ? getSupportedThinkingLevels(model).filter((level): level is EffortLevel => level !== 'off') : [];
+}
+
 function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice: ModelChoice, fetchFn: typeof fetch | undefined): Model {
-  const identity = { provider: choice.provider, model: choice.model };
+  const levels = levelsOf(lookUp());
+  const effort = levels.length ? (choice.effort && levels.includes(choice.effort) ? choice.effort : defaultEffort) : undefined;
+  const identity = { provider: choice.provider, model: choice.model, ...(effort ? { effort } : {}) };
 
   function find() {
     const model = lookUp();
@@ -417,20 +442,21 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
     if (!auth) throw new ModelError('auth', 'Not logged in');
     // A provider's error may quote the key it was sent (a saved one too); it goes no further than this.
     const unquoted = (message: string) => withoutSecret(message, auth.auth.apiKey);
-    const stream = models.stream(
+    // The simple stream maps the effort to each provider's own field (OpenAI's reasoning effort, Anthropic's thinking).
+    const stream = models.streamSimple(
       model,
       { systemPrompt: request.system, messages, tools: extra.tools },
       {
         signal: request.signal,
         // Reasoning tokens count as output, so a cap could leave a reasoning model with no words at all.
         maxTokens: model.reasoning ? undefined : request.maxOutputTokens,
-        // An interviewer reply needs little thought, and every second of it is silence in the room.
-        ...(model.reasoning ? { reasoningEffort: 'low' } : {}),
+        ...(effort ? { reasoning: effort } : {}),
+        // Forcing a tool is provider-specific: it passes through to the provider's own request.
         ...(extra.toolChoice ? { toolChoice: extra.toolChoice } : {}),
         // A failed reply falls back to an example line at once; retrying would only stretch the silence.
         maxRetries: 0,
         fetch: fetchFn,
-      } as Parameters<Models['stream']>[2],
+      } as Parameters<Models['streamSimple']>[2],
     );
     for await (const event of stream) {
       if (event.type === 'text_delta') onText?.(event.delta);

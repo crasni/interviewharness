@@ -38,6 +38,8 @@ export interface ModelUsage {
 export interface ModelIdentity {
   provider: string;
   model: string;
+  /** The reasoning effort it was asked for, for a model that reasons. */
+  effort?: string;
 }
 
 export interface TextResult {
