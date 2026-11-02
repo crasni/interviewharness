@@ -56,7 +56,7 @@ test("v0.0's settings in browser storage are carried into settings.json once, th
   // they're read once it has closed; a write that didn't reach the disk in time is made again. Each attempt writes
   // its own value: a late write from an earlier attempt can land and be cleared by the relaunch, leaving its text in
   // the files, which mustn't pass for this attempt's.
-  let theme = '';
+  let theme: string;
   for (let attempt = 1; ; attempt++) {
     theme = `neon${attempt}`;
     await window.evaluate((value) => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: value })), theme);
