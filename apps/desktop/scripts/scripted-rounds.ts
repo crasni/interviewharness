@@ -24,6 +24,9 @@ import { scriptedCandidates } from './scripted-candidates.ts';
  * `--effort` sets the model's reasoning effort for the run, one of the levels it offers; else the effort set on
  * it in the app's settings, else the app's default.
  *
+ * It runs inside Electron (scripted-rounds-app.mjs) so it can use the app's own saved logins and keys, decrypted with
+ * the app's safeStorage, and the app's install id: no sign-in when the app is signed in, and no new app on the plan.
+ *
  * The model: INTERVIEWHARNESS_MODEL if set, as provider/model (say chatgpt/gpt-5-mini), else the interviewer's
  * model from the app's settings, built the way the app builds it (packages/providers). A model the app can't
  * run, or none picked, stops the run with a message; it is never swapped for another. The app's saved logins
@@ -119,11 +122,14 @@ function judgeModel(interviewer: ModelChoice): ModelChoice {
  * so a new provider can't run here until it says how. A provider that takes an API key should read it from an
  * environment variable and stop with a clear message when it's missing; ChatGPT has no key, only a browser login.
  */
-const signIns: Record<ProviderName, (providers: Providers, choice: ModelChoice) => Promise<void>> = {
-  async chatgpt(providers) {
-    console.log('Sign in to ChatGPT in the browser (kept in memory for this run only).');
+const signIns: Record<ProviderName, (providers: Providers, choice: ModelChoice, installId: () => Promise<string>) => Promise<void>> = {
+  async chatgpt(providers, _choice, installId) {
+    // The app's own login, when it has one: the run asks for nothing.
+    if (await providers.isLoggedIn('chatgpt')) return;
+    console.log('Sign in to ChatGPT in the browser. The login is saved as the app saves it, so the next run needs none.');
     await providers.loginWithChatGPT({
-      deviceId: randomUUID(),
+      // The app's install id, so the plan sees the same app every time, not a new one per run.
+      deviceId: await installId(),
       openBrowser(url) {
         if (new URL(url).origin !== signInOrigin) throw new Error(`Refused to open ${new URL(url).origin}`);
         console.log(`If no browser opened, open this page: ${url}`);
@@ -152,6 +158,8 @@ const serverFormat = process.env.INTERVIEWHARNESS_SERVER_FORMAT === 'anthropic' 
 
 function savedKeyFromEnvironment(provider: KeyProviderName) {
   return async (providers: Providers) => {
+    // A key saved in the app is used as it is.
+    if (!apiKey && (await providers.isLoggedIn(provider))) return;
     if (!apiKey) throw new Error(`Set INTERVIEWHARNESS_API_KEY to your ${provider} API key (kept in memory for this run only).`);
     await providers.saveKey(provider, apiKey);
   };
@@ -179,7 +187,13 @@ function openInBrowser(url: string) {
   spawn(command, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
 }
 
-export async function main(argv: string[]) {
+/** The app's credential store, opened in Electron with the app's encryption: its logins, keys and install id. */
+export interface AppCredentials {
+  credentials: CredentialStore;
+  installId(): Promise<string>;
+}
+
+export async function main(argv: string[], app?: AppCredentials) {
   const { values } = parseArgs({ args: argv, options: { only: { type: 'string' }, out: { type: 'string' }, effort: { type: 'string' } } });
   const only = values.only?.split(',').map((name) => name.trim());
   const candidates = only ? scriptedCandidates.filter((c) => only.includes(c.name)) : scriptedCandidates;
@@ -195,7 +209,7 @@ export async function main(argv: string[]) {
   for (const effort of efforts) if (effort !== undefined && !isEffortLevel(effort)) throw new Error(`--effort ${effort} isn't a reasoning effort.`);
 
   const providers = createProviders({
-    credentials: memoryCredentials(),
+    credentials: app?.credentials ?? memoryCredentials(),
     appVersion: 'scripted-rounds',
     ...(process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS ? { ollamaAddress: () => process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS! } : {}),
     servers: () => (serverAddress && configured.server ? [{ id: configured.server, name: 'Server', address: serverAddress, format: serverFormat }] : []),
@@ -204,9 +218,10 @@ export async function main(argv: string[]) {
   for (const effort of efforts) {
     if (effort && !levels.includes(effort as EffortLevel)) throw new Error(`${configured.model} reasons at ${levels.join(', ') || 'no levels'}, not ${effort}.`);
   }
-  await signIns[configured.provider](providers, configured);
+  const installId = app?.installId ?? (async () => randomUUID());
+  await signIns[configured.provider](providers, configured, installId);
   const judgeChoice = judgeModel(configured);
-  if (judgeChoice.provider !== configured.provider) await signIns[judgeChoice.provider](providers, judgeChoice);
+  if (judgeChoice.provider !== configured.provider) await signIns[judgeChoice.provider](providers, judgeChoice, installId);
   const judge = providers.model(judgeChoice);
 
   let failedChecks = 0;
