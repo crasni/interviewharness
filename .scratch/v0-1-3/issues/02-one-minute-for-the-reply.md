@@ -6,8 +6,10 @@ Spec: `.scratch/v0-1-3/spec.md`
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Attempts and checks share one minute
-- [ ] Running out after a rejected attempt shows the say-it-again notice, not the safe line
-- [ ] The log says it timed out and how many attempts it made
+- [x] Attempts and checks share one minute
+- [x] Running out after a rejected attempt shows the say-it-again notice, not the safe line
+- [x] The log says it timed out and how many attempts it made
+
+Done: `replyRules.timeout` now runs from the reply's start (`Call.startedAt`); the per-step `stepAt` is gone. Rejections live on the call, so a timeout logs them too.

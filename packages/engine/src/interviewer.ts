@@ -27,7 +27,10 @@ import { type Clock, codingRoundMs, type LaterPhase, nextPhase, type Round } fro
 
 /** Timing rules for the interviewer's words, in milliseconds. */
 export const replyRules = {
-  /** A reply that takes longer than this is given up on, and the fallback line is said instead. */
+  /**
+   * A reply that takes longer than this in all, every attempt and check included, is given up on: a reply to their
+   * turn shows the notice, other replies say their fallback line.
+   */
   timeout: 60_000,
   /** A cap on a reply's length, so small models stay short and in role (the words, and what the model observed). */
   maxOutputTokens: 300,
@@ -396,9 +399,10 @@ function reviewedOnly(reply: Reply) {
 interface Call {
   id: number;
   reply: Reply;
+  /** When the reply began: its attempts and checks share the time limit from here. */
   startedAt: number;
-  /** When the model call now running began: the reply, then its check, each get the time limit. */
-  stepAt: number;
+  /** Why each attempt so far was thrown away, logged however the reply ends. */
+  rejected: Rejection[];
   controller: AbortController;
   /** The candidate's line it replies to, if any. */
   about: string | null;
@@ -500,7 +504,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (!call) return;
     pending = null;
     call.controller.abort();
-    logCall(call, outcome, error ? { error } : {});
+    logCall(call, outcome, { ...(error ? { error } : {}), ...(call.rejected.length ? { rejected: call.rejected } : {}) });
   }
 
   function handle(decision: Decision) {
@@ -578,7 +582,6 @@ export function createInterviewer(options: InterviewerOptions) {
       correction,
     });
     const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
-    call.stepAt = clock.now();
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
       const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake } = object;
@@ -622,7 +625,6 @@ export function createInterviewer(options: InterviewerOptions) {
    */
   async function checked(call: Call, written: Written): Promise<Written> {
     if (!risky(call, written)) return written;
-    call.stepAt = clock.now();
     call.during = 'check';
     const prompt = buildCheckPrompt({ problem: options.problem, transcript, code, words: written.words });
     const { object: check, usage } = await model!.generateObject({
@@ -699,7 +701,7 @@ export function createInterviewer(options: InterviewerOptions) {
    * from those two tries; only a turn that moves the round can cost that call.
    */
   async function compose(call: Call) {
-    const rejected: Rejection[] = [];
+    const { rejected } = call;
     for (let tries = 0; tries < 2; tries++) {
       // A barge-in or the time limit may have ended this reply while the last attempt was checked.
       if (call.controller.signal.aborted) throw new ModelError('aborted');
@@ -774,7 +776,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (!model || reviewedOnly(reply)) return sayFallback(fallbackSituation(reply), reply.kind === 'time-reminder' ? { minutes: reply.minutesLeft } : undefined);
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
-    const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
+    const call: Call = { id: ++calls, reply, startedAt: clock.now(), rejected: [], controller: new AbortController(), about };
     pending = call;
     compose(call).then(
       ({ written, rejected }) => {
@@ -840,7 +842,7 @@ export function createInterviewer(options: InterviewerOptions) {
       if (signal.type === 'editor-activity') declinedHelp = false;
       if (signal.type === 'round-end') abandon('aborted');
       handle(floor.onSignal(signal));
-      if (signal.type === 'tick' && pending && clock.now() - pending.stepAt >= replyRules.timeout) {
+      if (signal.type === 'tick' && pending && clock.now() - pending.startedAt >= replyRules.timeout) {
         const { reply } = pending;
         abandon('failed', 'timeout');
         fallBack(reply, 'timeout');

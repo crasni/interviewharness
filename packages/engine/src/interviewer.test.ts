@@ -305,6 +305,19 @@ describe('the interviewer', () => {
       ]);
     });
 
+    it('gives a rewrite only what is left of the minute, and shows the notice, not the safe line, when it runs out', async () => {
+      const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait', 'wait']);
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(30_000);
+      model.waiting[0]!.answer(answer('Yes. Think about what you have seen.', { hintLevel: 'nudge' }).object); // a hint nobody asked for
+      await settle();
+      wait(replyRules.timeout - 30_000 + 1_000);
+
+      expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout', reply: 'turn' });
+      expect(spoken()).toEqual([]);
+      expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'timeout', rejected: ['hint-unasked'] }]);
+    });
+
     it('waits for a slow model: a reply after 30 seconds is still said', async () => {
       const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait']);
       interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
@@ -1258,19 +1271,18 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(model.requests.map((r) => r.purpose)).toEqual(['interviewer-reply']);
   });
 
-  it('gets its own time limit, apart from the reply it checks', async () => {
-    const { interviewer, wait, spoken, model } = await afterIntro([reply('answer', 'Could you trace [5, 1, 5]?', { heard: 'done' })], ['wait']);
+  it('shares one minute with the reply it checks: running out mid-check shows the notice', async () => {
+    const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait'], ['wait']);
 
     interviewer.onSignal({ type: 'said', text: 'done coding' });
-    wait(1_000);
+    wait(40_000);
+    model.waiting[0]!.answer(reply('answer', 'Could you trace [5, 1, 5]?', { heard: 'done' }).object);
     await settle();
-    wait(replyRules.timeout - 500); // the check has waited nearly the limit; the whole reply has waited longer
+    wait(replyRules.timeout - 40_000 + 1_000); // the check has waited only 20 s, but the whole reply over a minute
+
+    expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout', reply: 'turn' });
     expect(spoken()).toEqual([]);
-
-    model.waiting[0]!.answer(verdict().object);
-    await settle();
-
-    expect(spoken()).toEqual(['Could you trace [5, 1, 5]?']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'timeout' }]);
   });
 });
 
