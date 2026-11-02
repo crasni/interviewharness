@@ -99,7 +99,7 @@ export const scriptedCandidates: ScriptedCandidate[] = [
   {
     name: 'fishing',
     about:
-      "Guesses at the approach to get it confirmed instead of reasoning it out or asking for a hint. A fishing guess counts as asking for help: it may get the next rung, counted as a hint taken, but never a yes or no on the idea and never more than one rung at a time.",
+      "Guesses at the approach to get it confirmed instead of reasoning it out or asking for a hint. A fishing guess counts as asking for help: it may get the next rung, counted as a hint taken, never more than one rung at a time. A guess at a sound plan of their own may get \"sounds reasonable\", which leaves them to find out if it works.",
     steps: [
       { say: 'Is the trick something with sorting first?' },
       { silentFor: 1 * minute },

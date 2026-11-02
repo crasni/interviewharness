@@ -1,6 +1,6 @@
 # v0.1.3: faster replies
 
-Status: open
+Status: done (2026-11-03: tickets 01–10 done; hint fix checked on gpt-6.1-sol, run `~/interviewharness-scripted-rounds/2026-11-02T18-46-25-947Z`)
 
 Grilled with the owner on 2026-11-02, after the fake-candidate run `~/interviewharness-scripted-rounds/2026-11-02T14-41-43-800Z` (`chatgpt/gpt-6.1-sol`, Two sum, five candidates). Builds on ADR 0017 (a reply is never faked), ADR 0019 (the check) and ADR 0021 (connections, your models). It comes before v0.2: with a voice, 15–20 s of silence after the candidate speaks feels broken.
 
