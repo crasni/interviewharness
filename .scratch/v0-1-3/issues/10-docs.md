@@ -6,4 +6,6 @@ Spec: `.scratch/v0-1-3/spec.md`
 
 **Blocked by:** 01–09
 
-**Status:** ready-for-agent
+**Status:** done
+
+Done: ADR 0022, STATUS.md, GLOSSARY (Reasoning effort; Reply check model under Check and Your models), and `.scratch/v0-1-3/later.md`.

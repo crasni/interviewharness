@@ -1,6 +1,6 @@
 # Status: where we left off
 
-_Last updated: 2026-11-02_
+_Last updated: 2026-11-03_
 
 ## Done
 - [x] Market and competitor research (`research/00-market.md`)
@@ -19,6 +19,8 @@ _Last updated: 2026-11-02_
 - [x] **v0.1.0: a real AI interviewer** (`.scratch/v0-1-0/`, tickets 01–12 all done, 2026-11-01): the model writes the interviewer's words while the Floor Manager decides when; graded Feedback with a fixed verdict table; settings.json and the InterviewHarness data folder. Models: Continue with ChatGPT, Ollama (native API), API keys for OpenAI, Anthropic, Google and OpenRouter, and an OpenAI-compatible server, each checked to answer before it's saved. CI runs on macOS, Windows and Linux. The model setup was redesigned from research (`docs/research/12`): three ways in on a full-height Start screen, Settings → Model with the app's own Picker. The editor gained switches for closing brackets, matching brackets, find and replace, and wrapping. Not yet tried with a real cloud key.
 - [x] **v0.1.1: connections** (`.scratch/v0-1-1/`, tickets 01–05 all done, plus `.scratch/slow-model/`, 2026-11-01): every way to bring a model is a connection in one list; Add opens a searchable list grouped by kind; key providers by name from one table (DeepSeek, Mistral, xAI, Groq and more); several named servers, each OpenAI- or Anthropic-compatible; Sign in with OpenRouter. The pickers list only your models, each checked to answer when added. Every check is logged with its provider and model, never a key. Slow models show "Thinking" with seconds and get a minute to reply, with no stock "okay" when a reply fails. Not yet tried with a real cloud key.
 - [x] **v0.1.2: ten problems** (`.scratch/v0-1-2/`, tickets 01–14 done, 2026-11-02; the owner read the nine drafts and found no obvious errors): Two sum plus Balanced brackets, Merge meeting times, Longest run with no repeated letter, Smallest truck size to ship in D days, Shortest path in a grid with walls, K closest stores, Recently-used cache, Course order and Fewest coins, one per common topic. Start coding round picks one at random; "Choose a problem" lists them by title and difficulty (never the topic) with how often each was done. Each round's log names its problem. tests.json can describe a class (the cache); CI runs every reference solution against its tests on all three OSes.
+- [x] **Failed replies** (`.scratch/failed-replies/`, 2026-11-02): a reply that fails says why in the log and tells the candidate to say it again; a quick failure isn't retried (ticket 04, closed after a run with no failure in 38 replies).
+- [ ] **v0.1.3: faster replies** (`.scratch/v0-1-3/`, ADR 0022, in progress on `release/v0.1.3`): a reply written once for the phase the turn moves to; one minute for the whole reply; a Reply check model; reasoning effort per model, in Settings and in the room. The fake-candidate suite is finished: a fishing candidate, code checks of each round's log that fail the run, reply times, and the Feedback model's notes on each transcript.
 - [x] **The mark** (ADR 0020, files in `brand/`): passing the floor, a solid dot, an open ring and the arc between them, optically centred; app icon tiles, a heavier cut for small sizes, PNG exports and the window icon. The wordmark is set in Newsreader; `.icns`/`.ico` come with packaging.
 
 ## Not done yet
@@ -26,11 +28,13 @@ _Last updated: 2026-11-02_
 - Domain is bought, but DNS, website and email aren't set up (next: Cloudflare Pages landing page, Email Routing for hello@).
 
 ## Next steps (in order)
-0. **Play a real round** on the new interviewer (ADR 0018, 0019), then build the **fake-candidate suite** (`.scratch/interviewer-check/grilling.md`, decision 9). It's run by hand against ChatGPT, never in CI. Ollama now works (ticket 08); the suite is run on one local model before that model is called safe.
-1. **v0.1.2:** the PR, once v0.1.1 has landed on main. A mode that prefers problems you haven't practised is on the later list (`.scratch/v0-1-2/later.md`).
-2. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open). The owner wants speech transcribed once they stop talking and put in all at once, not shown live (2026-10-30).
-3. **v0.3: the code runner.** Pyodide/QuickJS in a sandboxed worker (`docs/research/09`; its owner questions wait until then).
-4. **Setup chores:** DNS, a landing page on Cloudflare Pages, Email Routing for hello@; move the repo to the `interviewharness` org; create the npm scope.
+1. **v0.1.3:** the speed test sets the default efforts (ticket 06), docs (ticket 10), then the PR.
+2. **The suite on one Ollama model** before calling any local model safe, and **one real cloud API key** tried end to end (never done yet).
+3. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open), the speaking waveform (Q8). The owner wants speech transcribed once they stop talking and put in all at once, not shown live (2026-10-30). Code versions and delivery confirmation over IPC (`.scratch/interviewer-design/later.md`) matter once voice can cut speech off.
+4. **v0.3: the code runner.** Pyodide/QuickJS in a sandboxed worker (`docs/research/09`; its owner questions wait until then).
+5. **Setup chores:** DNS, a landing page on Cloudflare Pages, Email Routing for hello@; move the repo to the `interviewharness` org; create the npm scope.
+
+Waiting on the owner: whether "Want to walk through some test cases?" after "I'm done" is allowed (`.scratch/failed-replies/spec.md`, out of scope there).
 
 ## Open questions
 - Is SystemDesign.ai open source, and how good is it? (Check before v0.4.)

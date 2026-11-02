@@ -91,3 +91,10 @@ The fake-candidate suite (`pnpm scripted-rounds`) is also only half of what the 
 ## Further Notes
 
 - The run's numbers: intro 4.4–5.0 s; ordinary turns 5–8 s; done turns 9.6–11 s; done turns with a rewrite 16.4–17.7 s; a check-in once 25.2 s; a hint request with two rejections 19.3 s. No reply failed in 38.
+
+## Decided after the speed test (2026-11-03)
+
+- The default effort stays `low` (see ticket 06's table).
+- **An asked-for hint at its rung passes the check's solution verdict**: help asked for is part of the solution by design. Going past the rung, or quoting the reference code, is still rejected; unasked, a described solution still is.
+- **"Sounds reasonable" to a fishing guess is fine**: it hands the guess back so they find out whether it works. Not counted as a hint.
+- **Offering the next phase after "I'm done"** ("Want to walk through some test cases?") is allowed; grading still notes they didn't test on their own.
