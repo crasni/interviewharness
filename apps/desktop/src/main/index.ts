@@ -242,6 +242,7 @@ app.on('will-quit', (event) => {
   event.preventDefault();
   readyToQuit = true;
   endCurrentRound();
-  // The last change may still be on its way to disk.
-  void settings.flush().finally(() => app.quit());
+  // The last change may still be on its way to disk. Waiting starts on the next turn of the event loop:
+  // Electron emits will-quit without running promise callbacks afterwards, so an idle app would wait forever.
+  setImmediate(() => void settings.flush().finally(() => app.quit()));
 });
