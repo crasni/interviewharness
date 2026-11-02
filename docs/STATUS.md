@@ -28,8 +28,8 @@ _Last updated: 2026-11-03_
 - Domain is bought, but DNS, website and email aren't set up (next: Cloudflare Pages landing page, Email Routing for hello@).
 
 ## Next steps (in order)
-1. **v0.1.3:** the PR (every ticket done; full end-to-end suite green on Linux).
-2. **The suite on one Ollama model** before calling any local model safe, and **one real cloud API key** tried end to end (never done yet).
+1. **v0.1.3:** PR #14 open; merge once both CI runs are green on all three OSes.
+2. **The suite on one Ollama model** before calling any local model safe. A real cloud key was tried end to end on 2026-11-03: OpenRouter's free `nvidia/nemotron-3.5-lightning:free`, the app's saved key, no sign-in. The interviewer behaved (no unasked help, a real nudge when asked), but the free model is slow (median 17.8 s a turn, up to 56 s) and rate-limited three calls; not one to recommend.
 3. **v0.2: the mic.** Silero VAD, local STT/TTS, speech detection as a talk mode, the AI floor classifier, the REC mark and its colour (Q6, still open), the speaking waveform (Q8). The owner wants speech transcribed once they stop talking and put in all at once, not shown live (2026-10-30). Code versions and delivery confirmation over IPC (`.scratch/interviewer-design/later.md`) matter once voice can cut speech off.
 4. **v0.3: the code runner.** Pyodide/QuickJS in a sandboxed worker (`docs/research/09`; its owner questions wait until then).
 5. **Setup chores:** DNS, a landing page on Cloudflare Pages, Email Routing for hello@; move the repo to the `interviewharness` org; create the npm scope.
