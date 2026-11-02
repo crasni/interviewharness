@@ -75,3 +75,17 @@ test('with no model picked yet, there is no problem to choose', async () => {
 
   await closeApp(app);
 });
+
+test('a long problem shows its code blocks whole, never squeezed into a scroll', async () => {
+  const { app, window } = await launchApp();
+
+  await window.getByRole('button', { name: 'Choose a problem' }).click();
+  await problemList(window).getByRole('button', { name: /^Balanced brackets/ }).click();
+
+  const blocks = window.getByRole('region', { name: 'Problem' }).locator('pre');
+  await expect(blocks.first()).toBeVisible();
+  const clipped = await blocks.evaluateAll((pres) => pres.filter((pre) => pre.scrollHeight > pre.clientHeight).length);
+  expect(clipped).toBe(0);
+
+  await closeApp(app);
+});
