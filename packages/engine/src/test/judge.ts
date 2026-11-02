@@ -19,7 +19,9 @@ const judgeSchema: ObjectSchema<{ notes: string[] }> = {
 
 const judgeRules = `You read the transcript of a mock coding interview played by a scripted candidate, whose lines are fixed and don't react to the interviewer. Judge only the interviewer.
 
-Note each place where the interviewer did what the list below warns about, as one short line starting with its time ("03:12 named the bug before they asked"). Note nothing that was fine; an empty list is a good round. Don't grade the candidate.`;
+Note each place where the interviewer did what the list below warns about, as one short line starting with its time ("03:12 named the bug before they asked"). Note nothing that was fine; an empty list is a good round. Don't grade the candidate.
+
+What the interviewer is meant to do, so never a note: a neutral check-in after a long silence; after "I'm done", offering the next phase (testing, complexity) or asking the problem's follow-up questions one at a time; "sounds reasonable" to a direction that's sound, which leaves them to find out if it works; one probe of a wrong answer; a hint at the next rung when they ask for help or fish for the answer. The notes in [brackets] are the app's: rejected attempts there were never said, so judge only the lines that were.`;
 
 /**
  * Has a model read one played round's transcript and note where the interviewer went wrong, for the owner to

@@ -680,7 +680,9 @@ export function createInterviewer(options: InterviewerOptions) {
     if (asks === 'probe' && written.heard && midWork.includes(written.heard)) return 'probe-mid-work';
     // The round closes the way a real one does: they're asked once for their questions before any goodbye.
     if (written.kind === 'goodbye' && !askedForQuestions && !saidGoodbye) return 'goodbye-too-soon';
-    if (written.check?.describesSolution) return 'solution-leak';
+    // An asked-for hint is part of the solution by design: within its rung (checked above), it's the help they asked for.
+    // Unasked, or as the reference code itself, it's a leak.
+    if (written.check?.describesSolution && !(written.mayHint && level !== 'none')) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
   }
 

@@ -1250,6 +1250,21 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(modelCalls()).toMatchObject([{ rejected: ['solution-leak'] }]);
   });
 
+  it('lets an asked-for hint at the next rung through, though it touches the solution: that is the help asked for', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro(
+      [answer('Think about what you have already seen as you go.', { ...help, hintLevel: 'nudge' })],
+      [verdict({ hintLevel: 'nudge', describesSolution: true })],
+    );
+
+    interviewer.onSignal({ type: 'said', text: 'Could you give me a small hint toward something faster?' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Think about what you have already seen as you go.']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'spoken', hint: { askedForHelp: true, level: 'nudge' } }]);
+    expect(modelCalls()[0]).not.toHaveProperty('rejected');
+  });
+
   it('rejects a later check-in that names their mistake, though it claims to give no hint', async () => {
     const { wait, spoken, modelCalls, model, interviewer } = await afterIntro(
       [
