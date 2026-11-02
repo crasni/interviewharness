@@ -145,6 +145,11 @@ export function formatPlayedRound({ candidate, model, record, log }: PlayedRound
   for (const entry of log) {
     if ('modelCall' in entry) {
       out.push(`       [${modelCallNote(entry.modelCall)}]`);
+      // A failed reply to their turn says nothing; the room's notice is what they got (saying it again won't fix a login or a stop).
+      const { outcome, reply, error } = entry.modelCall;
+      if (outcome === 'failed' && reply === 'turn') {
+        out.push(`       [nothing said; the room told the candidate the model failed${error === 'auth' || error === 'aborted' ? '' : ' and to say it again'}]`);
+      }
       continue;
     }
     if (!('signal' in entry)) continue;
@@ -167,6 +172,7 @@ function modelCallNote(call: ModelCallEntry['modelCall']) {
   if (call.observed?.movesTo && call.observed.movesTo !== 'stays') parts.push(`moves to ${call.observed.movesTo}`);
   if (call.rejected?.length) parts.push(`rejected: ${call.rejected.join(', ')}`);
   if (call.error) parts.push(`error: ${call.error}`);
+  if (call.reason) parts.push(`reason: ${call.reason}`);
   return parts.join('; ');
 }
 

@@ -16,6 +16,7 @@ import {
   type ModelIdentity,
   type ModelUsage,
   modelErrorKind,
+  modelErrorReason,
   type ObjectSchema,
 } from './model.ts';
 import type { HintLadder, Problem } from './problem.ts';
@@ -302,6 +303,8 @@ export interface ModelCallEntry {
      */
     outcome: 'spoken' | 'failed' | 'replaced' | 'aborted' | 'late-reply-dropped' | 'quiet-after-goodbye';
     error?: ModelErrorKind;
+    /** For a failed call: why, in the error's own words, cut short (never a key or a prompt). */
+    reason?: string;
     usage?: ModelUsage;
     /** For a reply to a turn: what the model heard the candidate doing, and the kind of reply it chose. */
     heard?: CandidateTurn;
@@ -336,7 +339,8 @@ export interface RoundLog {
 /** What the room is told: every decision worth showing, and a notice when the model let the interviewer down. */
 export type InterviewerEvent =
   | Exclude<Decision, { kind: 'silent' }>
-  | { kind: 'model-failed'; error: ModelErrorKind };
+  /** `reply` is what failed: for a turn, nothing was said and the candidate may say it again. */
+  | { kind: 'model-failed'; error: ModelErrorKind; reply: Reply['kind'] };
 
 export interface InterviewerOptions {
   clock: Clock;
@@ -517,7 +521,7 @@ export function createInterviewer(options: InterviewerOptions) {
   }
 
   function fallBack(reply: Reply, error: ModelErrorKind) {
-    onEvent({ kind: 'model-failed', error });
+    onEvent({ kind: 'model-failed', error, reply: reply.kind });
     // A stock "okay" to a question would pretend it was heard: a reply to their turn is never faked, and the room says why.
     if (reply.kind === 'turn') return handle(floor.onSignal({ type: 'no-words' }));
     sayFallback(fallbackSituation(reply));
@@ -806,7 +810,8 @@ export function createInterviewer(options: InterviewerOptions) {
         if (pending !== call) return; // aborted or timed out already, and logged then
         pending = null;
         const kind = modelErrorKind(error);
-        logCall(call, 'failed', { error: kind });
+        const reason = modelErrorReason(error);
+        logCall(call, 'failed', { error: kind, ...(reason ? { reason } : {}) });
         fallBack(reply, kind);
       },
     );
