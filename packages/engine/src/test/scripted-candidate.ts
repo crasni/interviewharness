@@ -141,6 +141,7 @@ export async function playCandidate({ candidate, model, problem, lines, toneGuid
 }
 
 /** A played round as text to read: who and which model, then each line with its round time, and notes on the model calls behind them. */
+export { judgeTranscript } from './judge.ts';
 export { checkRound, type ReplyTimes, replyTimes, type RoundFailure } from './round-checks.ts';
 
 export function formatPlayedRound({ candidate, model, record, log }: PlayedRound): string {

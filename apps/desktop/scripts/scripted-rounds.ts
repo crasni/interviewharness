@@ -6,7 +6,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLineBook, readProblem } from '@interviewharness/engine';
-import { checkRound, formatPlayedRound, playCandidate, type ReplyTimes, replyTimes, type RoundFailure } from '@interviewharness/engine/scripted-candidate';
+import { checkRound, formatPlayedRound, judgeTranscript, playCandidate, type ReplyTimes, replyTimes, type RoundFailure } from '@interviewharness/engine/scripted-candidate';
 import { type Credential, type CredentialStore, createProviders, type KeyProviderName, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import { type EffortLevel, isEffortLevel, modelKey, validSettings } from '../src/shared/settings.ts';
 import { scriptedCandidates } from './scripted-candidates.ts';
@@ -19,6 +19,8 @@ import { scriptedCandidates } from './scripted-candidates.ts';
  *
  * Each round's log is checked in code (no hint unasked, no phase moved but by the candidate, no failed reply);
  * the run exits non-zero when a check fails. index.md lists the failures and how long replies took.
+ * After the rounds, a model reads each transcript and notes where the interviewer went wrong, into index.md: the
+ * Feedback model from the app's settings, or INTERVIEWHARNESS_JUDGE (provider/model). Its notes never fail the run.
  * `--effort` sets the model's reasoning effort for the run, one of the levels it offers; else the effort set on
  * it in the app's settings, else the app's default.
  *
@@ -94,6 +96,22 @@ function configuredModel(): ModelChoice {
     throw new Error(`No interviewer model is picked in ${settingsPath}. Pick one in the app (Settings → Model), or set INTERVIEWHARNESS_MODEL=provider/model.`);
   }
   return checkedChoice(raw, settingsPath);
+}
+
+/** The model that judges the transcripts: INTERVIEWHARNESS_JUDGE, else the app's Feedback model, else the interviewer's. */
+function judgeModel(interviewer: ModelChoice): ModelChoice {
+  const fromEnv = process.env.INTERVIEWHARNESS_JUDGE;
+  if (fromEnv) {
+    const slash = fromEnv.indexOf('/');
+    if (slash < 0) throw new Error(`INTERVIEWHARNESS_JUDGE is "${fromEnv}"; write it as provider/model.`);
+    return checkedChoice({ provider: fromEnv.slice(0, slash), model: fromEnv.slice(slash + 1) }, 'INTERVIEWHARNESS_JUDGE');
+  }
+  const settingsPath = join(appDataFolder(), 'settings.json');
+  const file: unknown = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {};
+  const picked = validSettings(file).feedbackModel;
+  if (!picked) return interviewer;
+  const effort = validSettings(file).yourModels?.find((yours) => modelKey(yours) === modelKey(picked))?.effort;
+  return effort ? { ...picked, effort } : picked;
 }
 
 /**
@@ -188,11 +206,15 @@ export async function main(argv: string[]) {
   const named = `${choice.provider} / ${choice.model}${model.identity.effort ? `, effort ${model.identity.effort}` : ''}`;
   console.log(`Model: ${named}.`);
   await signIns[choice.provider](providers, choice);
+  const judgeChoice = judgeModel(configured);
+  if (judgeChoice.provider !== choice.provider) await signIns[judgeChoice.provider](providers, judgeChoice);
+  const judge = providers.model(judgeChoice);
 
   mkdirSync(out, { recursive: true });
   const index = [`# Scripted rounds, ${stamp}`, '', `Model: ${named}`, '', whatToLookFor, '', '## Rounds', ''];
   const failed: { candidate: string; failure: RoundFailure }[] = [];
   const times: { candidate: string; times: ReplyTimes[] }[] = [];
+  const transcripts: { candidate: (typeof candidates)[number]; transcript: string }[] = [];
   for (const candidate of candidates) {
     console.log(`Playing ${candidate.name}...`);
     const startedAt = Date.now();
@@ -201,6 +223,7 @@ export async function main(argv: string[]) {
     writeFileSync(join(out, `${candidate.name}.md`), formatPlayedRound(played));
     writeFileSync(join(out, `${candidate.name}.json`), `${JSON.stringify(played, null, 2)}\n`);
     const seconds = Math.round((Date.now() - startedAt) / 1000);
+    transcripts.push({ candidate, transcript: formatPlayedRound(played) });
     const failures = checkRound(played.log);
     failed.push(...failures.map((failure) => ({ candidate: candidate.name, failure })));
     times.push({ candidate: candidate.name, times: replyTimes(played.log) });
@@ -209,6 +232,13 @@ export async function main(argv: string[]) {
   index.push('', '## Checks', '', ...(failed.length ? failed.map(({ candidate, failure }) => `- ${candidate} at ${clock(failure.at)}: ${failure.check}, ${failure.detail}`) : ['All passed.']));
   index.push('', '## Reply times', '', '| Round | Reply | Count | Median | Slowest |', '| --- | --- | --- | --- | --- |');
   for (const round of times) for (const t of round.times) index.push(`| ${round.candidate} | ${t.kind} | ${t.count} | ${seconds(t.medianMs)} | ${seconds(t.slowestMs)} |`);
+  console.log(`Judging the transcripts with ${judgeChoice.provider} / ${judgeChoice.model}...`);
+  index.push('', `## The judge's notes (${judgeChoice.provider} / ${judgeChoice.model}; read them, they never fail the run)`);
+  for (const { candidate, transcript } of transcripts) {
+    const judged = await judgeTranscript({ model: judge, transcript, about: candidate.about, whatToLookFor });
+    const notes = 'failed' in judged ? [`The judge failed: ${judged.failed}.`] : judged.notes.length ? judged.notes : ['Nothing to note.'];
+    index.push('', `### ${candidate.name}`, '', ...notes.map((note) => `- ${note}`));
+  }
   writeFileSync(join(out, 'index.md'), `${index.join('\n')}\n`);
   console.log(`\nSaved to ${out}\n\n${whatToLookFor}`);
   console.log(failed.length ? `\n${failed.length} check${failed.length === 1 ? '' : 's'} failed; see index.md.` : '\nEvery check passed.');

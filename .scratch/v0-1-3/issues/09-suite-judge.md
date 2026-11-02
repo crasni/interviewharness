@@ -6,7 +6,9 @@ Spec: `.scratch/v0-1-3/spec.md`
 
 **Blocked by:** 08
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Judge prompt and call, tested with the fake model
-- [ ] Notes per round in index.md; a judge that fails leaves a line saying so, and the run's result unchanged
+- [x] Judge prompt and call, tested with the fake model
+- [x] Notes per round in index.md; a judge that fails leaves a line saying so, and the run's result unchanged
+
+Done: `judgeTranscript` (engine `test/judge.ts`, purpose `transcript-judge`). The script judges every transcript after the rounds with INTERVIEWHARNESS_JUDGE, else the Feedback model (with its effort), else the interviewer's, and writes the notes under "The judge's notes" in index.md.
