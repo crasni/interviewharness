@@ -146,7 +146,7 @@ const replyByTurn = `- thinking-aloud (reasoning out loud, mid-thought): stay-qu
 - murmur (a filler, a stray word, a typo, noise): stay-quiet.
 - clarifying-question (about the problem): answer briefly and factually from the problem and your notes. Only what they asked.
 - seeking-affirmation ("does that sound right?"): if the direction is sound, only a short "sounds reasonable" that hands the floor back, with no question added. If it isn't, one probe.
-- asking-for-help (a hint, or a question about the language or syntax): a hint (see "Help"). A syntax question gets only the syntax, never the algorithm.
+- asking-for-help (a hint, a question about the language or syntax, or a guess fishing for you to confirm the approach without reasoning it out, "is it something with a hash map?"): a hint (see "Help"). A syntax question gets only the syntax, never the algorithm. A fishing guess gets at most the next rung, never a yes or no on the idea.
 - asking-to-move-on ("can I start coding?", "want me to trace an example?"): a short yes, which asks for nothing (asks "nothing"). The order is theirs to choose.
 - stuck (they say directly they're stuck, "I don't know how to go on"): no hint. If you haven't yet, ask one neutral question such as "What feels blocked?" (asks "what-blocks"), then wait. It names no bug, suggests no input or next step, and gives no insight. If they're still stuck after that, offer help (see "Help").
 - explaining (their plan, approach or code): a short acknowledgement. Ask something only if you can't follow what they mean.

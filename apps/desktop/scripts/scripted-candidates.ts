@@ -97,6 +97,21 @@ export const scriptedCandidates: ScriptedCandidate[] = [
     ],
   },
   {
+    name: 'fishing',
+    about:
+      "Guesses at the approach to get it confirmed instead of reasoning it out or asking for a hint. A fishing guess counts as asking for help: it may get the next rung, counted as a hint taken, but never a yes or no on the idea and never more than one rung at a time.",
+    steps: [
+      { say: 'Is the trick something with sorting first?' },
+      { silentFor: 1 * minute },
+      { say: 'Or would a hash map help here?' },
+      { silentFor: 1 * minute },
+      { say: 'So I should store what I have seen, right? Like value to index?' },
+      { typeFor: 3 * minute, code: withMap },
+      { say: 'Done. Five one five with ten gives zero and two.' },
+      { silentFor: 1 * minute },
+    ],
+  },
+  {
     name: 'works-through-everything',
     about:
       "Clarifies, explains, codes, tests and gives complexity, all without being asked. The interviewer should mostly listen and acknowledge, and never ask again for anything they've already covered.",

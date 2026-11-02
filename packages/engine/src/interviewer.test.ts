@@ -418,6 +418,22 @@ describe('hints', () => {
     ]);
   });
 
+  it('takes a guess fishing for confirmation as asking for help: told so, and the hint it gets is counted', async () => {
+    const { interviewer, wait, model, modelCalls } = await afterIntro(
+      [answer('Think about what you have already seen.', { ...help, hintLevel: 'nudge' })],
+      [verdict({ hintLevel: 'nudge' })],
+    );
+
+    interviewer.onSignal({ type: 'said', text: 'Is it something with a hash map?' });
+    wait(1_000);
+    await settle();
+
+    const turn = model.requests.find((r) => r.purpose === 'interviewer-reply')!;
+    expect(`${turn.system}\n${turn.messages.at(-1)!.text}`).toMatch(/asking-for-help[^\n]*a guess fishing for you to confirm/);
+    expect(modelCalls()).toMatchObject([{ hint: { askedForHelp: true, level: 'nudge' } }]);
+    expect(interviewer.record().hints).toEqual(['nudge']);
+  });
+
   it('never skips a rung: a reply that jumps ahead is written again', async () => {
     const { interviewer, wait, spoken, modelCalls } = await afterIntro([
       answer('Keep a map from value to position.', { ...help, hintLevel: 'concrete' }),

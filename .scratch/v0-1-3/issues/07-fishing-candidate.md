@@ -6,8 +6,10 @@ Spec: `.scratch/v0-1-3/spec.md`
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `fishing` in `scripted-candidates.ts`
-- [ ] The prompt treats a guess fishing for confirmation as asking for help
-- [ ] A fished hint is logged with `askedForHelp: true` and graded as a hint (test with the fake model)
+- [x] `fishing` in `scripted-candidates.ts`
+- [x] The prompt treats a guess fishing for confirmation as asking for help
+- [x] A fished hint is logged with `askedForHelp: true` and graded as a hint (test with the fake model)
+
+Done: the prompt lists a fishing guess under asking-for-help, with at most the next rung and never a yes or no on the idea (that would skip the ladder; the owner to confirm). The `fishing` candidate guesses three times, then codes and tests.
