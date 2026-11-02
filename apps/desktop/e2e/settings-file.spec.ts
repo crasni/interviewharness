@@ -53,15 +53,19 @@ test('settings are kept in settings.json in the data folder, and survive a resta
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
   // As v0.0 left things: settings only in browser storage, no settings.json.
   // Chromium writes browser storage to disk lazily and, on Windows, keeps the files locked while the app runs, so
-  // they're read once it has closed; a write that didn't reach the disk in time is made again.
+  // they're read once it has closed; a write that didn't reach the disk in time is made again. Each attempt writes
+  // its own value: a late write from an earlier attempt can land and be cleared by the relaunch, leaving its text in
+  // the files, which mustn't pass for this attempt's.
+  let theme = '';
   for (let attempt = 1; ; attempt++) {
-    await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
+    theme = `neon${attempt}`;
+    await window.evaluate((value) => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: value })), theme);
     await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
     await closeApp(app);
-    if (storedOnDisk('neon') || attempt === 3) break;
+    if (storedOnDisk(theme) || attempt === 3) break;
     ({ app, window } = await launchApp({ dataDir }));
   }
-  expect(storedOnDisk('neon')).toBe(true);
+  expect(storedOnDisk(theme)).toBe(true);
   rmSync(join(dataDir, 'settings.json'));
   ({ app, window } = await launchApp({ dataDir }));
 
