@@ -6,7 +6,8 @@ import { runnerImport } from 'vite';
 
 const { module } = await runnerImport(fileURLToPath(new URL('./scripted-rounds.ts', import.meta.url)));
 try {
-  await module.main(process.argv.slice(2));
+  // A failed check fails the run, so a script or a person can tell at a glance.
+  if (await module.main(process.argv.slice(2))) process.exit(1);
 } catch (error) {
   // A setup problem (no model picked, one the app can't run) reads best as its message alone.
   console.error(error instanceof Error ? error.message : error);

@@ -6,16 +6,21 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLineBook, readProblem } from '@interviewharness/engine';
-import { formatPlayedRound, playCandidate } from '@interviewharness/engine/scripted-candidate';
+import { checkRound, formatPlayedRound, playCandidate, type ReplyTimes, replyTimes, type RoundFailure } from '@interviewharness/engine/scripted-candidate';
 import { type Credential, type CredentialStore, createProviders, type KeyProviderName, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
-import { validSettings } from '../src/shared/settings.ts';
+import { type EffortLevel, isEffortLevel, modelKey, validSettings } from '../src/shared/settings.ts';
 import { scriptedCandidates } from './scripted-candidates.ts';
 
 /**
  * Plays the scripted candidates through whole rounds of Two sum on a real model, and saves each transcript
  * to read. Run by hand, never in CI or `pnpm test`: it signs in, calls the model and takes several minutes.
  *
- *   pnpm scripted-rounds [--only silent,finishes-early] [--out <folder>]
+ *   pnpm scripted-rounds [--only silent,finishes-early] [--out <folder>] [--effort low]
+ *
+ * Each round's log is checked in code (no hint unasked, no phase moved but by the candidate, no failed reply);
+ * the run exits non-zero when a check fails. index.md lists the failures and how long replies took.
+ * `--effort` sets the model's reasoning effort for the run, one of the levels it offers; else the effort set on
+ * it in the app's settings, else the app's default.
  *
  * The model: INTERVIEWHARNESS_MODEL if set, as provider/model (say chatgpt/gpt-5-mini), else the interviewer's
  * model from the app's settings, built the way the app builds it (packages/providers). A model the app can't
@@ -76,7 +81,12 @@ function configuredModel(): ModelChoice {
   const settingsPath = join(appDataFolder(), 'settings.json');
   let raw: unknown;
   try {
-    raw = existsSync(settingsPath) ? (JSON.parse(readFileSync(settingsPath, 'utf8')) as { interviewerModel?: unknown }).interviewerModel : undefined;
+    const file: unknown = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {};
+    raw = (file as { interviewerModel?: unknown }).interviewerModel;
+    // The effort set on it in the app, as the app would send it.
+    const picked = validSettings({ interviewerModel: raw }).interviewerModel;
+    const effort = picked ? validSettings(file).yourModels?.find((yours) => modelKey(yours) === modelKey(picked))?.effort : undefined;
+    if (picked && effort) raw = { ...picked, effort };
   } catch (error) {
     throw new Error(`Couldn't read ${settingsPath}: ${String(error)}. Set INTERVIEWHARNESS_MODEL=provider/model instead.`, { cause: error });
   }
@@ -152,7 +162,7 @@ function openInBrowser(url: string) {
 }
 
 export async function main(argv: string[]) {
-  const { values } = parseArgs({ args: argv, options: { only: { type: 'string' }, out: { type: 'string' } } });
+  const { values } = parseArgs({ args: argv, options: { only: { type: 'string' }, out: { type: 'string' }, effort: { type: 'string' } } });
   const only = values.only?.split(',').map((name) => name.trim());
   const candidates = only ? scriptedCandidates.filter((c) => only.includes(c.name)) : scriptedCandidates;
   if (!candidates.length) throw new Error(`No scripted candidate named ${values.only}. There are: ${scriptedCandidates.map((c) => c.name).join(', ')}`);
@@ -161,7 +171,10 @@ export async function main(argv: string[]) {
   const out = values.out ?? join(homedir(), 'interviewharness-scripted-rounds', stamp);
   const linesFile = readFileSync(join(repoRoot, 'content', 'interviewer', 'lines.md'), 'utf8');
   const problem = readProblem('two-sum', readFolder(join(repoRoot, 'content', 'problems', 'two-sum')));
-  const choice = configuredModel();
+  const configured = configuredModel();
+  const effort = values.effort;
+  if (effort !== undefined && !isEffortLevel(effort)) throw new Error(`--effort ${effort} isn't a reasoning effort.`);
+  const choice: ModelChoice = effort ? { ...configured, effort: effort as EffortLevel } : configured;
 
   const providers = createProviders({
     credentials: memoryCredentials(),
@@ -169,12 +182,17 @@ export async function main(argv: string[]) {
     ...(process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS ? { ollamaAddress: () => process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS! } : {}),
     servers: () => (serverAddress && choice.server ? [{ id: choice.server, name: 'Server', address: serverAddress, format: serverFormat }] : []),
   });
-  console.log(`Model: ${choice.provider} / ${choice.model}.`);
-  await signIns[choice.provider](providers, choice);
+  const levels = providers.effortLevels(choice);
+  if (effort && !levels.includes(effort as EffortLevel)) throw new Error(`${choice.model} reasons at ${levels.join(', ') || 'no levels'}, not ${effort}.`);
   const model = providers.model(choice);
+  const named = `${choice.provider} / ${choice.model}${model.identity.effort ? `, effort ${model.identity.effort}` : ''}`;
+  console.log(`Model: ${named}.`);
+  await signIns[choice.provider](providers, choice);
 
   mkdirSync(out, { recursive: true });
-  const index = [`# Scripted rounds, ${stamp}`, '', `Model: ${choice.provider} / ${choice.model}`, '', whatToLookFor, '', '## Rounds', ''];
+  const index = [`# Scripted rounds, ${stamp}`, '', `Model: ${named}`, '', whatToLookFor, '', '## Rounds', ''];
+  const failed: { candidate: string; failure: RoundFailure }[] = [];
+  const times: { candidate: string; times: ReplyTimes[] }[] = [];
   for (const candidate of candidates) {
     console.log(`Playing ${candidate.name}...`);
     const startedAt = Date.now();
@@ -183,8 +201,24 @@ export async function main(argv: string[]) {
     writeFileSync(join(out, `${candidate.name}.md`), formatPlayedRound(played));
     writeFileSync(join(out, `${candidate.name}.json`), `${JSON.stringify(played, null, 2)}\n`);
     const seconds = Math.round((Date.now() - startedAt) / 1000);
-    index.push(`- [${candidate.name}](${candidate.name}.md): ${candidate.about} (${seconds} s to play)`);
+    const failures = checkRound(played.log);
+    failed.push(...failures.map((failure) => ({ candidate: candidate.name, failure })));
+    times.push({ candidate: candidate.name, times: replyTimes(played.log) });
+    index.push(`- [${candidate.name}](${candidate.name}.md): ${candidate.about} (${seconds} s to play${failures.length ? `; **${failures.length} failed**` : ''})`);
   }
+  index.push('', '## Checks', '', ...(failed.length ? failed.map(({ candidate, failure }) => `- ${candidate} at ${clock(failure.at)}: ${failure.check}, ${failure.detail}`) : ['All passed.']));
+  index.push('', '## Reply times', '', '| Round | Reply | Count | Median | Slowest |', '| --- | --- | --- | --- | --- |');
+  for (const round of times) for (const t of round.times) index.push(`| ${round.candidate} | ${t.kind} | ${t.count} | ${seconds(t.medianMs)} | ${seconds(t.slowestMs)} |`);
   writeFileSync(join(out, 'index.md'), `${index.join('\n')}\n`);
   console.log(`\nSaved to ${out}\n\n${whatToLookFor}`);
+  console.log(failed.length ? `\n${failed.length} check${failed.length === 1 ? '' : 's'} failed; see index.md.` : '\nEvery check passed.');
+  return failed.length;
+}
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+
+/** A round time as mm:ss, as the transcripts show it. */
+function clock(ms: number) {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }

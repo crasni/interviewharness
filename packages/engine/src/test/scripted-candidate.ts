@@ -141,6 +141,8 @@ export async function playCandidate({ candidate, model, problem, lines, toneGuid
 }
 
 /** A played round as text to read: who and which model, then each line with its round time, and notes on the model calls behind them. */
+export { checkRound, type ReplyTimes, replyTimes, type RoundFailure } from './round-checks.ts';
+
 export function formatPlayedRound({ candidate, model, record, log }: PlayedRound): string {
   const out = [`# ${candidate.name}`, '', candidate.about, '', `Model: ${model.provider} / ${model.model}`, `Round time: ${clockTime(record.elapsedMs)}`, ''];
   for (const entry of log) {
