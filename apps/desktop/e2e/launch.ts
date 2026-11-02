@@ -18,6 +18,9 @@ export const stopTalkingButton = (window: Page) => window.getByRole('button', { 
  *   so a real Ollama on the machine running the tests is never found.
  * - `seed`: puts files in a new data folder before the app starts (saved rounds, say).
  */
+/** What each app's main process printed (on CI only), attached to a failed test. */
+const mainOutput = new WeakMap<ElectronApplication, string[]>();
+
 export async function launchApp({
   dataDir,
   model,
@@ -46,8 +49,15 @@ export async function launchApp({
     // No emulated colour scheme: Playwright's default (light) would hide the theme the app sets itself.
     colorScheme: null,
   });
-  // On CI, record a trace so a failure on an OS nobody has at hand can still be looked into.
-  if (process.env.CI) await app.context().tracing.start({ screenshots: true, snapshots: true });
+  // On CI, record a trace and keep the main process's output, so a failure on an OS nobody has at hand can
+  // still be looked into.
+  if (process.env.CI) {
+    const output: string[] = [];
+    mainOutput.set(app, output);
+    app.process().stdout?.on('data', (data) => output.push(String(data)));
+    app.process().stderr?.on('data', (data) => output.push(String(data)));
+    await app.context().tracing.start({ screenshots: true, snapshots: true });
+  }
   const window = await app.firstWindow();
   return { app, window, dataDir };
 }
@@ -108,10 +118,12 @@ export async function closeApp(app: ElectronApplication) {
   if (!(await Promise.race([closed, timedOut]))) app.process().kill('SIGKILL');
 }
 
-/** Keeps the trace of a failed test in its output folder (uploaded by CI); drops it otherwise. */
+/** Keeps the trace and main-process output of a failed test in its output folder (uploaded by CI); drops them otherwise. */
 async function saveTraceIfFailed(app: ElectronApplication) {
   const info = test.info();
   const failed = info.status !== info.expectedStatus;
+  const output = mainOutput.get(app)?.join('');
+  if (failed && output) await info.attach('main-process-output', { body: output, contentType: 'text/plain' });
   await app
     .context()
     .tracing.stop(failed ? { path: info.outputPath('trace.zip') } : undefined)
