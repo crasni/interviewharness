@@ -6,8 +6,9 @@ import { closeApp, launchApp, readRoundLog } from './launch.ts';
 test('candidate starts a coding round and sees the room', async () => {
   const { app, window } = await launchApp();
 
-  await expect(window.getByRole('button', { name: 'System design round' })).toBeDisabled();
-  await expect(window.getByRole('button', { name: 'AI-assisted round' })).toBeDisabled();
+  // The rounds not built yet are named, not offered as buttons.
+  await expect(window.getByText('System design and AI-assisted rounds are coming later.')).toBeVisible();
+  await expect(window.getByRole('button', { name: /System design|AI-assisted/ })).toHaveCount(0);
 
   await window.getByRole('button', { name: 'Start coding round' }).click();
 

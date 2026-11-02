@@ -8,6 +8,10 @@ import { ModelStep } from './ModelStep.tsx';
 import { ProblemList } from './ProblemList.tsx';
 import './start.css';
 
+// The rounds not built yet, named in one quiet line under the one way to start.
+const later = roundKinds.filter((r) => !r.available).map((r) => r.label.replace(/ round$/, ''));
+const comingLater = later.length ? `${later.join(' and ')} rounds are coming later.` : null;
+
 /** Starts a round of a kind; a coding round on the problem named, or on one picked at random. */
 export function StartScreen({ onStart }: { onStart: (kind: RoundKind, problem?: string) => void }) {
   const { settings, setPanelOpen } = useSettings();
@@ -47,21 +51,15 @@ export function StartScreen({ onStart }: { onStart: (kind: RoundKind, problem?: 
                 </button>
               </div>
             )}
-            <ul className="start-rounds">
-              {roundKinds.map(({ kind, label, startLabel, available }) => (
-                <li key={kind} className={kind === 'coding' ? 'start-coding' : undefined}>
-                  <button type="button" className={available ? 'primary' : undefined} disabled={!available} onClick={() => onStart(kind)}>
-                    {available ? startLabel : label}
-                  </button>
-                  {!available && <span className="label">Later</span>}
-                  {kind === 'coding' && (
-                    <button type="button" className="start-choose" onClick={() => setChoosing(true)}>
-                      Choose a problem
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="start-actions">
+              <button type="button" className="primary start-main" onClick={() => onStart('coding')}>
+                Start coding round
+              </button>
+              <button type="button" className="start-choose" onClick={() => setChoosing(true)}>
+                Choose a problem
+              </button>
+            </div>
+            {comingLater && <p className="start-later">{comingLater}</p>}
           </>
         )}
       </div>
