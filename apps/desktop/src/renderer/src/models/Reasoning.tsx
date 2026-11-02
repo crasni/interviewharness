@@ -15,7 +15,7 @@ export function Reasoning({
 }: {
   label: string;
   hideLabel?: boolean;
-  /** With no levels, an empty space the picker's size, so pickers in a column stay lined up. */
+  /** With no levels, a dash in the picker's place, so every model row reads the same and the pickers line up. */
   keepPlace?: boolean;
   className: string;
   model: ModelChoice;
@@ -31,7 +31,15 @@ export function Reasoning({
     };
     // The levels belong to the model, not to its effort: looked up again only for another model.
   }, [key]);
-  if (!levels.length) return keepPlace ? <span className={`${className} no-effort`} aria-hidden /> : null;
+  if (!levels.length) {
+    return keepPlace ? (
+      <span className={className}>
+        <span className="no-effort" title="This model has no reasoning levels to pick from">
+          —
+        </span>
+      </span>
+    ) : null;
+  }
   return (
     <span className={className}>
       <label htmlFor={id} className={hideLabel ? 'visually-hidden' : undefined}>
