@@ -145,7 +145,7 @@ test('signed in to ChatGPT, adding it again offers its models instead of signing
 
   await settings().getByRole('option', { name: 'ChatGPT' }).click();
 
-  await expect(settings().getByRole('group', { name: 'Add a connection' })).toContainText('Signed in');
+  await expect(window.getByRole('dialog', { name: 'Add a connection' })).toContainText('Signed in');
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
   await expect(picker(settings(), 'Model')).toHaveText('GPT-6.1 Sol');
   await expect(settings().getByRole('button', { name: 'Use this model' })).toBeEnabled();

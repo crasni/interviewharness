@@ -16,7 +16,7 @@ test.afterEach(async () => {
 });
 
 const settings = () => window.getByRole('dialog', { name: 'Settings' });
-const well = () => settings().getByRole('group', { name: 'Add a connection' });
+const well = () => window.getByRole('dialog', { name: 'Add a connection' });
 const savedCredentials = () => (existsSync(join(dataDir, 'credentials.json')) ? JSON.parse(readFileSync(join(dataDir, 'credentials.json'), 'utf8')).entries : {});
 
 async function openModelTab() {

@@ -119,7 +119,8 @@ export function SettingsPanel() {
       ref={dialog}
       className="settings"
       aria-label="Settings"
-      onClose={() => setPanelOpen(false)}
+      // Its own close only: React passes a dialog opened inside it (Add a connection) closing up to here too.
+      onClose={(event) => event.target === event.currentTarget && setPanelOpen(false)}
       // A click on the dimmed page around the card lands on the dialog itself: close, as Escape does.
       onClick={(event) => event.target === event.currentTarget && setPanelOpen(false)}
     >

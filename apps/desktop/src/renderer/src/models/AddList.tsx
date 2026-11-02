@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type AddableItem, searchAddable } from './addable.ts';
+import { ProviderIcon } from './ProviderIcon.tsx';
 import './add-list.css';
 
 /**
@@ -81,7 +82,10 @@ export function AddList({ items, onPick }: { items: readonly AddableItem[]; onPi
                   onPointerMove={() => setActive(i)}
                   onClick={() => onPick(item)}
                 >
-                  {item.name}
+                  <span className="add-list-item-name">
+                    <ProviderIcon provider={item.provider} />
+                    {item.name}
+                  </span>
                   <ChevronRight size={14} strokeWidth={1.75} aria-hidden className="add-list-chevron" />
                 </div>
               );
@@ -98,7 +102,10 @@ export function AddList({ items, onPick }: { items: readonly AddableItem[]; onPi
 export function PickedHead({ item, onCancel }: { item: AddableItem; onCancel: () => void }) {
   return (
     <div className="add-list-picked">
-      <h4 className="add-list-picked-name">{item.name}</h4>
+      <h4 className="add-list-picked-name">
+        <ProviderIcon provider={item.provider} />
+        {item.name}
+      </h4>
       <button type="button" onClick={onCancel}>
         Cancel
       </button>

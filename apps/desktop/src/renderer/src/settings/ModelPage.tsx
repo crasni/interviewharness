@@ -1,12 +1,14 @@
-import { Plus } from 'lucide-react';
-import { useCallback, useEffect, useId, useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ProviderStatus, Slot } from '../../../shared/api.ts';
 import { checkModel, choiceFromKey, feedbackModel, type ModelChoice, modelKey, type Server, withEffort } from '../../../shared/settings.ts';
 import { AddList, PickedHead } from '../models/AddList.tsx';
 import { Reasoning } from '../models/Reasoning.tsx';
 import { type AddableItem, addable } from '../models/addable.ts';
 import { ModelSetup } from '../models/ModelSetup.tsx';
+import { ProviderIcon } from '../models/ProviderIcon.tsx';
 import { useConnect } from '../models/useConnect.ts';
+import { IconButton, iconProps } from '../ui/IconButton.tsx';
 import { Picker, type PickerGroup } from '../ui/Picker.tsx';
 import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
 import { useSettings } from './settings.tsx';
@@ -81,7 +83,7 @@ export function ModelPage() {
       label: p.name,
       options: p.models
         .filter((m) => !settings.yourModels.some((y) => isFrom(p, y) && y.model === m.id))
-        .map((m) => ({ value: modelKey({ provider: p.provider, model: m.id, ...(p.server ? { server: p.server.id } : {}) }), label: m.name })),
+        .map((m) => ({ value: modelKey({ provider: p.provider, model: m.id, ...(p.server ? { server: p.server.id } : {}) }), label: m.name, icon: <ProviderIcon provider={p.provider} /> })),
     }))
     .filter((g) => g.options.length);
   const add = async (key: string) => {
@@ -212,7 +214,10 @@ export function ModelPage() {
         <ul className="connections-list">
           {listed.map((p) => (
             <li key={p.server?.id ?? p.provider} className="connection">
-              <span className="connection-name">{p.provider === 'chatgpt' ? 'ChatGPT' : p.name}</span>
+              <span className="connection-name">
+                <ProviderIcon provider={p.provider} />
+                {p.provider === 'chatgpt' ? 'ChatGPT' : p.name}
+              </span>
               {/* Keyed by what it says, so a new state fades in after a refresh. */}
               <span className="connection-state" key={looking.refreshing && answers(p) ? 'looking' : connectionState(p)}>
                 {looking.refreshing && answers(p) ? 'Looking…' : connectionState(p)}
@@ -240,15 +245,15 @@ export function ModelPage() {
             </li>
           ))}
         </ul>
-        {setup && (
-          <div
-            className="connections-setup"
-            role="group"
-            aria-label={setup.editing ? 'Edit the server' : setup.replacing ? 'Replace the key' : 'Add a connection'}
-          >
-            {setup.item ? (
+        <SetupDialog
+          open={!!setup}
+          title={setup?.editing ? 'Edit the server' : setup?.replacing ? 'Replace the key' : 'Add a connection'}
+          onClose={() => setSetup(null)}
+        >
+          {setup &&
+            (setup.item ? (
               <>
-                {/* Cancel goes back to the list, or closes the well when it opened on one connection to change. */}
+                {/* Back goes to the list, or closes the dialog when it opened on one connection to change. */}
                 <PickedHead
                   item={setup.editing ? { ...setup.item, name: setup.editing.name } : setup.item}
                   onCancel={() => setSetup(setup.replacing || setup.editing ? null : { item: null })}
@@ -273,19 +278,49 @@ export function ModelPage() {
               </>
             ) : (
               <>
-                <div className="connections-setup-head">
-                  <p className="settings-hint">Pick what to add, or search for it by name.</p>
-                  <button type="button" onClick={() => setSetup(null)}>
-                    Cancel
-                  </button>
-                </div>
+                <p className="settings-hint">Pick what to add, or search for it by name.</p>
                 <AddList items={addable} onPick={(item) => setSetup({ item })} />
               </>
-            )}
-          </div>
-        )}
+            ))}
+        </SetupDialog>
       </section>
     </>
+  );
+}
+
+/**
+ * Adding, editing or re-keying a connection, in its own card floating above Settings: the list of what can be
+ * added, or one item's fields. Escape, the close button or a click outside it goes back to Settings.
+ */
+function SetupDialog({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element) return;
+    if (open && !element.open) {
+      element.showModal();
+      // The keyboard goes to the first field (the list's search, a key), not the Close button opening picks.
+      element.querySelector<HTMLElement>('.setup-dialog-body input')?.focus();
+    }
+    if (!open && element.open) element.close();
+  }, [open]);
+  return (
+    <dialog
+      ref={dialog}
+      className="setup-dialog"
+      aria-label={title}
+      onClose={(event) => event.target === event.currentTarget && onClose()}
+      // A click on the dimmed Settings around the card lands on the dialog itself: close, as Escape does.
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div className="setup-dialog-card">
+        <header className="setup-dialog-head">
+          <h3 className="setup-dialog-title">{title}</h3>
+          <IconButton label="Close" motion="turn" icon={<X {...iconProps} />} onClick={onClose} />
+        </header>
+        <div className="setup-dialog-body">{children}</div>
+      </div>
+    </dialog>
   );
 }
 
@@ -298,7 +333,7 @@ function groupByConnection(models: ModelChoice[], providers: ProviderStatus[]): 
   for (const choice of models) {
     const from = providers.find((p) => isFrom(p, choice));
     const label = from?.name ?? choice.provider;
-    const option = { value: modelKey(choice), label: from?.models.find((m) => m.id === choice.model)?.name ?? choice.model };
+    const option = { value: modelKey(choice), label: from?.models.find((m) => m.id === choice.model)?.name ?? choice.model, icon: <ProviderIcon provider={choice.provider} /> };
     const group = groups.find((g) => g.label === label);
     if (group) group.options.push(option);
     else groups.push({ label, options: [option] });

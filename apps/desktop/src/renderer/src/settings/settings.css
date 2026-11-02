@@ -240,6 +240,12 @@
   border-bottom: var(--rule);
 }
 
+.connection-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .connection-state {
   overflow: hidden;
   animation: connection-state-in var(--fade) var(--ease);
@@ -263,22 +269,56 @@
 }
 
 /* Adding a connection, or replacing a key: the setup in a sunk well under the list, with its way out. */
-.connections-setup {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--sunk);
+/* Adding or changing a connection: its own card, floating above Settings, which dims behind it. */
+.setup-dialog {
+  margin: auto;
+  width: min(600px, calc(100vw - 2 * var(--space-6)));
+  height: min(640px, calc(100vh - 2 * var(--space-6)));
+  max-width: none;
+  max-height: none;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--rule);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
 }
 
-.connections-setup-head {
+.setup-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.setup-dialog-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.setup-dialog-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
+  border-bottom: var(--rule);
 }
 
-.connections-setup-head .settings-hint {
+.setup-dialog-title {
+  font-family: var(--font-voice);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
+}
+
+/* Scrolls inside the card, so a long list never grows it past the window. */
+.setup-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
+}
+
+.setup-dialog-body > .settings-hint {
   margin-top: 0;
 }
 
@@ -326,4 +366,16 @@
 
 .add-model .settings-hint {
   margin-top: 0;
+}
+
+/* In its dialog the list fills the card, scrolling inside it, instead of stopping at its inline height. */
+.setup-dialog-body .add-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-dialog-body .add-list-items {
+  flex: 1;
+  max-height: none;
 }
