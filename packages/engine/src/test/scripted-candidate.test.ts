@@ -77,11 +77,52 @@ describe('a scripted candidate', () => {
     const round = await played;
 
     expect(round.record.transcript.at(-1)).toMatchObject({ who: 'candidate', text: 'Can the list be empty?' });
-    expect(round.events).toContainEqual(expect.objectContaining({ event: { kind: 'model-failed', error: 'timeout' } }));
+    expect(round.events).toContainEqual(expect.objectContaining({ event: { kind: 'model-failed', error: 'timeout', reply: 'turn' } }));
   });
 });
 
 describe('a played round, written out to read', () => {
+  it('shows a failed reply to the candidate as unanswered, with the notice they were shown and why it failed', async () => {
+    const candidate: ScriptedCandidate = { name: 'asks', about: 'Asks one question.', steps: [{ say: 'Can the list be empty?' }] };
+    const { played } = play(candidate, { 'interviewer-reply': ['Hi, take a look at the problem.', { error: 'other', message: 'Server error 502' }] });
+
+    const text = formatPlayedRound(await played);
+
+    expect(text).toMatch(/\[turn reply failed in [\d.]+ s; error: other; reason: Server error 502\]/);
+    expect(text).toContain('[nothing said; the room told the candidate the model failed and to say it again]');
+  });
+
+  it("doesn't tell the candidate to say it again when that can't help: a failed login", async () => {
+    const candidate: ScriptedCandidate = { name: 'asks', about: 'Asks one question.', steps: [{ say: 'Can the list be empty?' }] };
+    const { played } = play(candidate, { 'interviewer-reply': ['Hi, take a look at the problem.', { error: 'auth' }] });
+
+    const text = formatPlayedRound(await played);
+
+    expect(text).toContain('[nothing said; the room told the candidate the model failed]');
+  });
+
+  it('says when it was the check of the words that failed, not the reply itself', async () => {
+    const candidate: ScriptedCandidate = { name: 'asks-for-help', about: 'Asks for a hint.', steps: [{ say: 'Can I get a hint?' }] };
+    const { played } = play(candidate, {
+      'interviewer-reply': ['Hi, take a look at the problem.', reply('answer', 'What do you need to remember about each value?', 'asking-for-help')],
+      'reply-check': [{ error: 'other', message: 'Server error 502' }],
+    });
+
+    const text = formatPlayedRound(await played);
+
+    expect(text).toMatch(/\[turn reply failed in [\d.]+ s; the check failed; error: other; reason: Server error 502\]/);
+  });
+
+  it('shows the example line said when the intro fails', async () => {
+    const candidate: ScriptedCandidate = { name: 'quiet', about: 'Says nothing.', steps: [] };
+    const { played } = play(candidate, { 'interviewer-reply': [{ error: 'offline' }] });
+
+    const text = formatPlayedRound(await played);
+
+    expect(text).toMatch(/\[intro reply failed in [\d.]+ s; error: offline\]\n\d\d:\d\d {2}Interviewer: /);
+    expect(text).not.toContain('say it again');
+  });
+
   it('names the candidate and the model, and gives each line with its time', async () => {
     const candidate: ScriptedCandidate = { name: 'asks-one-question', about: 'Asks one question.', steps: [{ silentFor: 60_000 }, { say: 'Can the list be empty?' }] };
     const { played } = play(candidate, {

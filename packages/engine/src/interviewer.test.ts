@@ -127,6 +127,16 @@ describe('the interviewer', () => {
     expect(spoken()).toEqual(['Hi, I am Sam. Take a look at the problem.']);
   });
 
+  it("falls back to the intro's example line when the model fails, and says the intro is what failed", async () => {
+    const { wait, events, spoken } = setup({ script: { 'interviewer-reply': [{ error: 'offline' }] } });
+
+    wait(1_000);
+    await settle();
+
+    expect(events).toContainEqual({ kind: 'model-failed', error: 'offline', reply: 'intro' });
+    expect(spoken()).toHaveLength(1);
+  });
+
   it("answers a question in the model's words, holding the floor quietly while they're written", async () => {
     const { interviewer, wait, kinds, spoken, model } = await afterIntro([answer('Yes, the list can be empty.')]);
 
@@ -226,9 +236,54 @@ describe('the interviewer', () => {
       wait(1_000);
       await settle();
 
-      expect(events).toContainEqual({ kind: 'model-failed', error: 'rate-limit' });
+      expect(events).toContainEqual({ kind: 'model-failed', error: 'rate-limit', reply: 'turn' });
       expect(spoken()).toEqual([]); // a stock "okay" would pretend it heard them
       expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'rate-limit' }]);
+    });
+
+    it("logs why a reply failed, in the error's own words, cut short", async () => {
+      const message = `Server error 502: ${'upstream unavailable '.repeat(20)}`;
+      const { interviewer, wait, modelCalls } = await afterIntro([{ error: 'other', message }]);
+
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(1_000);
+      await settle();
+
+      const [failed] = modelCalls();
+      expect(failed).toMatchObject({ outcome: 'failed', error: 'other' });
+      expect(failed).not.toHaveProperty('during'); // the reply itself failed, not its check
+      expect(failed!.reason).toMatch(/^Server error 502: upstream unavailable/);
+      expect(failed!.reason!.length).toBeLessThanOrEqual(200);
+    });
+
+    it('logs a bug of ours as other, with its name and message as the reason', async () => {
+      const { interviewer, wait, modelCalls } = await afterIntro([{ thrown: new TypeError("Cannot read properties of undefined (reading 'kind')") }]);
+
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(1_000);
+      await settle();
+
+      expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'other', reason: "TypeError: Cannot read properties of undefined (reading 'kind')" }]);
+    });
+
+    it('logs a thrown value that is no Error as its JSON', async () => {
+      const { interviewer, wait, modelCalls } = await afterIntro([{ thrown: { status: 502, detail: 'upstream unavailable' } }]);
+
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(1_000);
+      await settle();
+
+      expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'other', reason: '{"status":502,"detail":"upstream unavailable"}' }]);
+    });
+
+    it('cuts a long reason between characters, never inside one', async () => {
+      const { interviewer, wait, modelCalls } = await afterIntro([{ error: 'other', message: `${'a'.repeat(198)}😀😀 and more` }]);
+
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(1_000);
+      await settle();
+
+      expect(modelCalls()[0]!.reason).toBe(`${'a'.repeat(198)}😀…`);
     });
 
     it('gives up on a slow reply after the time limit, says nothing, and drops the late words', async () => {
@@ -241,7 +296,7 @@ describe('the interviewer', () => {
       model.waiting[0]!.answer(answer('Yes.').object);
       await settle();
 
-      expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout' });
+      expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout', reply: 'turn' });
       expect(spoken()).toEqual([]); // a stock "okay" would pretend it heard them
       expect(model.waiting[0]!.request.signal!.aborted).toBe(true);
       expect(modelCalls().map((c) => [c.outcome, c.error])).toEqual([
@@ -270,7 +325,7 @@ describe('the interviewer', () => {
       wait(1_000);
       await settle();
 
-      expect(events).toContainEqual({ kind: 'model-failed', error: 'bad-output' });
+      expect(events).toContainEqual({ kind: 'model-failed', error: 'bad-output', reply: 'turn' });
       expect(spoken()).toEqual([]); // a stock "okay" would pretend it heard them
     });
   });
@@ -1103,6 +1158,21 @@ describe('the check, where help could slip (ADR 0019)', () => {
     const check = model.requests.find((r) => r.purpose === 'reply-check')!;
     expect(check.messages[0]!.text).toContain('The return value uses the number rather than its index.');
     expect(check.messages[0]!.text).toContain('return [seen[x], nums[i]]');
+  });
+
+  it('says the check is what failed when it fails, and says nothing', async () => {
+    const { interviewer, wait, events, spoken, modelCalls } = await afterIntro(
+      [answer('What do you need to remember about each value?', { ...help })],
+      [{ error: 'other', message: 'Server error 502' }],
+    );
+
+    interviewer.onSignal({ type: 'said', text: 'can I get a hint?' });
+    wait(1_000);
+    await settle();
+
+    expect(events).toContainEqual({ kind: 'model-failed', error: 'other', reply: 'turn' });
+    expect(spoken()).toEqual([]);
+    expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'other', reason: 'Server error 502', during: 'check' }]);
   });
 
   it("records the check's hint level, not the reply's own label", async () => {

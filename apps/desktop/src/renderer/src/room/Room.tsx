@@ -1,4 +1,4 @@
-import type { CodeSnapshot, ModelErrorKind } from '@interviewharness/engine';
+import { type CodeSnapshot, type HelpedBySayingAgain, type ModelErrorKind, sayingItAgainHelps } from '@interviewharness/engine';
 import type { RoomSnapshot } from '../../../shared/api.ts';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
@@ -69,7 +69,7 @@ export function Room({ initial, onEnd }: { initial: RoomSnapshot; onEnd: (code: 
             setPresence('listening'); // heard as thinking aloud: it keeps listening
             break;
           case 'model-failed':
-            notice.show(modelFailures[decision.error]);
+            notice.show(decision.reply === 'turn' && sayingItAgainHelps(decision.error) ? unansweredTurn[decision.error] : modelFailures[decision.error]);
             break;
           case 'done-speaking':
             setPresence('listening');
@@ -283,6 +283,15 @@ const modelFailures: Record<ModelErrorKind, string> = {
   'bad-output': 'The model gave no usable words.',
   aborted: 'The model stopped before answering.',
   other: "The model didn't answer.",
+};
+
+/** When the failed reply was to the candidate's own turn, nothing was said: they're told they can say it again. */
+const unansweredTurn: Record<HelpedBySayingAgain, string> = {
+  offline: "Couldn't reach the model. Check your connection, then say it again.",
+  'rate-limit': 'The model is rate-limited. Wait a bit and say it again, or pick another model in Settings.',
+  timeout: "The model didn't answer within a minute. Say it again, or pick a faster model in Settings.",
+  'bad-output': 'The model gave no usable words. Say it again.',
+  other: "The model didn't answer. Say it again.",
 };
 
 /** How long a notice stays before it fades. */

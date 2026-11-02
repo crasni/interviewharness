@@ -9,6 +9,7 @@ import {
   type Problem,
   type RoundLogEntry,
   type RoundRecord,
+  sayingItAgainHelps,
   startRound,
 } from '../index.ts';
 
@@ -145,6 +146,11 @@ export function formatPlayedRound({ candidate, model, record, log }: PlayedRound
   for (const entry of log) {
     if ('modelCall' in entry) {
       out.push(`       [${modelCallNote(entry.modelCall)}]`);
+      // A failed reply to their turn says nothing; the room's notice is what they got.
+      const { outcome, reply, error } = entry.modelCall;
+      if (outcome === 'failed' && reply === 'turn') {
+        out.push(`       [nothing said; the room told the candidate the model failed${error && sayingItAgainHelps(error) ? ' and to say it again' : ''}]`);
+      }
       continue;
     }
     if (!('signal' in entry)) continue;
@@ -161,12 +167,14 @@ export function formatPlayedRound({ candidate, model, record, log }: PlayedRound
 
 function modelCallNote(call: ModelCallEntry['modelCall']) {
   const parts = [`${call.reply} reply ${call.outcome} in ${(call.ms / 1000).toFixed(1)} s`];
+  if (call.during === 'check') parts.push('the check failed');
   const given = [call.heard && `heard ${call.heard}`, call.turnReply, call.hint && `hint ${call.hint.level}`].filter(Boolean);
   if (given.length) parts.push(given.join(', '));
   if (call.observed && call.observed.asks !== 'nothing') parts.push(`asks ${call.observed.asks}`);
   if (call.observed?.movesTo && call.observed.movesTo !== 'stays') parts.push(`moves to ${call.observed.movesTo}`);
   if (call.rejected?.length) parts.push(`rejected: ${call.rejected.join(', ')}`);
   if (call.error) parts.push(`error: ${call.error}`);
+  if (call.reason) parts.push(`reason: ${call.reason}`);
   return parts.join('; ');
 }
 

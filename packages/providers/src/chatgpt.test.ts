@@ -131,6 +131,24 @@ describe('a model on the ChatGPT plan', () => {
     expect(openai.requests).toHaveLength(0);
   });
 
+  it("says a login that couldn't be read failed, in plain words and its code, never the error's own text", async () => {
+    const failing = { ...loggedIn(), read: async () => Promise.reject(Object.assign(new Error('refresh with token rt-secret-123 failed: ECONNRESET'), { code: 'ECONNRESET' })) };
+    const providers = createProviders({ credentials: failing, appVersion: '0.1.0', fetch: openai.fetchVia });
+
+    const failed = await providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).streamText(request).catch((error: unknown) => error);
+
+    expect(failed).toMatchObject({ kind: 'offline', message: "Couldn't read the login (ECONNRESET)" });
+  });
+
+  it("says a login that couldn't be read failed, without a code when the error has none", async () => {
+    const failing = { ...loggedIn(), read: async () => Promise.reject(new Error('invalid_grant for token rt-secret-123')) };
+    const providers = createProviders({ credentials: failing, appVersion: '0.1.0', fetch: openai.fetchVia });
+
+    const failed = await providers.model({ provider: 'chatgpt', model: 'gpt-5-mini' }).streamText(request).catch((error: unknown) => error);
+
+    expect(failed).toMatchObject({ kind: 'auth', message: "Couldn't read the login" });
+  });
+
   it('sends nothing from provider environment variables, which would add headers or log requests', async () => {
     Object.assign(process.env, { OPENAI_ORG_ID: 'org-env', OPENAI_PROJECT_ID: 'proj-env', OPENAI_CUSTOM_HEADERS: 'x-from-env: 1' });
     const providers = createProviders({ credentials: loggedIn(), appVersion: '0.1.0', fetch: openai.fetchVia });

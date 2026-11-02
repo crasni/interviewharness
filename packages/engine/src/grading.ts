@@ -131,6 +131,8 @@ export interface GradingEntry {
     ms: number;
     outcome: 'written' | 'failed';
     error?: string;
+    /** For a failed grading: why, in the error's own words, cut short (see modelErrorReason). */
+    reason?: string;
     verdict?: Verdict;
     samples?: GradedFeedback['samples'];
   };

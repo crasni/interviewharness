@@ -98,11 +98,12 @@ test("the Feedback is saved in the round's folder, scores included, and how it w
   expect(log.at(-1).grading.samples).toHaveLength(3);
 });
 
-test('a failed grading shows a plain error, and Try again works without the round again', async () => {
-  await playRound([{ error: 'offline' }, solid, solid, solid, solid, solid]);
+test('a failed grading shows a plain error, logs why, and Try again works without the round again', async () => {
+  await playRound([{ error: 'offline', message: 'fetch failed: ECONNRESET' }, solid, solid, solid, solid, solid]);
   await endRound(window);
 
   await expect(feedbackScreen().getByRole('alert')).toContainText("Couldn't reach the model to write your Feedback.");
+  expect(readRoundLog(dataDir).find((entry) => entry.grading)).toMatchObject({ grading: { outcome: 'failed', error: 'offline', reason: 'fetch failed: ECONNRESET' } });
   await feedbackScreen().getByRole('button', { name: 'Try again' }).click();
 
   await expect(feedbackScreen().getByRole('list', { name: 'Verdict' }).locator('[aria-current="true"]')).toHaveText('Lean hire');
