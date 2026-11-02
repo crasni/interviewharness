@@ -174,6 +174,25 @@ describe('the Floor Manager', () => {
       expect(decisions).toEqual([{ kind: 'ack', line: 'Okay, that makes sense.', speakingMs: expect.any(Number) }]);
     });
 
+    it('lets go of the floor without a word when the model gives none', () => {
+      const clock = fakeClock(10_000);
+      const manager = createFloorManager({ clock, round: startRound('coding', clock), lines: testLines(), log: fakeLog<FloorLogEntry>() });
+      const tickUntilPreparing = () => {
+        for (let i = 0; i < 600; i++) {
+          clock.advance(100);
+          if (manager.onSignal({ type: 'tick' }).kind === 'preparing') return;
+        }
+        throw new Error('never prepared a reply');
+      };
+      tickUntilPreparing();
+      manager.onSignal({ type: 'words', line: 'Hi.' });
+      manager.onSignal({ type: 'said', text: 'Can the input be empty?' });
+      tickUntilPreparing();
+
+      expect(manager.onSignal({ type: 'no-words' })).toEqual({ kind: 'stop-preparing' });
+      expect(manager.onSignal({ type: 'no-words' })).toEqual({ kind: 'silent' }); // nothing left to let go of
+    });
+
     it('answers a question', () => {
       const { floor, wait } = setup();
 

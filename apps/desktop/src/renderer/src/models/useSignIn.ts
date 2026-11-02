@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 
 export type LoginStep = { name: 'idle' } | { name: 'waiting' } | { name: 'failed'; error: string };
 
+/** The providers signed in to through the browser. */
+export type SignInProvider = 'chatgpt' | 'openrouter';
+
 /**
- * Continue with ChatGPT, from wherever it's offered: the Start screen's first step, or Settings → Model.
- * On success main saves the choice in settings, so the screen showing it moves on by itself.
+ * Signing in through the browser, from wherever it's offered: Continue with ChatGPT (the Start screen's
+ * first step, or Settings → Model), or Sign in with OpenRouter. On ChatGPT's success main adds its default
+ * model through settings, so the screen showing it moves on by itself; OpenRouter's only saves the key.
  */
-export function useChatGPTLogin({ onUnencrypted }: { onUnencrypted?: () => void } = {}) {
+export function useSignIn({ provider = 'chatgpt', onUnencrypted }: { provider?: SignInProvider; onUnencrypted?: () => void } = {}) {
   const [step, setStep] = useState<LoginStep>({ name: 'idle' });
 
   // Leaving mid-login (the screen or Settings closing) shouldn't leave a listener waiting for the browser.
@@ -14,7 +18,7 @@ export function useChatGPTLogin({ onUnencrypted }: { onUnencrypted?: () => void 
 
   async function start() {
     setStep({ name: 'waiting' });
-    const result = await window.harness.models.continueWithChatGPT();
+    const result = provider === 'openrouter' ? await window.harness.models.signInToOpenRouter() : await window.harness.models.continueWithChatGPT();
     if (result.ok) {
       setStep({ name: 'idle' });
       if (result.unencryptedNote) onUnencrypted?.();

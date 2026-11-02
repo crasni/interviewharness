@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import { type KeyboardEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './picker.css';
 
@@ -13,6 +13,12 @@ export interface PickerGroup {
   options: PickerOption[];
 }
 
+/** A last item that does something instead of picking a value (e.g. "Add a model…"). Always shown, even while searching. */
+export interface PickerAction {
+  label: string;
+  onPick: () => void;
+}
+
 /** Lists longer than this get a search field. */
 const searchFrom = 9;
 
@@ -23,7 +29,8 @@ const searchFrom = 9;
  * (the Popover API), so a dialog or a scrolling page never clips it.
  *
  * Keyboard: Enter, Space or ↓ opens; ↑/↓, Home and End move; typing searches; Enter picks; Escape closes
- * and keeps the old value. `id` goes on the button, so a `<label htmlFor>` names it.
+ * and keeps the old value; Shift+Delete removes the active option when options can be removed. `id` goes on
+ * the button, so a `<label htmlFor>` names it.
  */
 export function Picker({
   id,
@@ -32,6 +39,9 @@ export function Picker({
   groups = [],
   placeholder = 'Choose…',
   disabled,
+  defaultOpen = false,
+  action,
+  onRemove,
   onChange,
 }: {
   id?: string;
@@ -42,6 +52,12 @@ export function Picker({
   /** Shown when `value` is none of the options. */
   placeholder?: string;
   disabled?: boolean;
+  /** Opens the list as soon as the picker appears. */
+  defaultOpen?: boolean;
+  /** The list's last item. */
+  action?: PickerAction;
+  /** Given, each option in a group gets a Remove button (and Shift+Delete removes the active one); the list stays open. */
+  onRemove?: (value: string) => void;
   onChange: (value: string) => void;
 }) {
   const fallbackId = useId();
@@ -64,6 +80,9 @@ export function Picker({
     const words = query.trim().toLowerCase();
     return words ? all.filter((option) => `${option.label} ${option.group ?? ''}`.toLowerCase().includes(words)) : all;
   }, [all, query]);
+  /** The keyboard moves through the options shown, then the action. */
+  const count = shown.length + (action ? 1 : 0);
+  const actionIndex = action ? shown.length : -1;
 
   function show() {
     if (disabled) return;
@@ -80,6 +99,20 @@ export function Picker({
   function pick(next: string) {
     close();
     if (next !== value) onChange(next);
+  }
+
+  function pickAction() {
+    close({ refocus: false });
+    action?.onPick();
+  }
+
+  const removable = (option: (typeof all)[number] | undefined) => !!onRemove && !!option && option.group !== null;
+
+  function remove(option: (typeof all)[number]) {
+    onRemove?.(option.value);
+    // The same place in the list, now one shorter (back to the search, or the list, so the keyboard keeps working).
+    setActive((i) => Math.max(0, Math.min(i, count - 2)));
+    (searchable ? search.current : panel.current?.querySelector<HTMLElement>('[role="listbox"]'))?.focus();
   }
 
   // Into the top layer, placed under the button (or above it when the window has no room below).
@@ -105,17 +138,24 @@ export function Picker({
     };
     place();
     (searchable ? search.current : list.querySelector<HTMLElement>('[role="listbox"]'))?.focus();
-    // The list stays with its button; anything that moves the button away closes it instead.
+    // The list stays with its button; a press elsewhere, or a scroll that moves the button away, closes it.
     const away = (event: Event) => {
       const target = event.target as Node;
       if (!list.contains(target) && !button.current?.contains(target)) close({ refocus: false });
     };
+    // Content growing around the page (models arriving, say) can fire a scroll without moving the button.
+    const openedAt = button.current!.getBoundingClientRect();
+    const scrolled = (event: Event) => {
+      const now = button.current?.getBoundingClientRect();
+      if (now && now.top === openedAt.top && now.left === openedAt.left) return;
+      away(event);
+    };
     window.addEventListener('resize', place);
-    document.addEventListener('scroll', away, true);
+    document.addEventListener('scroll', scrolled, true);
     document.addEventListener('pointerdown', away, true);
     return () => {
       window.removeEventListener('resize', place);
-      document.removeEventListener('scroll', away, true);
+      document.removeEventListener('scroll', scrolled, true);
       document.removeEventListener('pointerdown', away, true);
     };
   }, [open, searchable]);
@@ -125,8 +165,13 @@ export function Picker({
     if (open) panel.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [open, active]);
 
+  useEffect(() => {
+    if (defaultOpen) show();
+    // Only when the picker first appears.
+  }, []);
+
   function onListKey(event: KeyboardEvent) {
-    const last = shown.length - 1;
+    const last = count - 1;
     const moves: Record<string, () => number> = {
       ArrowDown: () => Math.min(active + 1, last),
       ArrowUp: () => Math.max(active - 1, 0),
@@ -139,7 +184,11 @@ export function Picker({
     } else if (event.key === 'Enter') {
       event.preventDefault();
       const option = shown[active];
-      if (option) pick(option.value);
+      if (active === actionIndex) pickAction();
+      else if (option) pick(option.value);
+    } else if (event.key === 'Delete' && event.shiftKey && removable(shown[active])) {
+      event.preventDefault();
+      remove(shown[active]!);
     } else if (event.key === 'Escape') {
       // Closes the list, not the dialog it's in.
       event.preventDefault();
@@ -157,7 +206,7 @@ export function Picker({
       .map((option) => {
         const i = shown.indexOf(option);
         const selected = option.value === value;
-        return (
+        const row = (
           <div
             key={option.value}
             id={optionId(i)}
@@ -171,6 +220,16 @@ export function Picker({
           >
             <span className="picker-check">{selected && <Check size={14} strokeWidth={2} aria-hidden />}</span>
             {option.label}
+          </div>
+        );
+        if (!removable(option)) return row;
+        // Beside the option, not inside it, so the option's name stays its label.
+        return (
+          <div key={option.value} className="picker-row" data-active={i === active} onPointerMove={() => setActive(i)}>
+            {row}
+            <button type="button" className="picker-remove" tabIndex={-1} aria-label={`Remove ${option.label}`} title="Remove" onClick={() => remove(option)}>
+              <X size={14} strokeWidth={2} aria-hidden />
+            </button>
           </div>
         );
       });
@@ -214,7 +273,7 @@ export function Picker({
                 role="combobox"
                 aria-expanded
                 aria-controls={listId}
-                aria-activedescendant={shown.length ? optionId(active) : undefined}
+                aria-activedescendant={count ? optionId(active) : undefined}
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -227,7 +286,7 @@ export function Picker({
               role="listbox"
               tabIndex={searchable ? -1 : 0}
               aria-labelledby={buttonId}
-              aria-activedescendant={!searchable && shown.length ? optionId(active) : undefined}
+              aria-activedescendant={!searchable && count ? optionId(active) : undefined}
               className="picker-list"
             >
               {groupsShown.map((group) =>
@@ -244,7 +303,24 @@ export function Picker({
                   </div>
                 ),
               )}
-              {!shown.length && <p className="picker-empty">Nothing matches.</p>}
+              {!shown.length && (query || !action) && <p className="picker-empty">Nothing matches.</p>}
+              {action && (
+                <div role="group" className="picker-group picker-actions">
+                  <div
+                    id={optionId(actionIndex)}
+                    role="option"
+                    aria-selected={false}
+                    data-index={actionIndex}
+                    data-active={active === actionIndex}
+                    className="picker-option"
+                    onPointerMove={() => setActive(actionIndex)}
+                    onClick={pickAction}
+                  >
+                    <span className="picker-check" />
+                    {action.label}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

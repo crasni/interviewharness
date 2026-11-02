@@ -14,6 +14,8 @@ export function ProblemPanel({ shown, onToggle }: { shown: boolean; onToggle: ()
         className="problem-toggle"
         label={shown ? 'Hide problem' : 'Show problem'}
         on={shown}
+        tip="below-start"
+        motion={shown ? 'slide-left' : 'slide-right'}
         swap={{ on: <PanelLeftClose {...iconProps} />, off: <PanelLeftOpen {...iconProps} /> }}
         onClick={onToggle}
       />

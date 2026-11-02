@@ -1,6 +1,6 @@
 # v0.1.1: connections
 
-Status: ready-for-agent
+Status: done (2026-11-01: tickets 01–05 done)
 
 Decisions: ADR 0021 (and ADR 0016 for pi-ai, the provider order and no ambient credentials). Research: `docs/research/12-model-picker-patterns.md` (layouts) and `docs/research/13-keys-and-plans.md` (every kind of access, what's allowed, Jan in depth). v0.1.1 comes before v0.1.2's problems (owner, 2026-11-01).
 

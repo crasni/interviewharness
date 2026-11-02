@@ -8,26 +8,18 @@
   padding: 0;
 }
 
+/*
+ * While its tooltip may show, the button sits above its neighbours. A pressed button scales, which makes it a
+ * stacking context of its own; without this the editor next to it would paint over the tooltip.
+ */
+.icon-button:hover,
+.icon-button:focus-visible {
+  z-index: 10;
+}
+
 .icon-button svg {
   display: block;
   transition: transform var(--settle) var(--ease);
-}
-
-/* Small movements on hover that say what the button does. */
-.icon-button[data-motion='turn']:hover:not(:disabled) svg {
-  transform: rotate(90deg); /* close: the cross turns */
-}
-
-.icon-button[data-motion='spin']:hover:not(:disabled) svg {
-  transform: rotate(60deg); /* settings: the gear turns */
-}
-
-.icon-button[data-motion='unwind']:hover:not(:disabled) svg {
-  transform: rotate(-120deg); /* reset: winds back */
-}
-
-.icon-button[data-motion='nudge']:hover:not(:disabled) svg {
-  transform: translateX(-2px); /* back: leans the way it goes */
 }
 
 /* Two states: both icons stacked, the current one shown; they cross-fade with a slight turn. */
@@ -80,6 +72,13 @@
   transform: translate(-50%, var(--space-1));
 }
 
+/* At the left edge of the window: aligned to the button's left side so it stays on screen. */
+.icon-button[data-tip-side='below-start']::after {
+  top: calc(100% + var(--space-2));
+  left: 0;
+  transform: translateY(calc(-1 * var(--space-1)));
+}
+
 /* At the right edge of the window: aligned to the button's right side so it stays on screen. */
 .icon-button[data-tip-side='below-end']::after {
   top: calc(100% + var(--space-2));
@@ -101,7 +100,9 @@
   transform: translate(-50%, 0);
 }
 
+.icon-button[data-tip-side='below-start']:hover::after,
 .icon-button[data-tip-side='below-end']:hover::after,
+:root[data-input='keyboard'] .icon-button[data-tip-side='below-start']:focus-visible::after,
 :root[data-input='keyboard'] .icon-button[data-tip-side='below-end']:focus-visible::after {
   transform: none;
 }

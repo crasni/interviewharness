@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { ModelConnection } from '../../../shared/api.ts';
+import type { ConnectResult, KeyReplacement, ModelConnection } from '../../../shared/api.ts';
 
 export type ConnectStep = { name: 'idle' } | { name: 'checking' } | { name: 'failed'; error: string };
 
@@ -10,15 +10,19 @@ export type ConnectStep = { name: 'idle' } | { name: 'checking' } | { name: 'fai
 export function useConnect({ onUnencrypted }: { onUnencrypted?: () => void } = {}) {
   const [step, setStep] = useState<ConnectStep>({ name: 'idle' });
 
-  async function connect(connection: ModelConnection) {
+  async function checked(run: () => Promise<ConnectResult>) {
     setStep({ name: 'checking' });
-    const result = await window.harness.models.connect(connection);
+    const result = await run();
     setStep(result.ok ? { name: 'idle' } : { name: 'failed', error: result.error });
     if (result.ok && result.unencryptedNote) onUnencrypted?.();
     return result.ok;
   }
 
+  const connect = (connection: ModelConnection) => checked(() => window.harness.models.connect(connection));
+  /** Saves a new key in place of the old once a model answers through it; your models and the picks stay. */
+  const replaceKey = (replacement: KeyReplacement) => checked(() => window.harness.models.replaceKey(replacement));
+
   const reset = useCallback(() => setStep({ name: 'idle' }), []);
 
-  return { step, connect, reset };
+  return { step, connect, replaceKey, reset };
 }

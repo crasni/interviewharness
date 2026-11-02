@@ -1,12 +1,25 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import './icon-button.css';
 
+/** The hover movements in base.css; worded buttons take the same names as `data-motion`. */
+export type Motion =
+  | 'turn'
+  | 'spin'
+  | 'unwind'
+  | 'nudge'
+  | 'grow'
+  | 'slide-left'
+  | 'slide-right'
+  | 'slide-up'
+  | 'slide-down'
+  | 'wiggle';
+
 /**
  * A button whose purpose is obvious from its icon. Its words stay as the accessible name and
  * show as a tooltip on hover, so nothing is lost for screen readers or the unsure.
  *
  * `swap` turns it into a two-state control: the icons cross-fade when `on` changes.
- * `motion` names the small movement the icon makes on hover (see icon-button.css).
+ * `motion` names the small movement the icon makes on hover (see base.css).
  */
 export function IconButton({
   label,
@@ -22,8 +35,8 @@ export function IconButton({
   icon?: ReactNode;
   swap?: { on: ReactNode; off: ReactNode };
   on?: boolean;
-  motion?: 'turn' | 'spin' | 'unwind' | 'nudge';
-  tip?: 'below' | 'above' | 'below-end';
+  motion?: Motion;
+  tip?: 'below' | 'above' | 'below-start' | 'below-end';
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>) {
   return (
     <button

@@ -6,10 +6,10 @@ Spec: `.scratch/slow-model/spec.md` · ADR 0017
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The tile counts seconds while preparing and clears when preparing ends
-- [ ] The count uses tabular figures, so the label doesn't jiggle (role tokens only)
-- [ ] `replyRules.timeout` is 60 s; engine tests that assumed 10 s are updated
-- [ ] A test covers a slow reply (say 30 s, fake clock) that is still spoken, not replaced by a fallback
-- [ ] ADR 0017 has the amendment
+- [x] The tile counts seconds while preparing and clears when preparing ends
+- [x] The count uses tabular figures, so the label doesn't jiggle (role tokens only)
+- [x] `replyRules.timeout` is 60 s; engine tests that assumed 10 s are updated
+- [x] A test covers a slow reply (say 30 s, fake clock) that is still spoken, not replaced by a fallback
+- [x] ADR 0017 has the amendment

@@ -15,7 +15,6 @@ import {
   Type,
 } from '@earendil-works/pi-ai';
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
-import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { ANTHROPIC_MODELS } from '@earendil-works/pi-ai/providers/anthropic.models';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
@@ -23,19 +22,25 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { openrouterProvider } from '@earendil-works/pi-ai/providers/openrouter';
 import { type Model, ModelError, type ModelErrorKind, type ModelRequest } from '@interviewharness/engine';
 import { type ChatGPTLoginConfig, chatgptOAuth } from './chatgpt-login.ts';
+import { registerKeyProviders } from './key-provider-factories.ts';
+import { keyProviderTable, type TableKeyProviderName } from './key-providers.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
+import { type OpenRouterLoginConfig, openrouterOAuth } from './openrouter-login.ts';
+import { adoptOldServerKey, resolveServer, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
-export type ProviderName = 'chatgpt' | 'ollama' | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
+export type ProviderName = 'chatgpt' | 'ollama' | KeyProviderName | 'server';
 
-/** The providers reached with an API key the candidate pastes. A server's key is optional. */
-export type KeyProviderName = 'openai' | 'anthropic' | 'google' | 'openrouter' | 'server';
-export const keyProviders: readonly KeyProviderName[] = ['openai', 'anthropic', 'google', 'openrouter', 'server'];
+/** The providers reached with an API key the candidate pastes: the table's (key-providers.ts). A server's optional key is saved per server. */
+export type KeyProviderName = TableKeyProviderName;
+export const keyProviders: readonly KeyProviderName[] = keyProviderTable.map((row) => row.id);
 
 /** Which provider and model a slot uses. Stored in settings.json; never holds a credential. */
 export interface ModelChoice {
   provider: ProviderName;
   model: string;
+  /** For a model on one of the candidate's servers: which server (its id). */
+  server?: string;
 }
 
 export { defaultChatGPTModel } from './defaults.ts';
@@ -50,13 +55,11 @@ export const smallModelParameters = 14e9;
 export interface ModelListing {
   id: string;
   name: string;
-  /** Runs on this computer (Ollama and other local servers). */
-  local: boolean;
   /** Counts as small (see `smallModelParameters`), so the Feedback it writes is marked rough. */
   small: boolean;
 }
 
-type PiProviderName = Exclude<ProviderName, 'ollama'>;
+type PiProviderName = Exclude<ProviderName, 'ollama' | 'server'>;
 
 /**
  * Our provider names, and the pi-ai provider each one runs on, which is also where its credential is
@@ -64,25 +67,18 @@ type PiProviderName = Exclude<ProviderName, 'ollama'>;
  */
 const piProviderIds: Record<PiProviderName, string> = {
   chatgpt: 'openai',
-  openai: 'openai-key',
-  anthropic: 'anthropic',
-  google: 'google',
-  openrouter: 'openrouter',
-  server: 'server',
+  ...(Object.fromEntries(keyProviderTable.map((row) => [row.id, row.piProvider])) as Record<TableKeyProviderName, string>),
 };
 
 /**
  * Auth from the key the candidate saved, and nowhere else: no environment variable, no other tool's
- * login. A server may need no key at all; local servers accept any.
+ * login. (A server, which may need no key, has its own: see servers.ts.)
  */
-function savedKeyOnly(name: string, { optional = false } = {}): ProviderAuth {
+function savedKeyOnly(name: string): ProviderAuth {
   return {
     apiKey: {
       name,
-      resolve: async ({ credential }) => {
-        if (credential?.key) return { auth: { apiKey: credential.key }, source: 'saved key' };
-        return optional ? { auth: { apiKey: 'none' }, source: 'no key' } : undefined;
-      },
+      resolve: async ({ credential }) => (credential?.key ? { auth: { apiKey: credential.key }, source: 'saved key' } : undefined),
     },
   };
 }
@@ -108,6 +104,10 @@ function forgetAmbientVariables() {
 export interface Connection {
   address?: string;
   key?: string;
+  /** A server's API format, when it's new or being changed. */
+  format?: ServerFormat;
+  /** Which of the candidate's servers, when listing a saved one's models (or a new one's, with no id yet). */
+  server?: string;
 }
 
 export interface ProvidersOptions {
@@ -121,10 +121,12 @@ export interface ProvidersOptions {
   signIn?: ChatGPTLoginConfig;
   /** Where Ollama listens; the candidate can change it. */
   ollamaAddress?: () => string;
-  /** The address of another OpenAI-compatible server (LM Studio, llama.cpp, vLLM), ending in its API path, e.g. http://localhost:1234/v1. */
-  serverAddress?: () => string;
+  /** The candidate's own servers (LM Studio, llama.cpp, vLLM, a gateway), each OpenAI- or Anthropic-compatible. */
+  servers?: () => readonly Server[];
   /** Tests send a provider's requests to a fake server on loopback with this. */
   baseUrls?: Partial<Record<PiProviderName, string>>;
+  /** Tests point the OpenRouter sign-in at a fake server on loopback with this. */
+  openRouterSignIn?: OpenRouterLoginConfig;
 }
 
 export interface ChatGPTLoginOptions {
@@ -135,9 +137,15 @@ export interface ChatGPTLoginOptions {
   signal?: AbortSignal;
 }
 
+export interface OpenRouterSignInOptions {
+  /** Opens OpenRouter's sign-in page in the candidate's browser. */
+  openBrowser: (url: string) => void | Promise<void>;
+  signal?: AbortSignal;
+}
+
 /** The app's models: logging in to providers, and models that speak the engine's model interface. */
 export function createProviders(options: ProvidersOptions): Providers {
-  const { credentials, appVersion, fetch: fetchFn, signIn, ollamaAddress = () => defaultOllamaAddress, serverAddress = () => '', baseUrls = {} } = options;
+  const { credentials, appVersion, fetch: fetchFn, signIn, ollamaAddress = () => defaultOllamaAddress, servers = () => [], baseUrls = {} } = options;
   forgetAmbientVariables();
   const models = createModels({
     credentials,
@@ -167,61 +175,92 @@ export function createProviders(options: ProvidersOptions): Providers {
     }),
   );
   models.setProvider({ ...googleProvider(), auth: savedKeyOnly('Gemini API key') });
-  // OpenRouter's own login is left out too: a pasted key is the one way in.
-  models.setProvider({ ...openrouterProvider(), auth: savedKeyOnly('OpenRouter API key') });
-  models.setProvider(
-    createProvider({ id: piProviderIds.server, name: 'OpenAI-compatible server', auth: savedKeyOnly('Server key', { optional: true }), models: [], api: openAICompletionsApi() }),
-  );
-
-  /** A model on the candidate's server, described from its id alone: servers say little about their models. */
-  const serverModel = (id: string): PiModel<'openai-completions'> => ({
-    id,
-    name: id,
-    api: 'openai-completions',
-    provider: piProviderIds.server,
-    baseUrl: serverAddress(),
-    reasoning: false,
-    input: ['text'],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 32768,
-    maxTokens: 4096,
-  });
+  // OpenRouter: a pasted key, or the key OpenRouter issues when the candidate signs in (our own flow, not pi-ai's).
+  models.setProvider({ ...openrouterProvider(), auth: { ...savedKeyOnly('OpenRouter API key'), oauth: openrouterOAuth(options.openRouterSignIn) } });
+  // The table's other key providers: DeepSeek, Mistral, xAI and the rest.
+  registerKeyProviders(models, (name) => savedKeyOnly(name));
 
   /** The pi-ai model for a choice, sent to a test's fake server when one is given. */
   function piModelFor(choice: ModelChoice & { provider: PiProviderName }): PiModel<Api> | undefined {
-    const model = choice.provider === 'server' ? serverModel(choice.model) : models.getModel(piProviderIds[choice.provider], choice.model);
+    const model = models.getModel(piProviderIds[choice.provider], choice.model);
     const baseUrl = baseUrls[choice.provider];
     return model && baseUrl ? { ...model, baseUrl } : model;
   }
 
-  /** The models the candidate's server serves. */
-  async function serverModels(): Promise<ModelListing[]> {
-    const address = serverAddress();
-    if (!address) throw new ModelError('other', 'No server address');
-    const key = await credentials.read(piProviderIds.server);
-    let response: Response;
-    try {
-      response = await (fetchFn ?? fetch)(`${address.replace(/\/+$/, '')}/models`, {
-        headers: key?.type === 'api_key' && key.key ? { authorization: `Bearer ${key.key}` } : {},
-      });
-    } catch {
-      throw new ModelError('offline', `Nothing answered at ${address}`);
-    }
-    if (!response.ok) throw new ModelError(errorKind(String(response.status)), `The server answered ${response.status}`);
-    const { data = [] } = (await response.json()) as { data?: { id: string }[] };
-    return data.map((model) => ({ id: model.id, name: model.id, local: true, small: false }));
+  // Each server is its own pi-ai provider, so its key is looked up under its own id. Registered when first used.
+  const registered = new Set<string>();
+  function serverPiModel(choice: ModelChoice): PiModel<Api> | undefined {
+    const server = servers().find((each) => each.id === choice.server);
+    if (!server) return undefined;
+    if (!registered.has(server.id)) models.setProvider(serverProvider(server.id));
+    registered.add(server.id);
+    return serverModel(server, choice.model);
   }
 
-  /** These providers, but reaching `provider` through a connection that isn't saved yet. Nothing is saved by it. */
-  function withConnection(provider: ProviderName, connection: Connection = {}): Providers {
-    if (!connection.address && !connection.key) return providers;
+  /** A server as `connection` describes it (a saved one, maybe with a new address, format or key; or a new one), and its key. */
+  async function reachServer(connection: Connection): Promise<{ server: Server; key: string | undefined }> {
+    const server = resolveServer(servers(), connection);
+    if (!server) throw new ModelError('other', 'No such server');
+    const stored = connection.key?.trim() ? undefined : await credentials.read(serverCredentialId(server.id));
+    return { server, key: connection.key?.trim() || (stored?.type === 'api_key' ? stored.key : undefined) };
+  }
+
+  /** These providers, but reaching `provider` (or server `server`) through a connection that isn't saved yet. Nothing is saved by it. */
+  function withConnection(provider: ProviderName, connection: Connection = {}, server = connection.server): Providers {
+    if (!connection.address && !connection.key && !connection.format) return providers;
     const { address, key } = connection;
+    if (provider === 'server') {
+      const tried = resolveServer(servers(), { ...connection, server });
+      if (!tried) throw new ModelError('other', 'No such server');
+      return createProviders({
+        ...options,
+        credentials: key ? withKey(credentials, serverCredentialId(tried.id), key.trim()) : credentials,
+        servers: () => [...servers().filter((each) => each.id !== tried.id), tried],
+      });
+    }
     return createProviders({
       ...options,
       credentials: key && provider !== 'ollama' && provider !== 'chatgpt' ? withKey(credentials, piProviderIds[provider], key.trim()) : credentials,
       ollamaAddress: provider === 'ollama' && address ? () => address : ollamaAddress,
-      serverAddress: provider === 'server' && address ? () => address : serverAddress,
     });
+  }
+
+  /**
+   * Signs in to a provider through the candidate's browser, which comes back to a listener on this machine:
+   * they never copy a code. The login is saved in `credentials` once it's done, and not before.
+   */
+  async function loginThroughBrowser(
+    id: string,
+    openBrowser: (url: string) => void | Promise<void>,
+    signal: AbortSignal | undefined,
+    loginOptions?: { agentName?: string; getDeviceId?: () => string },
+  ) {
+    // A browser that can't be opened ends the login at once, instead of leaving it waiting for nobody.
+    const login = new AbortController();
+    const stop = () => login.abort();
+    if (signal?.aborted) stop();
+    signal?.addEventListener('abort', stop, { once: true });
+    let browserFailed: unknown;
+    const interaction: AuthInteraction = {
+      signal: login.signal,
+      notify(event) {
+        if (event.type !== 'auth_url') return;
+        Promise.resolve()
+          .then(() => openBrowser(event.url))
+          .catch((error: unknown) => {
+            browserFailed = error;
+            stop();
+          });
+      },
+      prompt: () => Promise.reject(new Error('Our sign-in never asks for typed input')),
+    };
+    try {
+      await models.login(id, 'oauth', interaction, loginOptions);
+    } catch (error) {
+      throw browserFailed ?? error;
+    } finally {
+      signal?.removeEventListener('abort', stop);
+    }
   }
 
   const providers = {
@@ -230,32 +269,16 @@ export function createProviders(options: ProvidersOptions): Providers {
      * to a listener on this machine. The candidate never copies a code. The login is saved in `credentials`.
      */
     async loginWithChatGPT({ openBrowser, deviceId, signal }: ChatGPTLoginOptions) {
-      // A browser that can't be opened ends the login at once, instead of leaving it waiting for nobody.
-      const login = new AbortController();
-      const stop = () => login.abort();
-      if (signal?.aborted) stop();
-      signal?.addEventListener('abort', stop, { once: true });
-      let browserFailed: unknown;
-      const interaction: AuthInteraction = {
-        signal: login.signal,
-        notify(event) {
-          if (event.type !== 'auth_url') return;
-          Promise.resolve()
-            .then(() => openBrowser(event.url))
-            .catch((error: unknown) => {
-              browserFailed = error;
-              stop();
-            });
-        },
-        prompt: () => Promise.reject(new Error('Our sign-in never asks for typed input')),
-      };
-      try {
-        await models.login(piProviderIds.chatgpt, 'oauth', interaction, { agentName: 'InterviewHarness', getDeviceId: () => deviceId });
-      } catch (error) {
-        throw browserFailed ?? error;
-      } finally {
-        signal?.removeEventListener('abort', stop);
-      }
+      await loginThroughBrowser(piProviderIds.chatgpt, openBrowser, signal, { agentName: 'InterviewHarness', getDeviceId: () => deviceId });
+    },
+
+    /**
+     * "Sign in with OpenRouter": opens OpenRouter's sign-in in the browser and waits for it to come back
+     * to a listener on this machine. The key OpenRouter issues is saved in `credentials`; nothing is if
+     * the sign-in is cancelled or fails.
+     */
+    async signInToOpenRouter({ openBrowser, signal }: OpenRouterSignInOptions) {
+      await loginThroughBrowser(piProviderIds.openrouter, openBrowser, signal);
     },
 
     /** Saves the key the candidate pasted for a provider, replacing any before it. */
@@ -263,28 +286,51 @@ export function createProviders(options: ProvidersOptions): Providers {
       await credentials.modify(piProviderIds[provider], async () => ({ type: 'api_key', key: key.trim() }));
     },
 
-    /** Forgets the login or key for a provider. Ollama has none. */
+    /** Forgets the login or key for a provider. Ollama has none; a server's key is forgotten with `forgetServer`. */
     async logout(provider: ProviderName) {
-      if (provider !== 'ollama') await models.logout(piProviderIds[provider]);
+      if (provider !== 'ollama' && provider !== 'server') await models.logout(piProviderIds[provider]);
     },
 
     /** Whether a provider has a saved login or key. */
     async isLoggedIn(provider: ProviderName) {
-      return provider !== 'ollama' && (await credentials.read(piProviderIds[provider])) !== undefined;
+      return provider !== 'ollama' && provider !== 'server' && (await credentials.read(piProviderIds[provider])) !== undefined;
+    },
+
+    /** Saves the key for one of the candidate's servers, replacing any before it. */
+    async saveServerKey(server: string, key: string) {
+      await credentials.modify(serverCredentialId(server), async () => ({ type: 'api_key', key: key.trim() }));
+    },
+
+    /** Forgets a server's key, if it had one. */
+    async forgetServer(server: string) {
+      await credentials.delete(serverCredentialId(server));
+    },
+
+    /** Moves the key v0.1 kept for its one server to `server`, the server it became. */
+    async adoptOldServerKey(server: string) {
+      await adoptOldServerKey(credentials, server);
+    },
+
+    /** Whether a provider's saved login came from signing in (ChatGPT, OpenRouter), not a pasted key. */
+    async isSignedIn(provider: ProviderName) {
+      return provider !== 'ollama' && provider !== 'server' && (await credentials.read(piProviderIds[provider]))?.type === 'oauth';
     },
 
     /**
      * The models a provider offers: for Ollama and servers, the ones installed; for the rest, newest first.
-     * A connection lists them at an address, or with a key, not saved yet.
+     * A connection lists them at an address, or with a key, not saved yet; for a server, it names which one.
      */
     async listModels(provider: ProviderName, connection?: Connection): Promise<ModelListing[]> {
+      if (provider === 'server') {
+        const { server, key } = await reachServer(connection ?? {});
+        return serverModels(server, key, fetchFn ?? fetch);
+      }
       if (connection) return withConnection(provider, connection).listModels(provider);
       if (provider === 'ollama') return ollamaModels(ollamaAddress(), fetchFn ?? fetch, smallModelParameters);
-      if (provider === 'server') return serverModels();
       return models
         .getModels(piProviderIds[provider])
         .filter((model) => !/realtime/.test(model.id))
-        .map((model) => ({ id: model.id, name: model.name, local: false, small: false }))
+        .map((model) => ({ id: model.id, name: model.name, small: false }))
         .reverse();
     },
 
@@ -292,6 +338,7 @@ export function createProviders(options: ProvidersOptions): Providers {
     model(choice: ModelChoice): Model {
       const { provider } = choice;
       if (provider === 'ollama') return ollamaModel(ollamaAddress, fetchFn ?? fetch, choice);
+      if (provider === 'server') return piModel(models, () => serverPiModel(choice), choice, fetchFn);
       return piModel(models, () => piModelFor({ ...choice, provider }), choice, fetchFn);
     },
 
@@ -303,7 +350,7 @@ export function createProviders(options: ProvidersOptions): Providers {
     async check(choice: ModelChoice, connection?: Connection, timeoutMs = 60_000) {
       const timeout = AbortSignal.timeout(timeoutMs);
       try {
-        await withConnection(choice.provider, connection)
+        await withConnection(choice.provider, connection, choice.server)
           .model(choice)
           .streamText({ purpose: 'setup-check', system: 'Reply with the single word OK.', messages: [{ role: 'user', text: 'Are you there?' }], maxOutputTokens: 16, signal: timeout });
       } catch (error) {
@@ -335,9 +382,14 @@ function withKey(credentials: CredentialStore, id: string, key: string): Credent
 
 export interface Providers {
   loginWithChatGPT(options: ChatGPTLoginOptions): Promise<void>;
+  signInToOpenRouter(options: OpenRouterSignInOptions): Promise<void>;
   saveKey(provider: KeyProviderName, key: string): Promise<void>;
   logout(provider: ProviderName): Promise<void>;
   isLoggedIn(provider: ProviderName): Promise<boolean>;
+  isSignedIn(provider: ProviderName): Promise<boolean>;
+  saveServerKey(server: string, key: string): Promise<void>;
+  forgetServer(server: string): Promise<void>;
+  adoptOldServerKey(server: string): Promise<void>;
   listModels(provider: ProviderName, connection?: Connection): Promise<ModelListing[]>;
   model(choice: ModelChoice): Model;
   check(choice: ModelChoice, connection?: Connection, timeoutMs?: number): Promise<void>;
@@ -361,6 +413,8 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
       throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
     });
     if (!auth) throw new ModelError('auth', 'Not logged in');
+    // A provider's error may quote the key it was sent (a saved one too); it goes no further than this.
+    const unquoted = (message: string) => withoutSecret(message, auth.auth.apiKey);
     const stream = models.stream(
       model,
       { systemPrompt: request.system, messages, tools: extra.tools },
@@ -379,7 +433,7 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
     for await (const event of stream) {
       if (event.type === 'text_delta') onText?.(event.delta);
       if (event.type === 'error') {
-        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage);
+        throw event.reason === 'aborted' ? new ModelError('aborted') : new ModelError(errorKind(event.error.errorMessage), event.error.errorMessage && unquoted(event.error.errorMessage));
       }
       if (event.type === 'done') return event.message;
     }
@@ -430,11 +484,17 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
   };
 }
 
+/** `message` with `secret` (a key or token that was sent) taken out. Our placeholder for no key isn't one. */
+function withoutSecret(message: string, secret: string | undefined) {
+  return secret && secret !== 'none' ? message.replaceAll(secret, '…') : message;
+}
+
 /** The tool choice that forces one named tool, which each API spells its own way. */
 function forcedTool(api: Api, name: string): unknown {
   if (api === 'openai-responses') return { type: 'function', name };
   if (api === 'openai-completions') return { type: 'function', function: { name } };
   if (api === 'anthropic-messages') return { type: 'tool', name };
+  if (api === 'mistral-conversations') return { type: 'function', function: { name } };
   // Google can only require some tool; there is just the one.
   return 'any';
 }

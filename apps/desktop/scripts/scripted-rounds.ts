@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createLineBook, readProblem } from '@interviewharness/engine';
 import { formatPlayedRound, playCandidate } from '@interviewharness/engine/scripted-candidate';
-import { type Credential, type CredentialStore, createProviders, type KeyProviderName, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
+import { type Credential, type CredentialStore, createProviders, type KeyProviderName, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import { validSettings } from '../src/shared/settings.ts';
 import { scriptedCandidates } from './scripted-candidates.ts';
 
@@ -69,7 +69,9 @@ function configuredModel(): ModelChoice {
   if (fromEnv) {
     const slash = fromEnv.indexOf('/');
     if (slash < 0) throw new Error(`INTERVIEWHARNESS_MODEL is "${fromEnv}"; write it as provider/model, say chatgpt/${fromEnv}.`);
-    return checkedChoice({ provider: fromEnv.slice(0, slash), model: fromEnv.slice(slash + 1) }, 'INTERVIEWHARNESS_MODEL');
+    const provider = fromEnv.slice(0, slash);
+    // The one server this script reaches is named by INTERVIEWHARNESS_SERVER_ADDRESS, so its model needs no server id.
+    return checkedChoice({ provider, model: fromEnv.slice(slash + 1), ...(provider === 'server' ? { server: 'script' } : {}) }, 'INTERVIEWHARNESS_MODEL');
   }
   const settingsPath = join(appDataFolder(), 'settings.json');
   let raw: unknown;
@@ -89,7 +91,7 @@ function configuredModel(): ModelChoice {
  * so a new provider can't run here until it says how. A provider that takes an API key should read it from an
  * environment variable and stop with a clear message when it's missing; ChatGPT has no key, only a browser login.
  */
-const signIns: Record<ProviderName, (providers: Providers) => Promise<void>> = {
+const signIns: Record<ProviderName, (providers: Providers, choice: ModelChoice) => Promise<void>> = {
   async chatgpt(providers) {
     console.log('Sign in to ChatGPT in the browser (kept in memory for this run only).');
     await providers.loginWithChatGPT({
@@ -103,14 +105,12 @@ const signIns: Record<ProviderName, (providers: Providers) => Promise<void>> = {
   },
   // Ollama needs no login. Its address is INTERVIEWHARNESS_OLLAMA_ADDRESS, else Ollama's default.
   async ollama() {},
-  openai: savedKeyFromEnvironment('openai'),
-  anthropic: savedKeyFromEnvironment('anthropic'),
-  google: savedKeyFromEnvironment('google'),
-  openrouter: savedKeyFromEnvironment('openrouter'),
-  // A server's key is optional; its address is INTERVIEWHARNESS_SERVER_ADDRESS.
-  async server(providers) {
+  // Every provider in the table of key providers takes its key the same way.
+  ...(Object.fromEntries(keyProviderTable.map((row) => [row.id, savedKeyFromEnvironment(row.id)])) as Record<(typeof keyProviderTable)[number]['id'], (providers: Providers) => Promise<void>>),
+  // A server's key is optional; its address is INTERVIEWHARNESS_SERVER_ADDRESS, its format INTERVIEWHARNESS_SERVER_FORMAT (openai or anthropic).
+  async server(providers, choice) {
     if (!serverAddress) throw new Error('Set INTERVIEWHARNESS_SERVER_ADDRESS to the server\'s address, e.g. http://localhost:1234/v1.');
-    if (apiKey) await providers.saveKey('server', apiKey);
+    if (apiKey) await providers.saveServerKey(choice.server!, apiKey);
   },
 };
 
@@ -120,6 +120,7 @@ const signIns: Record<ProviderName, (providers: Providers) => Promise<void>> = {
  */
 const apiKey = process.env.INTERVIEWHARNESS_API_KEY;
 const serverAddress = process.env.INTERVIEWHARNESS_SERVER_ADDRESS;
+const serverFormat = process.env.INTERVIEWHARNESS_SERVER_FORMAT === 'anthropic' ? 'anthropic' : 'openai';
 
 function savedKeyFromEnvironment(provider: KeyProviderName) {
   return async (providers: Providers) => {
@@ -166,10 +167,10 @@ export async function main(argv: string[]) {
     credentials: memoryCredentials(),
     appVersion: 'scripted-rounds',
     ...(process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS ? { ollamaAddress: () => process.env.INTERVIEWHARNESS_OLLAMA_ADDRESS! } : {}),
-    serverAddress: () => serverAddress ?? '',
+    servers: () => (serverAddress && choice.server ? [{ id: choice.server, name: 'Server', address: serverAddress, format: serverFormat }] : []),
   });
   console.log(`Model: ${choice.provider} / ${choice.model}.`);
-  await signIns[choice.provider](providers);
+  await signIns[choice.provider](providers, choice);
   const model = providers.model(choice);
 
   mkdirSync(out, { recursive: true });

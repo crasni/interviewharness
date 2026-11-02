@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { RoundKind } from '@interviewharness/core';
 import { createLineBook, gradeRound, type GradingEntry, modelErrorKind, type RoundLog, type RoundRecord } from '@interviewharness/engine';
-import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron';
 import linesFile from '../../../../content/interviewer/lines.md?raw';
 // The app icon from brand/ (png/app-icon-512.png); `?asset` gives its path in the build.
 import icon from '../../resources/icon.png?asset';
@@ -10,6 +10,7 @@ import { type ActiveRound, runRound } from './active-round.ts';
 import { writeFileAtomically } from './atomic-write.ts';
 import { carryOverOldDataFolder } from './data-folder.ts';
 import { createEventsLog } from './events-log.ts';
+import { keyPageFor } from './key-pages.ts';
 import { setUpModels } from './model-setup.ts';
 import { loadProblems } from './problems.ts';
 import { openSettingsFile } from './settings-file.ts';
@@ -151,8 +152,21 @@ ipcMain.handle(channels.providers, () => models.providers());
 ipcMain.handle(channels.listModels, (_event, provider: unknown, connection: unknown) => models.list(provider, connection));
 
 ipcMain.handle(channels.connect, (_event, connection: unknown) => models.connect(connection));
+ipcMain.handle(channels.replaceKey, (_event, replacement: unknown) => models.replaceKey(replacement));
 
-ipcMain.handle(channels.logout, (_event, provider: unknown) => models.logout(provider));
+ipcMain.handle(channels.logout, (_event, provider: unknown, server: unknown) => models.logout(provider, server));
+ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
+ipcMain.handle(channels.listServer, (_event, listing: unknown) => models.listServer(listing));
+ipcMain.handle(channels.addServer, (_event, setup: unknown) => models.addServer(setup));
+ipcMain.handle(channels.editServer, (_event, setup: unknown) => models.editServer(setup));
+
+ipcMain.handle(channels.signInToOpenRouter, () => models.signInToOpenRouter());
+
+// "Get a key": the renderer names a provider; only that provider's key page, from the table, is opened.
+ipcMain.on(channels.openKeyPage, (_event, provider: unknown) => {
+  const page = keyPageFor(provider);
+  if (page) void shell.openExternal(page);
+});
 
 // Automated UI tests set this so the window never appears on the developer's screen.
 const hidden = process.env.INTERVIEWHARNESS_HIDDEN_WINDOW === '1';
@@ -192,8 +206,16 @@ void app.whenReady().then(() => {
   createWindow();
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', () => app.quit());
+
+// Every way out comes through here, including ⌘Q and the Quit menu, which skip window-all-closed.
+let readyToQuit = false;
+app.on('will-quit', (event) => {
+  if (readyToQuit) return;
+  event.preventDefault();
+  readyToQuit = true;
   endCurrentRound();
-  // The last change may still be on its way to disk.
-  void settings.flush().finally(() => app.quit());
+  // The last change may still be on its way to disk. Waiting starts on the next turn of the event loop:
+  // Electron emits will-quit without running promise callbacks afterwards, so an idle app would wait forever.
+  setImmediate(() => void settings.flush().finally(() => app.quit()));
 });

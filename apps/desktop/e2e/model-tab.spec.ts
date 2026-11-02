@@ -42,22 +42,21 @@ test('shows the connections and the interviewer model, and offers to sign in whe
 
   await expect(settings().getByRole('listitem').filter({ hasText: 'Ollama' })).toContainText('Running · 2 models');
   await settings().getByRole('button', { name: 'Add', exact: true }).click();
-  await settings().getByRole('radio', { name: /ChatGPT/ }).check();
+  await settings().getByRole('option', { name: 'ChatGPT' }).click();
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
-  await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini');
+  await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini · ChatGPT');
   await expect(picker(settings(), 'Feedback model')).toHaveText('Same as interviewer');
 });
 
-test('changes the interviewer and Feedback models, each checked to answer, and marks a model small', async () => {
+test('adds a Feedback model, checked to answer, and marks a model small', async () => {
   await openModelTab();
-  ollama.reply({ text: 'OK' }, { text: 'OK' });
+  ollama.reply({ text: 'OK' });
 
-  await choose(settings(), 'Interviewer model', 'qwen3:0.6b');
-  await expect.poll(settingsFile).toMatchObject({ interviewerModel: { provider: 'ollama', model: 'qwen3:0.6b' } });
-  await choose(settings(), 'Feedback model', 'qwen2.5:32b');
+  await choose(settings(), 'Feedback model', 'Add a model…');
+  await settings().getByRole('option', { name: 'qwen2.5:32b' }).click();
   await expect(picker(settings(), 'Feedback model')).toHaveText('qwen2.5:32b · Ollama');
   await expect.poll(settingsFile).toMatchObject({ feedbackModel: { provider: 'ollama', model: 'qwen2.5:32b' } });
-  expect(ollama.chats()).toHaveLength(2);
+  expect(ollama.chats()).toHaveLength(1);
   await settings().getByRole('switch', { name: 'Treat the Feedback model as small' }).check();
 
   await expect.poll(settingsFile).toMatchObject({ smallModels: ['ollama/qwen2.5:32b'] });
@@ -83,17 +82,6 @@ test('logging out forgets the login, and Start asks for a model again', async ()
   await expect(window.getByRole('button', { name: 'Start coding round' })).toHaveCount(0);
 });
 
-test("a model that doesn't answer isn't picked, and the reason is shown", async () => {
-  await openModelTab();
-  ollama.reply({ status: 500, error: 'model requires more system memory (20.0 GiB) than is available (8.0 GiB)' });
-
-  await choose(settings(), 'Interviewer model', 'qwen2.5:32b');
-
-  await expect(settings().getByRole('alert')).toContainText('more system memory');
-  await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini');
-  expect(settingsFile()).toMatchObject({ interviewerModel: { provider: 'chatgpt', model: 'gpt-5-mini' } });
-});
-
 test('a saved key shows as a status, never the key, and Remove forgets it', async () => {
   const key = { type: 'api_key', key: 'sk-ant-never-shown' };
   const data = await app.evaluate(async ({ safeStorage }, text) => (await safeStorage.encryptStringAsync(text)).toString('base64'), JSON.stringify(key));
@@ -110,19 +98,24 @@ test('a saved key shows as a status, never the key, and Remove forgets it', asyn
   expect(JSON.parse(readFileSync(join(dataDir, 'credentials.json'), 'utf8')).entries).toEqual({});
 });
 
-test('the model picker searches a long list, works from the keyboard, and Escape closes only the list', async () => {
+test('Add a model… searches a long list, works from the keyboard, and Escape closes only the list', async () => {
   await seedLogin();
   await openModelTab();
   ollama.reply({ text: 'OK' });
 
-  await picker(settings(), 'Interviewer model').click();
+  // From the keyboard: the picker opens with ↓, End reaches its last item, Add a model…
+  await picker(settings(), 'Interviewer model').focus();
+  await window.keyboard.press('ArrowDown');
+  await window.keyboard.press('End');
+  await window.keyboard.press('Enter');
+  // Its search opens at once, with every connection's models.
   await settings().getByRole('combobox', { name: 'Search' }).fill('qwen3');
   await expect(settings().getByRole('option')).toHaveCount(1);
   await window.keyboard.press('Escape');
   await expect(settings().getByRole('option')).toHaveCount(0);
-  await expect(settings()).toBeVisible();
+  await expect(settings().getByRole('group', { name: 'Add a model' })).toBeVisible();
 
-  await picker(settings(), 'Interviewer model').click();
+  await picker(settings().getByRole('group', { name: 'Add a model' }), 'Model').click();
   await settings().getByRole('combobox', { name: 'Search' }).fill('qwen3');
   await window.keyboard.press('Enter');
 
@@ -150,9 +143,9 @@ test('signed in to ChatGPT, adding it again offers its models instead of signing
   await openModelTab();
   await settings().getByRole('button', { name: 'Add', exact: true }).click();
 
-  await settings().getByRole('radio', { name: /ChatGPT/ }).check();
+  await settings().getByRole('option', { name: 'ChatGPT' }).click();
 
-  await expect(settings().getByRole('radio', { name: /ChatGPT/ })).toHaveAccessibleName(/Signed in/);
+  await expect(settings().getByRole('group', { name: 'Add a connection' })).toContainText('Signed in');
   await expect(settings().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
   await expect(picker(settings(), 'Model')).toHaveText('GPT-6.1 Sol');
   await expect(settings().getByRole('button', { name: 'Use this model' })).toBeEnabled();

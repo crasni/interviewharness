@@ -1,7 +1,7 @@
-import { createProviders } from '@interviewharness/providers';
-import { fakeKeyServer, fakeOllama, memoryCredentials } from '@interviewharness/providers/test';
+import { createProviders, defaultChatGPTModel } from '@interviewharness/providers';
+import { fakeKeyServer, fakeOllama, fakeOpenAI, memoryCredentials } from '@interviewharness/providers/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defaultSettings, type Settings, validSettings } from '../shared/settings.ts';
+import { defaultSettings, type Settings, validChanges } from '../shared/settings.ts';
 import { modelChooser } from './model-choice.ts';
 
 /** Settings in memory, validated as main validates them. */
@@ -9,7 +9,7 @@ function memorySettings() {
   let values: Settings = { ...defaultSettings };
   return {
     values: () => values,
-    change: (changes: Partial<Settings>) => (values = { ...values, ...validSettings(changes) }),
+    change: (changes: Partial<Settings>) => (values = { ...values, ...validChanges(values, changes) }),
   };
 }
 
@@ -28,7 +28,7 @@ beforeEach(async () => {
     credentials,
     appVersion: '0.1.0',
     ollamaAddress: () => settings.values().ollamaAddress,
-    serverAddress: () => settings.values().serverAddress,
+    servers: () => settings.values().servers,
     baseUrls: { anthropic: cloud.origin, openrouter: `${cloud.origin}/api/v1` },
   });
   chooser = modelChooser({ providers, settings });
@@ -90,26 +90,6 @@ describe('picking a model, checked before it is saved', () => {
     expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-old' });
   });
 
-  it('saves a server that answers, with its address', async () => {
-    cloud.reply({ text: 'OK' });
-
-    const result = await chooser.connect({ slot: 'interviewer', provider: 'server', model: 'local-model', address: `${cloud.origin}/v1` });
-
-    expect(result).toEqual({ ok: true, unencryptedNote: false });
-    expect(settings.values().interviewerModel).toEqual({ provider: 'server', model: 'local-model' });
-    expect(settings.values().serverAddress).toBe(`${cloud.origin}/v1`);
-  });
-
-  it("says plainly when nothing answers at a server's address", async () => {
-    const address = `${cloud.origin}/v1`;
-    await cloud.close();
-
-    const result = await chooser.connect({ slot: 'interviewer', provider: 'server', model: 'local-model', address });
-
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining(`Nothing answered at ${address}`) });
-    expect(settings.values().interviewerModel).toBeNull();
-  });
-
   it("says once that a saved key isn't encrypted, on a machine with no keyring", async () => {
     const unencrypted = modelChooser({ providers: createProviders({ credentials, appVersion: '0.1.0', baseUrls: { openrouter: `${cloud.origin}/api/v1` } }), settings, encrypted: () => false });
     cloud.reply({ text: 'OK' }, { text: 'OK' });
@@ -123,5 +103,168 @@ describe('picking a model, checked before it is saved', () => {
       expect(await chooser.connect(made)).toMatchObject({ ok: false });
     }
     expect(settings.values().interviewerModel).toBeNull();
+  });
+});
+
+describe('your models', () => {
+  const qwen = { provider: 'ollama', model: 'qwen3:0.6b' } as const;
+
+  it('a model joins your models, and its slot, only after it answers', async () => {
+    ollama.reply({ status: 500, error: 'model requires more system memory' }, { text: 'OK' });
+
+    await chooser.connect({ slot: 'feedback', provider: 'ollama', model: 'qwen3:0.6b', address: ollama.origin });
+    expect(settings.values().yourModels).toEqual([]);
+
+    await chooser.connect({ slot: 'feedback', provider: 'ollama', model: 'qwen3:0.6b', address: ollama.origin });
+    expect(settings.values()).toMatchObject({ yourModels: [qwen], feedbackModel: qwen });
+  });
+
+  it('adding a connection adds the model checked with it, after the ones already there', async () => {
+    settings.change({ yourModels: [qwen] });
+    cloud.reply({ text: 'OK' }, { text: 'OK' });
+
+    await chooser.connect({ slot: 'interviewer', provider: 'openrouter', model: 'z-ai/glm-5v-turbo', key: 'sk-or-good' });
+    await chooser.connect({ slot: 'interviewer', provider: 'openrouter', model: 'z-ai/glm-5v-turbo' });
+
+    expect(settings.values().yourModels).toEqual([qwen, { provider: 'openrouter', model: 'z-ai/glm-5v-turbo' }]);
+  });
+
+  it('a connection added with no slot picks its model for the interviewer only when none is picked', async () => {
+    const sonnet = { provider: 'anthropic', model: 'claude-sonnet-4-6' } as const;
+    const opus = { provider: 'anthropic', model: 'claude-opus-4-6' } as const;
+    cloud.reply({ text: 'OK' }, { text: 'OK' });
+
+    await chooser.connect({ provider: 'anthropic', model: sonnet.model, key: 'sk-ant-good' });
+    expect(settings.values()).toMatchObject({ yourModels: [sonnet], interviewerModel: sonnet, feedbackModel: null });
+
+    await chooser.connect({ provider: 'anthropic', model: opus.model, key: 'sk-ant-good' });
+    expect(settings.values()).toMatchObject({ yourModels: [sonnet, opus], interviewerModel: sonnet, feedbackModel: null });
+  });
+
+  it('removing a model takes it off your models and unpicks it wherever it was picked', () => {
+    const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
+    settings.change({ yourModels: [qwen, sol], interviewerModel: qwen, feedbackModel: qwen });
+
+    chooser.removeModel({ provider: 'ollama', model: 'qwen3:0.6b' });
+
+    expect(settings.values()).toMatchObject({ yourModels: [sol], interviewerModel: null, feedbackModel: null });
+  });
+
+  it('removing a model leaves the others picked', () => {
+    const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
+    settings.change({ yourModels: [qwen, sol], interviewerModel: sol, feedbackModel: qwen });
+
+    chooser.removeModel(qwen);
+
+    expect(settings.values()).toMatchObject({ yourModels: [sol], interviewerModel: sol, feedbackModel: null });
+  });
+
+  it('removing ignores a request the renderer made up', () => {
+    settings.change({ yourModels: [qwen], interviewerModel: qwen });
+
+    for (const made of [null, 'ollama/qwen3:0.6b', { ...qwen, extra: 1 }]) chooser.removeModel(made);
+
+    expect(settings.values()).toMatchObject({ yourModels: [qwen], interviewerModel: qwen });
+  });
+
+  it('removing a connection removes its models from your models, and unpicks them', async () => {
+    const sol = { provider: 'chatgpt', model: 'gpt-6.1-sol' } as const;
+    await credentials.modify('openai', async () => ({ type: 'api_key', key: 'not-a-login' }));
+    settings.change({ yourModels: [sol, qwen], interviewerModel: sol, feedbackModel: qwen });
+
+    await chooser.removeConnection('chatgpt');
+
+    expect(credentials.entries.has('openai')).toBe(false);
+    expect(settings.values()).toMatchObject({ yourModels: [qwen], interviewerModel: null, feedbackModel: qwen });
+  });
+});
+
+describe('signed in to ChatGPT', () => {
+  const login = { type: 'oauth', access: 'chatgpt-access-token', refresh: 'refresh-token', expires: Date.now() + 3_600_000, clientId: 'oaiapp_1' } as const;
+  let openai: Awaited<ReturnType<typeof fakeOpenAI>>;
+  let signedIn: ReturnType<typeof modelChooser>;
+  beforeEach(async () => {
+    openai = await fakeOpenAI();
+    await credentials.modify('openai', async () => login);
+    signedIn = modelChooser({ providers: createProviders({ credentials, appVersion: '0.1.0', fetch: openai.fetchVia }), settings });
+  });
+  afterEach(async () => {
+    await openai.close();
+  });
+  const sol = { provider: 'chatgpt', model: defaultChatGPTModel };
+
+  it('its default model joins your models, and the interviewer if none is picked, once it answers', async () => {
+    openai.reply({ text: 'OK' });
+
+    expect(await signedIn.afterSignIn()).toEqual({ ok: true });
+
+    expect(settings.values()).toMatchObject({ yourModels: [sol], interviewerModel: sol });
+  });
+
+  it("keeps the sign-in but adds no model when the default model doesn't answer, and says why", async () => {
+    openai.reply({ status: 403, body: JSON.stringify({ error: { message: 'Your plan does not include this model' } }) });
+
+    const result = await signedIn.afterSignIn();
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/\S/) });
+    expect(settings.values()).toMatchObject({ yourModels: [], interviewerModel: null });
+    expect(credentials.entries.get('openai')).toEqual(login);
+  });
+});
+
+describe('replacing a key', () => {
+  const sonnet = { provider: 'anthropic', model: 'claude-sonnet-4-6' } as const;
+  const qwen = { provider: 'ollama', model: 'qwen3:0.6b' } as const;
+  beforeEach(async () => {
+    await credentials.modify('anthropic', async () => ({ type: 'api_key', key: 'sk-ant-old' }));
+    settings.change({ yourModels: [qwen, sonnet], interviewerModel: qwen, feedbackModel: sonnet });
+  });
+
+  it('saves the new key once a model answers through it, and keeps your models and both picks', async () => {
+    cloud.reply({ text: 'OK' });
+
+    const result = await chooser.replaceKey({ provider: 'anthropic', model: 'claude-opus-4-6', key: ' sk-ant-new ' });
+
+    expect(result).toEqual({ ok: true, unencryptedNote: false });
+    expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-new' });
+    expect(cloud.requests.at(-1)!.headers['x-api-key']).toBe('sk-ant-new');
+    expect(settings.values()).toMatchObject({ yourModels: [qwen, sonnet], interviewerModel: qwen, feedbackModel: sonnet });
+  });
+
+  it('keeps the old key when the new one is refused', async () => {
+    cloud.reply({ status: 401, body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }) });
+
+    const result = await chooser.replaceKey({ provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-wrong' });
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/refused/) });
+    expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-old' });
+  });
+
+  it('refuses a request the renderer made up', async () => {
+    for (const made of [null, { provider: 'ollama', model: 'x', key: 'k' }, { provider: 'anthropic', model: 'x' }, { provider: 'anthropic', model: 'x', key: ' ' }, { provider: 'anthropic', model: 'x', key: 'k', slot: 'interviewer' }]) {
+      expect(await chooser.replaceKey(made)).toMatchObject({ ok: false });
+    }
+    expect(credentials.entries.get('anthropic')).toEqual({ type: 'api_key', key: 'sk-ant-old' });
+  });
+});
+
+describe('the log', () => {
+  it('records every check with its provider and model, and never a key', async () => {
+    const logged: unknown[] = [];
+    const providers = createProviders({ credentials, appVersion: '0.1.0', servers: () => settings.values().servers, baseUrls: { anthropic: cloud.origin } });
+    const logging = modelChooser({ providers, settings, log: (entry) => logged.push(entry) });
+    const refused = { status: 401, body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key sk-ant-secret' } }) };
+    cloud.reply(refused, { text: 'OK' }, { text: 'OK' });
+
+    await logging.connect({ slot: 'interviewer', provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-secret' });
+    await logging.connect({ slot: 'interviewer', provider: 'anthropic', model: 'claude-sonnet-4-6', key: 'sk-ant-good' });
+    await logging.servers.add({ slot: 'feedback', name: 'Home', address: `${cloud.origin}/v1`, format: 'openai', key: 'home-secret', model: 'local-model' });
+
+    expect(logged).toMatchObject([
+      { check: { provider: 'anthropic', model: 'claude-sonnet-4-6', outcome: 'failed', error: 'auth' } },
+      { check: { provider: 'anthropic', model: 'claude-sonnet-4-6', outcome: 'answered' } },
+      { check: { provider: 'server', model: 'local-model', outcome: 'answered' } },
+    ]);
+    for (const key of ['sk-ant-secret', 'sk-ant-good', 'home-secret']) expect(JSON.stringify(logged)).not.toContain(key);
   });
 });

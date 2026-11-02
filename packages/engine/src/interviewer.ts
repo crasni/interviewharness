@@ -27,7 +27,7 @@ import { type Clock, codingRoundMs, type LaterPhase, nextPhase, type Round } fro
 /** Timing rules for the interviewer's words, in milliseconds. */
 export const replyRules = {
   /** A reply that takes longer than this is given up on, and the fallback line is said instead. */
-  timeout: 10_000,
+  timeout: 60_000,
   /** A cap on a reply's length, so small models stay short and in role (the words, and what the model observed). */
   maxOutputTokens: 300,
   /** Words beyond this are cut at the last whole sentence: an interviewer never lectures. */
@@ -512,6 +512,8 @@ export function createInterviewer(options: InterviewerOptions) {
 
   function fallBack(reply: Reply, error: ModelErrorKind) {
     onEvent({ kind: 'model-failed', error });
+    // A stock "okay" to a question would pretend it was heard: a reply to their turn is never faked, and the room says why.
+    if (reply.kind === 'turn') return handle(floor.onSignal({ type: 'no-words' }));
     sayFallback(fallbackSituation(reply));
   }
 

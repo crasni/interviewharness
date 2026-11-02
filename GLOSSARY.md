@@ -85,3 +85,13 @@ _Avoid_: Debrief, report, scorecard, results, stats
 **Verdict**:
 The interviewer's overall call at the end of a round, on a six-level scale: Strong hire, Hire, Lean hire, Lean no hire, No hire, Strong no hire. Always given with reasons.
 _Avoid_: Score, grade, result
+
+### Models
+
+**Connection**:
+One way the candidate brings models to the app: a plan they signed in to (ChatGPT, OpenRouter), an API key for a named provider, Ollama on their computer, or one of their own named servers. Settings → Model lists every connection with a short status ("Signed in", "Key saved", "Running · 3 models", "Not answering"). Removing one forgets its key or login and removes its models from your models.
+_Avoid_: Provider (that's the company behind it), account, integration, source
+
+**Your models**:
+The models the candidate has added, each checked to answer with one short reply when it was added, and each from one of their connections. The Interviewer and Feedback model pickers list only these; "Add a model…" searches every connection's models to add another. Removing a connection removes its models.
+_Avoid_: Favourites, saved models, model list

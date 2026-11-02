@@ -6,10 +6,10 @@ Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The pickers list only your models, with their connection, and end with Add a model…
-- [ ] Add a model… searches every connection's catalog; a model is added only after it answers
-- [ ] Adding a connection adds its checked model; removing a connection removes its models
-- [ ] Existing settings migrate: the interviewer and Feedback models already picked become your models
-- [ ] End-to-end tests cover adding from the search, a model that doesn't answer, and removal
+- [x] The pickers list only your models, with their connection, and end with Add a model…
+- [x] Add a model… searches every connection's catalog; a model is added only after it answers
+- [x] Adding a connection adds its checked model; removing a connection removes its models
+- [x] Existing settings migrate: the interviewer and Feedback models already picked become your models
+- [x] End-to-end tests cover adding from the search, a model that doesn't answer, and removal

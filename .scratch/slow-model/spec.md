@@ -1,5 +1,7 @@
 # Slow models: let them think, never fake a reply
 
+Part of v0.1.1 (owner, 2026-11-01), alongside `.scratch/v0-1-1/`.
+
 ## Problem
 
 Round `2026-11-01T12-21-16-057Z` (Two Sum, `nvidia/nemotron-3.5-lightning:free` on OpenRouter): the intro took 9.8 s, then all four of the candidate's turns ran past the 10 s reply limit (`replyRules.timeout`). Each time the interviewer said a stock acknowledgement instead:

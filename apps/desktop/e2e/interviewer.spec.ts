@@ -44,10 +44,18 @@ test("the model writes the interviewer's words: the intro, and the answer to a q
   expect(calls[0].modelCall.model).toEqual({ provider: 'scripted', model: 'scripted-fake' });
 });
 
+test('a slow reply shows a running count of seconds, gone once the words arrive', async () => {
+  await startWith([{ text: 'Hi, I am your interviewer today.', delayMs: 4_000 }]);
+  await expect(tileState()).toHaveText('Thinking · 2s', { timeout: 4_000 });
+
+  await expect(window.getByText('Hi, I am your interviewer today.').first()).toBeVisible({ timeout: 5_000 });
+  await expect(tileState()).not.toHaveText(/Thinking/);
+});
+
 test('the interviewer thinks quietly while its words are written, and talking over it drops them', async () => {
   await startWith([{ text: 'Hi, I am your interviewer today.', delayMs: 3_000 }]);
   await expect(interviewer()).toHaveAttribute('data-state', 'preparing');
-  await expect(tileState()).toHaveText('Thinking');
+  await expect(tileState()).toHaveText(/^Thinking/);
 
   await talkButton(window).click();
 
@@ -60,17 +68,28 @@ test('the interviewer thinks quietly while its words are written, and talking ov
   ]);
 });
 
-test('a failing model gives a stock line and a small notice, and the round carries on', async () => {
+test('a failing model on the intro gives a stock line and a small notice, and the round carries on', async () => {
   await startWith([{ error: 'offline' }]);
 
-  await expect(window.getByRole('status', { name: 'Notice' })).toHaveText(
-    "Couldn't reach the model, so the interviewer used a stock line.",
-  );
+  await expect(window.getByRole('status', { name: 'Notice' })).toHaveText("Couldn't reach the model. Check your connection.");
   await expect(interviewer()).toHaveAttribute('data-state', 'speaking');
   expect(readRoundLog(dataDir).find((entry) => entry.modelCall)?.modelCall).toMatchObject({
     outcome: 'failed',
     error: 'offline',
   });
+});
+
+test('a failing model on a reply to the candidate says nothing, never a stock "okay"', async () => {
+  await startWith(['Hi, I am your interviewer today.', { error: 'offline' }]);
+  await expect(window.getByText('Hi, I am your interviewer today.').first()).toBeVisible();
+  await expect(interviewer()).toHaveAttribute('data-state', 'listening', { timeout: 10_000 }); // the intro is said
+
+  await say('Can the list be empty?');
+
+  await expect(window.getByRole('status', { name: 'Notice' })).toHaveText("Couldn't reach the model. Check your connection.");
+  await expect(interviewer()).toHaveAttribute('data-state', 'listening');
+  const spoken = readRoundLog(dataDir).filter((entry) => entry.decision && 'speakingMs' in entry.decision);
+  expect(spoken.map((entry) => entry.decision.kind)).toEqual(['intro']);
 });
 
 test('what the candidate says carries their code, into the round log', async () => {

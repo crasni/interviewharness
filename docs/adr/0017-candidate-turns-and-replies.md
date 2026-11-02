@@ -54,6 +54,14 @@ The owner's round of 2026-10-31 moved on silently past a wrong trace ("seen[1] =
 - Probes go through the check (ADR 0019). The round records each one, and a mistake the candidate finds right after a probe is recorded as found after a probe: not credited as their own, and not a missed bug for the testing cap.
 - The prompt's rules about mistakes, probing and staying quiet live in one section instead of being repeated across the rules, the reply-by-turn list, the phase parts and "When they're done".
 
+## Slow models (amendment, 2026-11-01)
+
+A free reasoning model ran past the old 10-second limit on every turn, and each one got a stock "okay" in place of an answer.
+
+- **A reply may take up to a minute** (`replyRules.timeout`), the same limit as the model check (ADR 0016), so reasoning models and slow free tiers get to finish.
+- **The room shows it's thinking**, like a chat app: the interviewer's tile reads "Thinking · 12s" while the reply is written. Nothing is spoken to fill the wait.
+- **A reply to the candidate is never faked.** If the model fails, the interviewer says nothing (no stock "okay", which would pretend it heard them) and the room's notice says what happened, every time. Its open question stays open. Lines the interviewer starts itself (the intro, check-ins) still fall back to their example lines.
+
 ## Considered options
 
 - **Better keyword rules:** cheap and instant, but always one phrasing behind real speech; the owner rejected hard-coded phrases.

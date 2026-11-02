@@ -21,7 +21,12 @@ function storedOnDisk(text: string) {
   const dir = join(dataDir, 'Local Storage', 'leveldb');
   if (!existsSync(dir)) return false;
   return readdirSync(dir).some((name) => {
-    const data = readFileSync(join(dir, name));
+    let data: Buffer;
+    try {
+      data = readFileSync(join(dir, name));
+    } catch {
+      return false; // a file still held by an app that is only just closing
+    }
     return data.includes(Buffer.from(text, 'latin1')) || data.includes(Buffer.from(text, 'utf16le'));
   });
 }
@@ -29,32 +34,34 @@ function storedOnDisk(text: string) {
 const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
 const body = () => window.locator('body');
 
-async function relaunch() {
-  await closeApp(app);
-  ({ app, window } = await launchApp({ dataDir }));
-}
-
 test('settings are kept in settings.json in the data folder, and survive a restart', async () => {
   // Written just after launch, not before the window shows.
-  await expect.poll(settingsFile).toMatchObject({ version: 1, textSize: 'medium' });
+  await expect.poll(settingsFile).toMatchObject({ version: 2, textSize: 'medium' });
 
   await window.getByRole('button', { name: 'Settings' }).click();
   await window.getByRole('dialog', { name: 'Settings' }).getByText('Large', { exact: true }).click();
   await expect(body()).toHaveCSS('font-size', '16.1px');
-  await relaunch();
+  // Quitting straight away, as ⌘Q does, waits for the change to reach the disk, then quits on its own.
+  const quit = await Promise.race([app.close().then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), 3_000))]);
+  expect(quit).toBe(true);
+  expect(settingsFile()).toMatchObject({ textSize: 'large' });
+  ({ app, window } = await launchApp({ dataDir }));
 
   await expect(body()).toHaveCSS('font-size', '16.1px');
-  await expect.poll(settingsFile).toMatchObject({ textSize: 'large' });
 });
 
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
   // As v0.0 left things: settings only in browser storage, no settings.json.
-  await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
-  // Chromium writes browser storage to disk lazily, and on Windows even a flush can still be under way when the
-  // app closes. Wait until the value is in the storage files on disk.
-  await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
-  await expect.poll(() => storedOnDisk('neon')).toBe(true);
-  await closeApp(app);
+  // Chromium writes browser storage to disk lazily and, on Windows, keeps the files locked while the app runs, so
+  // they're read once it has closed; a write that didn't reach the disk in time is made again.
+  for (let attempt = 1; ; attempt++) {
+    await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
+    await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
+    await closeApp(app);
+    if (storedOnDisk('neon') || attempt === 3) break;
+    ({ app, window } = await launchApp({ dataDir }));
+  }
+  expect(storedOnDisk('neon')).toBe(true);
   rmSync(join(dataDir, 'settings.json'));
   ({ app, window } = await launchApp({ dataDir }));
 

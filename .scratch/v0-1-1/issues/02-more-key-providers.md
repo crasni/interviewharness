@@ -6,8 +6,8 @@ Spec: `.scratch/v0-1-1/spec.md` · ADR 0021
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Each provider sends only the saved key; a test proves none reads the environment
-- [ ] Each appears in search and in the slot pickers once connected
-- [ ] The model list starts on a sensible default where one is named
+- [x] Each provider sends only the saved key; a test proves none reads the environment
+- [x] Each appears in search and in the slot pickers once connected
+- [x] The model list starts on a sensible default where one is named

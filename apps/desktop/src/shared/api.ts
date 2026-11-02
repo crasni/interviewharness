@@ -1,7 +1,7 @@
 import type { RoundKind } from '@interviewharness/core';
 import type { CodeSnapshot, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
 import type { Verdict } from '@interviewharness/core';
-import type { Connection, ModelListing } from '@interviewharness/providers';
+import type { Connection, ModelListing, Server } from '@interviewharness/providers';
 import type { ModelChoice, Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
@@ -53,8 +53,9 @@ export interface HarnessApi {
   /** Picking the interviewer's model. Logins stay in main; the renderer only learns whether one worked. */
   models: {
     /**
-     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. On success the choice
-     * is saved in settings (and announced through settings.onChange).
+     * Opens ChatGPT's sign-in in the browser and resolves once it comes back. Its default model is then
+     * checked, and joins your models (and the interviewer, if none is picked) once it answers, announced
+     * through settings.onChange. If it doesn't answer, the sign-in is kept and the result says why.
      */
     continueWithChatGPT(): Promise<LoginResult>;
     /** Gives up on a login that is waiting for the browser. */
@@ -63,11 +64,57 @@ export interface HarnessApi {
     providers(): Promise<ProviderStatus[]>;
     /** A provider's models, reached through an address or key not saved yet if given. */
     list(provider: ModelChoice['provider'], connection?: Connection): Promise<ModelList>;
-    /** Checks that a model answers, then saves it for its slot with its address and key (announced through settings.onChange). */
+    /**
+     * Checks that a model answers, then adds it to your models and picks it for its slot (with none, for the
+     * interviewer only if none is picked), saving the address and key it was reached with (announced through
+     * settings.onChange). Used to add a connection and to add a model.
+     */
     connect(connection: ModelConnection): Promise<ConnectResult>;
-    /** Forgets a provider's login or key (a server's address too), and unpicks its models (announced through settings.onChange). */
-    logout(provider: ModelChoice['provider']): Promise<void>;
+    /** Checks that a model answers through a new key, then saves the key in place of the old one. Your models and the picks stay as they are. */
+    replaceKey(replacement: KeyReplacement): Promise<ConnectResult>;
+    /**
+     * Forgets a provider's login or key, and removes its models from your models (announced through
+     * settings.onChange). For a server, `server` names which one; the server itself is removed too.
+     */
+    logout(provider: ModelChoice['provider'], server?: string): Promise<void>;
+    /**
+     * Opens OpenRouter's sign-in in the browser and resolves once it comes back, with the key OpenRouter
+     * issues saved. Picks no model. Cancelled with cancelLogin.
+     */
+    signInToOpenRouter(): Promise<LoginResult>;
+    /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
+    removeModel(model: ModelChoice): Promise<void>;
+    /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
+    openKeyPage(provider: ModelChoice['provider']): void;
+    /** A server's models: a saved one's, or through an address, format or key not saved yet. */
+    listServer(listing: ServerListing): Promise<ModelList>;
+    /** Adds a server once a model on it answers; the model joins your models (announced through settings.onChange). */
+    addServer(setup: ServerSetup): Promise<ConnectResult>;
+    /** Changes a server once a model on it answers; no key typed keeps the saved one. */
+    editServer(setup: ServerSetup & { server: string }): Promise<ConnectResult>;
   };
+}
+
+/** A server's fields as the candidate fills them in, to add it (no `server`) or edit it. The key is never sent back. */
+export interface ServerSetup {
+  server?: string;
+  name: string;
+  address: string;
+  format: Server['format'];
+  /** Typed in; empty when the server needs none, or (editing) to keep the saved one. */
+  key?: string;
+  /** A model on the server, listed or typed, that's checked to answer. */
+  model: string;
+  /** Picks the model for this slot too. With none, a server added is the interviewer's only if none is picked. */
+  slot?: Slot;
+}
+
+/** Which server's models to list: a saved one (`server`), maybe through new fields, or a new one at `address`. */
+export interface ServerListing {
+  server?: string;
+  address?: string;
+  format?: Server['format'];
+  key?: string;
 }
 
 export interface ProviderStatus {
@@ -76,10 +123,14 @@ export interface ProviderStatus {
   name: string;
   /** Signed in, a key saved, or (Ollama, a server) answering at its address. */
   connected: boolean;
+  /** Connected by signing in (ChatGPT, OpenRouter) rather than with a pasted key. */
+  signedIn?: boolean;
   /** Its models, when connected. */
   models: ModelListing[];
   /** Why it isn't connected, when that's worth saying (Ollama not running). */
   error?: string;
+  /** For one of the candidate's servers: which, as saved (never its key). */
+  server?: Server;
 }
 
 /** The Feedback as the candidate sees it: words and moments, no scores (those stay in the round's feedback.json). */
@@ -95,9 +146,19 @@ export type Slot = 'interviewer' | 'feedback';
  * optional one) to reach it if they're new. Checked by main before anything is saved.
  */
 export interface ModelConnection extends Connection {
-  slot: Slot;
+  /** With none (a connection added in Settings), the model is the interviewer's only if none is picked yet. */
+  slot?: Slot;
   provider: ModelChoice['provider'];
   model: string;
+  /** For a model on one of the candidate's saved servers: which. */
+  server?: string;
+}
+
+/** A new key for a key provider already connected, and a model to check it with (which isn't added to your models). */
+export interface KeyReplacement {
+  provider: ModelChoice['provider'];
+  model: string;
+  key: string;
 }
 
 export type ConnectResult =
@@ -131,7 +192,14 @@ export const channels = {
   providers: 'models:providers',
   listModels: 'models:list',
   connect: 'models:connect',
+  replaceKey: 'models:replace-key',
   logout: 'models:logout',
+  signInToOpenRouter: 'models:openrouter-sign-in',
+  removeModel: 'models:remove-model',
+  openKeyPage: 'models:open-key-page',
+  listServer: 'models:server-list',
+  addServer: 'models:server-add',
+  editServer: 'models:server-edit',
 } as const;
 
 export function isTheme(value: unknown): value is Theme {

@@ -219,7 +219,7 @@ describe('the interviewer', () => {
   });
 
   describe('when the model lets it down', () => {
-    it('says the fallback line on an error, shows a notice, and logs the error type', async () => {
+    it('says nothing on an error, shows a notice, and logs the error type', async () => {
       const { interviewer, wait, events, spoken, modelCalls } = await afterIntro([{ error: 'rate-limit' }]);
 
       interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
@@ -227,11 +227,11 @@ describe('the interviewer', () => {
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'rate-limit' });
-      expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
+      expect(spoken()).toEqual([]); // a stock "okay" would pretend it heard them
       expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'rate-limit' }]);
     });
 
-    it('gives up on a slow reply after the time limit, says the fallback line, and drops the late words', async () => {
+    it('gives up on a slow reply after the time limit, says nothing, and drops the late words', async () => {
       const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait']);
       interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
       wait(600 + replyRules.timeout - 200);
@@ -242,12 +242,25 @@ describe('the interviewer', () => {
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout' });
-      expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
+      expect(spoken()).toEqual([]); // a stock "okay" would pretend it heard them
       expect(model.waiting[0]!.request.signal!.aborted).toBe(true);
       expect(modelCalls().map((c) => [c.outcome, c.error])).toEqual([
         ['failed', 'timeout'],
         ['late-reply-dropped', undefined],
       ]);
+    });
+
+    it('waits for a slow model: a reply after 30 seconds is still said', async () => {
+      const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait']);
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(600 + 30_000);
+      model.waiting[0]!.answer(answer('Yes, it can be empty.').object);
+      await settle();
+      wait(1_000);
+
+      expect(spoken()).toEqual(['Yes, it can be empty.']);
+      expect(events).not.toContainEqual(expect.objectContaining({ kind: 'model-failed' }));
+      expect(modelCalls().map((c) => c.outcome)).toEqual(['spoken']);
     });
 
     it('treats an empty reply as a failure', async () => {
@@ -258,7 +271,7 @@ describe('the interviewer', () => {
       await settle();
 
       expect(events).toContainEqual({ kind: 'model-failed', error: 'bad-output' });
-      expect(spoken()).toEqual(['Okay, that makes sense.']); // not knowing what they meant, it acknowledges
+      expect(spoken()).toEqual([]); // a stock "okay" would pretend it heard them
     });
   });
 
@@ -654,7 +667,7 @@ describe('a fallback line asks for what its words ask for', () => {
     expect(roundFacts(record)).toMatchObject({ tested: true, testedOnOwn: false });
   });
 
-  it('asks for nothing when it only acknowledges, so a later trace is the candidate’s own', async () => {
+  it('says nothing when a reply fails, so its ask stays open and a later trace answers it', async () => {
     const helpers = await afterIntro([
       reply('answer', 'Could you trace [5, 1, 5] with target 10?', { heard: 'done', asks: 'trace-example' }),
       { error: 'rate-limit' },
@@ -662,11 +675,11 @@ describe('a fallback line asks for what its words ask for', () => {
     ], [verdict()]);
     await say(helpers, ['done coding', 'actually, one more thing first', 'with [2, 7] and target 9: seen[2] = 0, then 7 finds it, so [0, 1]']);
 
-    expect(helpers.spoken()).toEqual(['Could you trace [5, 1, 5] with target 10?', 'Okay, that makes sense.', 'Okay.']);
+    expect(helpers.spoken()).toEqual(['Could you trace [5, 1, 5] with target 10?', 'Okay.']);
     const record = helpers.interviewer.record();
     expect(record.asked).toEqual([{ lineId: 't3', asks: 'trace-example' }]);
-    expect(record.checks).toEqual([{ lineId: 't6', by: 'candidate' }]);
-    expect(roundFacts(record).testedOnOwn).toBe(true);
+    expect(record.checks).toEqual([{ lineId: 't5', by: 'interviewer' }]);
+    expect(roundFacts(record).testedOnOwn).toBe(false);
   });
 });
 

@@ -25,7 +25,6 @@ function providersWith(credentials: CredentialStore = memoryCredentials()) {
     credentials,
     appVersion: '0.1.0',
     baseUrls: { openai: `${fake.origin}/v1`, anthropic: fake.origin, google: `${fake.origin}/v1beta`, openrouter: `${fake.origin}/api/v1` },
-    serverAddress: () => `${fake.origin}/v1`,
   });
 }
 
@@ -119,57 +118,7 @@ describe('a model reached with an API key', () => {
     for (const provider of ['openai', 'anthropic', 'google', 'openrouter'] as const) {
       const listed = await providers.listModels(provider);
       expect(listed.length).toBeGreaterThan(0);
-      expect(listed.every((m) => !m.local && !m.small)).toBe(true);
+      expect(listed.every((m) => !m.small)).toBe(true);
     }
-  });
-});
-
-describe('another OpenAI-compatible server (LM Studio, llama.cpp, vLLM)', () => {
-  it('lists the models the server serves, as local', async () => {
-    expect(await providersWith().listModels('server')).toEqual([{ id: 'qwen2.5-7b-instruct', name: 'qwen2.5-7b-instruct', local: true, small: false }]);
-  });
-
-  it('streams a reply with no key at all, as local servers need none', async () => {
-    const providers = providersWith();
-    fake.reply({ text: 'Yes, it can be empty.', inputTokens: 80, outputTokens: 7 });
-
-    const result = await providers.model({ provider: 'server', model: 'qwen2.5-7b-instruct' }).streamText(request);
-
-    expect(result).toEqual({ text: 'Yes, it can be empty.', usage: { inputTokens: 80, outputTokens: 7 } });
-    expect(fake.requests.at(-1)!.path).toBe('/v1/chat/completions');
-    expect(JSON.stringify(fake.requests.at(-1)!.body.messages)).toContain('Can the list be empty?');
-  });
-
-  it('sends a key when one was saved', async () => {
-    const providers = providersWith();
-    await providers.saveKey('server', 'local-secret');
-    fake.reply({ text: 'Yes.' });
-
-    await providers.model({ provider: 'server', model: 'qwen2.5-7b-instruct' }).streamText(request);
-
-    expect(fake.requests.at(-1)!.headers.authorization).toBe('Bearer local-secret');
-  });
-
-  it('gives a structured reply through a forced tool call', async () => {
-    const providers = providersWith();
-    fake.reply({ toolCall: { name: 'say', arguments: { words: 'Yes.' } } });
-    const schema = {
-      name: 'say',
-      jsonSchema: { type: 'object', properties: { words: { type: 'string' } }, required: ['words'] },
-      parse: (value: unknown) => value as { words: string },
-    };
-
-    const result = await providers.model({ provider: 'server', model: 'qwen2.5-7b-instruct' }).generateObject({ ...request, schema });
-
-    expect(result.object).toEqual({ words: 'Yes.' });
-    expect(fake.requests.at(-1)!.body.tool_choice).toEqual({ type: 'function', function: { name: 'say' } });
-  });
-
-  it('fails as offline when nothing listens at its address', async () => {
-    const providers = providersWith();
-    await fake.close();
-
-    await expect(providers.listModels('server')).rejects.toMatchObject({ kind: 'offline' });
-    await expect(providers.model({ provider: 'server', model: 'qwen2.5-7b-instruct' }).streamText(request)).rejects.toMatchObject({ kind: 'offline' });
   });
 });

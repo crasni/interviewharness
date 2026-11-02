@@ -15,3 +15,10 @@ The interviewer runs on "any model", and candidates arrive with very different a
 ## Refused
 - A Claude plan login inside the app (Anthropic forbids it), Gemini AI Pro/Ultra via Gemini CLI credentials (Google forbids it and suspends accounts), Copilot via borrowed client ids, the legacy Codex login, SuperGrok and Meta logins (borrowed ids or private endpoints), and Z.ai and Qwen/Alibaba coding plans (limited to listed tools).
 - Ambient credentials of any kind (ADR 0016): Bedrock and Vertex, if added, take a pasted key only.
+
+## Choices made while building it (v0.1.1)
+- **OpenRouter's sign-in key is kept as an `oauth` credential**, though it's a plain API key. That's how the app tells a signed-in OpenRouter ("Signed in", Sign out) from a pasted key ("Key saved", Replace).
+- **A model is removed from your models with a × beside it in the picker**, not from a separate list.
+- **Picking one of your models doesn't check it again**: it answered when it was added.
+- **Removing the Feedback model sets Feedback to "Same as interviewer"**, rather than leaving it empty.
+- **A connection added in Settings picks its model for the interviewer only when none is picked yet**; otherwise it just joins your models. The Start screen's first-run setup always picks it for the interviewer. Replacing a key changes neither your models nor the picks.
