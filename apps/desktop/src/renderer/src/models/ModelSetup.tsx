@@ -190,7 +190,7 @@ export function ModelSetup({
   const chatgptFields = chatgpt.signedIn && (
     <div className="model-setup-field">
       <label htmlFor={ids.chatgptModel}>Model</label>
-      <Picker id={ids.chatgptModel} value={chatgptModel} options={chatgpt.models} onChange={setChatgptModel} />
+      <Picker id={ids.chatgptModel} value={chatgptModel} options={chatgpt.models.map((m) => ({ ...m, icon: <ProviderIcon provider={signInProvider} /> }))} onChange={setChatgptModel} />
     </div>
   );
 
@@ -252,7 +252,7 @@ export function ModelSetup({
       {keyModels?.ok && (
         <div className="model-setup-field">
           <label htmlFor={ids.model}>Model</label>
-          <Picker id={ids.model} value={keyModel} options={keyModels.models.map((m) => ({ value: m.id, label: m.name }))} onChange={setKeyModel} />
+          <Picker id={ids.model} value={keyModel} options={keyModels.models.map((m) => ({ value: m.id, label: m.name, icon: provider && <ProviderIcon provider={provider} /> }))} onChange={setKeyModel} />
         </div>
       )}
     </>

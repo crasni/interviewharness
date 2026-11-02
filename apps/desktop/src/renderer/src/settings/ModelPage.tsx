@@ -105,7 +105,7 @@ export function ModelPage() {
           onRemove={removeModel}
           onChange={(key) => pick('interviewer', key)}
         />
-        {settings.interviewerModel && <Reasoning label="Interviewer reasoning" hideLabel className="model-effort" model={withEffort(settings, settings.interviewerModel)} />}
+        {settings.interviewerModel && <Reasoning label="Interviewer reasoning" hideLabel keepPlace className="model-effort" model={withEffort(settings, settings.interviewerModel)} />}
       </div>
 
       <div className="settings-row">
@@ -120,7 +120,7 @@ export function ModelPage() {
           onRemove={removeModel}
           onChange={(key) => pick('feedback', key)}
         />
-        {grader && <Reasoning label="Feedback reasoning" hideLabel className="model-effort" model={withEffort(settings, grader)} />}
+        {grader && <Reasoning label="Feedback reasoning" hideLabel keepPlace className="model-effort" model={withEffort(settings, grader)} />}
       </div>
 
       <div className="settings-row">
@@ -135,7 +135,7 @@ export function ModelPage() {
           onRemove={removeModel}
           onChange={(key) => pick('check', key)}
         />
-        {checker && <Reasoning label="Reply check reasoning" hideLabel className="model-effort" model={withEffort(settings, checker)} />}
+        {checker && <Reasoning label="Reply check reasoning" hideLabel keepPlace className="model-effort" model={withEffort(settings, checker)} />}
       </div>
       <p className="settings-hint">Checks the interviewer's words for help you didn't ask for before they're said. Uses the interviewer's model unless you pick another.</p>
       {adding && (

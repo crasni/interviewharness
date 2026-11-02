@@ -332,6 +332,12 @@
   width: 104px;
 }
 
+/* Where a model has no levels, the same width stays empty, so the model pickers line up. */
+.settings-row .no-effort {
+  flex: none;
+  width: 104px;
+}
+
 /* The model picker shares its row with the effort, so the two sit together at the right, close. */
 .settings-row:has(.model-effort) {
   justify-content: flex-start;

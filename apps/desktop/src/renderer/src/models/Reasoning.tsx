@@ -6,7 +6,20 @@ import { Picker } from '../ui/Picker.tsx';
  * A model's reasoning effort, by the levels that model offers; nothing for a model that doesn't reason.
  * The effort is the model's: setting it here sets it for every role using that model.
  */
-export function Reasoning({ label, hideLabel = false, className, model }: { label: string; hideLabel?: boolean; className: string; model: ModelChoice }) {
+export function Reasoning({
+  label,
+  hideLabel = false,
+  keepPlace = false,
+  className,
+  model,
+}: {
+  label: string;
+  hideLabel?: boolean;
+  /** With no levels, an empty space the picker's size, so pickers in a column stay lined up. */
+  keepPlace?: boolean;
+  className: string;
+  model: ModelChoice;
+}) {
   const id = useId();
   const [levels, setLevels] = useState<EffortLevel[]>([]);
   const key = modelKey(model);
@@ -18,7 +31,7 @@ export function Reasoning({ label, hideLabel = false, className, model }: { labe
     };
     // The levels belong to the model, not to its effort: looked up again only for another model.
   }, [key]);
-  if (!levels.length) return null;
+  if (!levels.length) return keepPlace ? <span className={`${className} no-effort`} aria-hidden /> : null;
   return (
     <span className={className}>
       <label htmlFor={id} className={hideLabel ? 'visually-hidden' : undefined}>
