@@ -1,6 +1,6 @@
 # Failed replies: say what to do, and say why
 
-Status: open (01–03 done 2026-11-02; 04 waits for the owner)
+Status: open (01–03 done 2026-11-02; 04 waits for the reasons 01 logs)
 
 Found by the fake-candidate check on 2026-11-02 (`pnpm scripted-rounds`, Two sum, `chatgpt/gpt-6.1-sol`). Builds on `.scratch/slow-model/` and ADR 0017 ("a reply to the candidate is never faked").
 
