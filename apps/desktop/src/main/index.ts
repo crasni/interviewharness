@@ -6,6 +6,7 @@ import {
   gradeRound,
   type GradingEntry,
   modelErrorKind,
+  modelErrorReason,
   type Problem,
   type RoundLog,
   type RoundRecord,
@@ -96,7 +97,8 @@ async function writeFeedback(record: RoundRecord, { dir, log, problem }: RoundFo
     const { verdict, why, wentWell, toFix, rough } = feedback;
     return { ok: true, verdict, why, wentWell, toFix, rough };
   } catch (error) {
-    logGrading({ outcome: 'failed', error: modelErrorKind(error) });
+    const reason = modelErrorReason(error);
+    logGrading({ outcome: 'failed', error: modelErrorKind(error), ...(reason ? { reason } : {}) });
     console.error('Could not write the Feedback:', error);
     return { ok: false, error: modelErrorKind(error) };
   }

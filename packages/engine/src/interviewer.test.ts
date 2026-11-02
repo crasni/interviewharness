@@ -251,6 +251,7 @@ describe('the interviewer', () => {
 
       const [failed] = modelCalls();
       expect(failed).toMatchObject({ outcome: 'failed', error: 'other' });
+      expect(failed).not.toHaveProperty('during'); // the reply itself failed, not its check
       expect(failed!.reason).toMatch(/^Server error 502: upstream unavailable/);
       expect(failed!.reason!.length).toBeLessThanOrEqual(200);
     });
@@ -263,6 +264,26 @@ describe('the interviewer', () => {
       await settle();
 
       expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'other', reason: "TypeError: Cannot read properties of undefined (reading 'kind')" }]);
+    });
+
+    it('logs a thrown value that is no Error as its JSON', async () => {
+      const { interviewer, wait, modelCalls } = await afterIntro([{ thrown: { status: 502, detail: 'upstream unavailable' } }]);
+
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(1_000);
+      await settle();
+
+      expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'other', reason: '{"status":502,"detail":"upstream unavailable"}' }]);
+    });
+
+    it('cuts a long reason between characters, never inside one', async () => {
+      const { interviewer, wait, modelCalls } = await afterIntro([{ error: 'other', message: `${'a'.repeat(198)}😀😀 and more` }]);
+
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(1_000);
+      await settle();
+
+      expect(modelCalls()[0]!.reason).toBe(`${'a'.repeat(198)}😀…`);
     });
 
     it('gives up on a slow reply after the time limit, says nothing, and drops the late words', async () => {
@@ -1137,6 +1158,21 @@ describe('the check, where help could slip (ADR 0019)', () => {
     const check = model.requests.find((r) => r.purpose === 'reply-check')!;
     expect(check.messages[0]!.text).toContain('The return value uses the number rather than its index.');
     expect(check.messages[0]!.text).toContain('return [seen[x], nums[i]]');
+  });
+
+  it('says the check is what failed when it fails, and says nothing', async () => {
+    const { interviewer, wait, events, spoken, modelCalls } = await afterIntro(
+      [answer('What do you need to remember about each value?', { ...help })],
+      [{ error: 'other', message: 'Server error 502' }],
+    );
+
+    interviewer.onSignal({ type: 'said', text: 'can I get a hint?' });
+    wait(1_000);
+    await settle();
+
+    expect(events).toContainEqual({ kind: 'model-failed', error: 'other', reply: 'turn' });
+    expect(spoken()).toEqual([]);
+    expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'other', reason: 'Server error 502', during: 'check' }]);
   });
 
   it("records the check's hint level, not the reply's own label", async () => {

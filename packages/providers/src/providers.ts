@@ -410,7 +410,9 @@ function piModel(models: Models, lookUp: () => PiModel<Api> | undefined, choice:
     const model = find();
     // Resolving auth may refresh the login's token, which can fail for being offline as much as for a revoked login.
     const auth = await models.getAuth(model).catch((error: unknown) => {
-      throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', String(error));
+      // Its text may quote the token being refreshed, and no key is known here to strip: only its code goes on.
+      const code = systemErrorCode(error);
+      throw new ModelError(errorKind(String(error)) === 'offline' ? 'offline' : 'auth', `Couldn't read the login${code ? ` (${code})` : ''}`);
     });
     if (!auth) throw new ModelError('auth', 'Not logged in');
     // A provider's error may quote the key it was sent (a saved one too); it goes no further than this.
@@ -509,6 +511,15 @@ function toPiMessages(request: ModelRequest, model: { api: string; provider: str
 }
 
 const emptyUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+
+/** A system error's code (ECONNRESET, ENOTFOUND…) from the error or what caused it, if it has one. */
+function systemErrorCode(error: unknown): string | undefined {
+  for (let each = error, depth = 0; each instanceof Error && depth < 5; each = each.cause, depth++) {
+    const { code } = each as { code?: unknown };
+    if (typeof code === 'string' && /^E[A-Z_]+$/.test(code)) return code;
+  }
+  return undefined;
+}
 
 /** What kind of failure a provider's error message describes. */
 export function errorKind(message: string | undefined): ModelErrorKind {

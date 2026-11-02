@@ -71,6 +71,14 @@ export class ModelError extends Error {
   }
 }
 
+/** The failures where saying it again can bring an answer: not a failed login, nor a call that was stopped. */
+export type HelpedBySayingAgain = Exclude<ModelErrorKind, 'auth' | 'aborted'>;
+
+/** Whether a candidate whose turn got no answer should be told to say it again. */
+export function sayingItAgainHelps(kind: ModelErrorKind): kind is HelpedBySayingAgain {
+  return kind !== 'auth' && kind !== 'aborted';
+}
+
 /** The kind of any error a model call threw: a ModelError's own, or 'other'. */
 export function modelErrorKind(error: unknown): ModelErrorKind {
   return error instanceof ModelError ? error.kind : 'other';
@@ -81,11 +89,25 @@ const reasonLength = 200;
 
 /**
  * Why a model call failed, in the error's own words, for the log: a ModelError's message (providers strip saved
- * keys from theirs), or any other error's name and message, since that one is a bug of ours. None when the
- * message only repeats the kind.
+ * keys from theirs), or any other error's name and message, since that one is a bug of ours; anything else thrown,
+ * as JSON. None when the message only repeats the kind. Cut by characters, so an emoji is never split in half.
  */
 export function modelErrorReason(error: unknown): string | undefined {
-  const reason = error instanceof ModelError ? error.message : error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  const reason = error instanceof ModelError ? error.message : error instanceof Error ? `${error.name}: ${error.message}` : printed(error);
   if (error instanceof ModelError && reason === error.kind) return undefined;
-  return reason.length > reasonLength ? `${reason.slice(0, reasonLength - 1)}…` : reason;
+  const characters = Array.from(reason);
+  return characters.length > reasonLength ? `${characters.slice(0, reasonLength - 1).join('')}…` : reason;
+}
+
+/** A thrown value that is no Error, as text: its JSON, or what String makes of it, or neither when both throw. */
+function printed(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    try {
+      return String(value);
+    } catch {
+      return 'A value that could not be printed';
+    }
+  }
 }

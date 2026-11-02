@@ -305,6 +305,8 @@ export interface ModelCallEntry {
     error?: ModelErrorKind;
     /** For a failed call: why, in the error's own words, cut short (never a key or a prompt). */
     reason?: string;
+    /** For a failed call: 'check' when the check of the words failed (or ran out of time), not the reply itself. */
+    during?: 'check';
     usage?: ModelUsage;
     /** For a reply to a turn: what the model heard the candidate doing, and the kind of reply it chose. */
     heard?: CandidateTurn;
@@ -402,6 +404,8 @@ interface Call {
   about: string | null;
   /** What the first attempt observed about that line, applied to the round once, whatever becomes of the words. */
   observed?: Observed;
+  /** Set while the check runs, so a failure then is logged as the check's. */
+  during?: 'check';
 }
 
 /** When the interviewer may offer help without the candidate saying they're stuck. */
@@ -483,6 +487,7 @@ export function createInterviewer(options: InterviewerOptions) {
         model: model!.identity,
         ms: now - call.startedAt,
         outcome,
+        ...(outcome === 'failed' && call.during ? { during: call.during } : {}),
         ...(call.observed ? { observed: call.observed } : {}),
         ...extra,
       },
@@ -613,6 +618,7 @@ export function createInterviewer(options: InterviewerOptions) {
   async function checked(call: Call, written: Written): Promise<Written> {
     if (!risky(call, written)) return written;
     call.stepAt = clock.now();
+    call.during = 'check';
     const prompt = buildCheckPrompt({ problem: options.problem, transcript, code, words: written.words });
     const { object: check, usage } = await model!.generateObject({
       purpose: 'reply-check',
@@ -621,6 +627,7 @@ export function createInterviewer(options: InterviewerOptions) {
       signal: call.controller.signal,
       maxOutputTokens: replyRules.checkMaxOutputTokens,
     });
+    delete call.during;
     const both = { inputTokens: written.usage.inputTokens + usage.inputTokens, outputTokens: written.usage.outputTokens + usage.outputTokens };
     const gives = { hintLevel: check.hintLevel, namesMistake: check.namesMistake };
     const observed = written.observed && { ...written.observed, pointsOutMistake: check.namesMistake };

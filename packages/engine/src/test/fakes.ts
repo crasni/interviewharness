@@ -77,7 +77,7 @@ export function testLines() {
  * One scripted reply:
  * - words, said at once (or after `delayMs` of real time);
  * - `{ object }`, a structured reply (checked against the request's schema, like a real model's);
- * - an error of a given kind, with its message if given, or `thrown`: any other error, as a bug of ours throws;
+ * - an error of a given kind, with its message if given, or `thrown`: anything else, as a bug of ours throws;
  * - 'wait': nothing until the test answers it through `waiting` (it ignores abort, like a model that
  *   answers late, so tests can check a late reply is dropped).
  */
@@ -86,7 +86,7 @@ export type ScriptedReply =
   | { text: string; delayMs?: number }
   | { object: unknown; delayMs?: number }
   | { error: ModelErrorKind; message?: string }
-  | { thrown: Error }
+  | { thrown: unknown }
   | 'wait';
 
 export type ModelScript = Partial<Record<ModelPurpose, ScriptedReply[]>>;
