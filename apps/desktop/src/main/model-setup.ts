@@ -72,6 +72,13 @@ export function setUpModels({
       return providers.model(withEffort(settings.values(), choice));
     },
 
+    /** The model that checks the interviewer's words, when one is picked apart from the interviewer's. */
+    checkModel(): Model | undefined {
+      if (fake !== undefined) return undefined;
+      const choice = settings.values().checkModel;
+      return choice ? providers.model(withEffort(settings.values(), choice)) : undefined;
+    },
+
     /**
      * The model that writes the Feedback (the Feedback model, else the interviewer's), and whether it
      * counts as small, so the Feedback is marked rough. Null when there's no model to write it.

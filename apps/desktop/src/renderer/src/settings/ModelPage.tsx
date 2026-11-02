@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { ProviderStatus, Slot } from '../../../shared/api.ts';
-import { choiceFromKey, defaultEffort, type EffortLevel, feedbackModel, type ModelChoice, modelKey, type Server, withEffort } from '../../../shared/settings.ts';
+import { checkModel, choiceFromKey, defaultEffort, type EffortLevel, feedbackModel, type ModelChoice, modelKey, type Server, withEffort } from '../../../shared/settings.ts';
 import { AddList, PickedHead } from '../models/AddList.tsx';
 import { type AddableItem, addable } from '../models/addable.ts';
 import { ModelSetup } from '../models/ModelSetup.tsx';
@@ -28,6 +28,7 @@ export function ModelPage() {
   const [setup, setSetup] = useState<{ item: AddableItem | null; replacing?: boolean; editing?: Server } | null>(null);
   const interviewerId = useId();
   const feedbackId = useId();
+  const checkId = useId();
   const addId = useId();
   /** "Add a model…" open, and the slot it was opened from. */
   const [adding, setAdding] = useState<Slot | null>(null);
@@ -42,14 +43,16 @@ export function ModelPage() {
   const listed = providers.filter((p) => p.provider === 'ollama' || p.connected || p.server);
 
   const grader = feedbackModel(settings);
+  const checker = checkModel(settings);
   const graderKey = grader && modelKey(grader);
   const markedSmall = graderKey !== null && settings.smallModels.includes(graderKey);
 
   /** Picking one of your models needs no check: it answered when it was added. */
   const pick = (slot: Slot, key: string) => {
     if (slot === 'feedback' && !key) return change({ feedbackModel: null });
+    if (slot === 'check' && !key) return change({ checkModel: null });
     const choice = choiceFromKey(key);
-    if (choice) change(slot === 'interviewer' ? { interviewerModel: choice } : { feedbackModel: choice });
+    if (choice) change(slot === 'interviewer' ? { interviewerModel: choice } : slot === 'feedback' ? { feedbackModel: choice } : { checkModel: choice });
   };
 
   const remove = async (p: ProviderStatus) => {
@@ -116,12 +119,28 @@ export function ModelPage() {
         />
       </div>
       {grader && <Reasoning role="Feedback" model={withEffort(settings, grader)} />}
+
+      <div className="settings-row">
+        <label htmlFor={checkId}>Reply check model</label>
+        <Picker
+          id={checkId}
+          value={settings.checkModel ? modelKey(settings.checkModel) : ''}
+          options={[{ value: '', label: 'Same as interviewer' }]}
+          groups={yours}
+          disabled={picking.step.name === 'checking'}
+          action={addModel('check')}
+          onRemove={removeModel}
+          onChange={(key) => pick('check', key)}
+        />
+      </div>
+      {checker && <Reasoning role="Reply check" model={withEffort(settings, checker)} />}
+      <p className="settings-hint">Checks the interviewer's words for help you didn't ask for before they're said. Uses the interviewer's model unless you pick another.</p>
       {adding && (
         <div className="add-model" role="group" aria-label="Add a model">
           <div className="add-model-head">
             <p className="settings-hint">
               {catalog.length
-                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${adding === 'interviewer' ? 'Interviewer' : 'Feedback'} model.`
+                ? `Search every connection's models. The one you pick is checked to answer, then added to your models as the ${slotNames[adding]} model.`
                 : 'Every model your connections offer is already yours. Add a connection below for more.'}
             </p>
             <button type="button" onClick={() => setAdding(null)}>
@@ -315,6 +334,8 @@ function groupByConnection(models: ModelChoice[], providers: ProviderStatus[]): 
   }
   return groups;
 }
+
+const slotNames: Record<Slot, string> = { interviewer: 'Interviewer', feedback: 'Feedback', check: 'Reply check' };
 
 /** Whether a model comes from this connection: the same provider, and for a server, the same server. */
 const isFrom = (p: ProviderStatus, choice: ModelChoice) => p.provider === choice.provider && p.server?.id === choice.server;

@@ -32,7 +32,7 @@ function isConnection(provider: ProviderName, value: unknown): value is Connecti
 function isModelConnection(value: unknown): value is ModelConnection {
   if (typeof value !== 'object' || value === null) return false;
   const { slot, provider, model, server, ...connection } = value as Record<string, unknown>;
-  if (slot !== undefined && slot !== 'interviewer' && slot !== 'feedback') return false;
+  if (slot !== undefined && slot !== 'interviewer' && slot !== 'feedback' && slot !== 'check') return false;
   if (!isProviderName(provider)) return false;
   if (typeof model !== 'string' || !model || model.length > 200) return false;
   // A server's model is picked from a saved server (added through serverConnections), by its id.

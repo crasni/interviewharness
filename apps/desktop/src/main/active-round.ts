@@ -21,6 +21,7 @@ export function runRound(options: {
   lines: LineBook;
   log: RoundLog;
   model: Model | null;
+  checkModel?: Model;
   problem: Problem;
   toneGuide: string;
   onEvent: (event: InterviewerEvent) => void;

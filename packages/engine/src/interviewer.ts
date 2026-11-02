@@ -325,6 +325,8 @@ export interface ModelCallEntry {
     observed?: Observed;
     /** The check's verdict on the words that were said, when they were checked. It overrides the reply's own labels. */
     check?: CheckVerdict;
+    /** The model the check ran on, when it isn't the interviewer's. */
+    checkModel?: ModelIdentity;
   };
 }
 
@@ -354,6 +356,8 @@ export interface InterviewerOptions {
   log: RoundLog;
   /** Writes the interviewer's words. With none, the example lines are said as written, as in v0.0. */
   model: Model | null;
+  /** Checks the words before they're said (ADR 0019): the interviewer's model unless another is given, a faster one say. */
+  checkModel?: Model;
   /** The round's problem: what the candidate sees, and the notes, hints and solution only the interviewer sees. */
   problem: Problem;
   /** The example-lines file, given to the model as guidance for tone and length. */
@@ -491,7 +495,7 @@ export function createInterviewer(options: InterviewerOptions) {
         model: model!.identity,
         ms: now - call.startedAt,
         outcome,
-        ...(outcome === 'failed' && call.during ? { during: call.during } : {}),
+        ...(outcome === 'failed' && call.during ? { during: call.during, ...(options.checkModel ? { checkModel: options.checkModel.identity } : {}) } : {}),
         ...(call.observed ? { observed: call.observed } : {}),
         ...extra,
       },
@@ -627,7 +631,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (!risky(call, written)) return written;
     call.during = 'check';
     const prompt = buildCheckPrompt({ problem: options.problem, transcript, code, words: written.words });
-    const { object: check, usage } = await model!.generateObject({
+    const { object: check, usage } = await (options.checkModel ?? model!).generateObject({
       purpose: 'reply-check',
       ...prompt,
       schema: checkSchema,
@@ -796,6 +800,7 @@ export function createInterviewer(options: InterviewerOptions) {
           ...(written.askedForHelp !== undefined ? { hint: { askedForHelp: written.askedForHelp, level } } : {}),
           ...(written.observed ? { observed: written.observed } : {}),
           ...(written.check ? { check: written.check } : {}),
+          ...(written.check && options.checkModel ? { checkModel: options.checkModel.identity } : {}),
           ...extra,
         };
         // After the goodbye only a real question gets an answer: thanks, bye or a second goodbye doesn't reopen

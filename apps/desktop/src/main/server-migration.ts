@@ -20,7 +20,7 @@ export function oneServerBecomesNamed({ serverAddress, ...raw }: Raw): Raw {
     return server ? { provider: 'server', server: server.id, model: (choice as Raw).model } : null;
   };
   const changes: Raw = { servers: server ? [server] : [] };
-  for (const slot of ['interviewerModel', 'feedbackModel'] as const) if (slot in raw) changes[slot] = follow(raw[slot]);
+  for (const slot of ['interviewerModel', 'feedbackModel', 'checkModel'] as const) if (slot in raw) changes[slot] = follow(raw[slot]);
   // Your models (settings v2) may already hold the server's models, depending on which step runs first.
   if (Array.isArray(raw.yourModels)) changes.yourModels = raw.yourModels.map(follow).filter((choice) => choice !== null);
   if (Array.isArray(raw.smallModels)) {

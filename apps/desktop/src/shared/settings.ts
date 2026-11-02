@@ -40,6 +40,8 @@ export type Settings = {
   interviewerModel: ModelChoice | null;
   /** The model that writes the Feedback, if not the interviewer's (a stronger one, say). */
   feedbackModel: ModelChoice | null;
+  /** The model that checks the interviewer's words before they're said (ADR 0019), if not the interviewer's (a faster one, say). */
+  checkModel: ModelChoice | null;
   /** Models the candidate marked as small (see `modelKey`): their Feedback is marked rough. */
   smallModels: string[];
   /** Whether the candidate has been told their login isn't encrypted on this machine (Linux with no keyring). */
@@ -67,6 +69,7 @@ export const defaultSettings: Settings = {
   yourModels: [],
   interviewerModel: null,
   feedbackModel: null,
+  checkModel: null,
   smallModels: [],
   unencryptedLoginNoted: false,
   ollamaAddress: defaultOllamaAddress,
@@ -148,6 +151,7 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   yourModels: (value): value is ModelChoice[] => Array.isArray(value) && value.every(isModelChoice),
   interviewerModel: isPickedModel,
   feedbackModel: isPickedModel,
+  checkModel: isPickedModel,
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
@@ -175,7 +179,7 @@ export function validSettings(raw: unknown): Partial<Settings> {
 export function validChanges(current: Settings, raw: unknown): Partial<Settings> {
   const changes = validSettings(raw);
   const yours = changes.yourModels ?? current.yourModels;
-  for (const slot of ['interviewerModel', 'feedbackModel'] as const) {
+  for (const slot of ['interviewerModel', 'feedbackModel', 'checkModel'] as const) {
     const picked = changes[slot];
     if (picked && !yours.some((choice) => sameModel(choice, picked))) delete changes[slot];
   }
@@ -198,9 +202,10 @@ export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
  * What adding a model that answered changes: it joins your models, and is picked for `slot`. With no slot
  * (a connection added in Settings, a sign-in), it's picked for the interviewer only when none is picked yet.
  */
-export function settingsAfterAdding(settings: Settings, choice: ModelChoice, slot?: 'interviewer' | 'feedback'): Partial<Settings> {
+export function settingsAfterAdding(settings: Settings, choice: ModelChoice, slot?: 'interviewer' | 'feedback' | 'check'): Partial<Settings> {
   const yourModels = withYourModel(settings.yourModels, choice);
   if (slot === 'feedback') return { yourModels, feedbackModel: choice };
+  if (slot === 'check') return { yourModels, checkModel: choice };
   if (slot === 'interviewer' || !settings.interviewerModel) return { yourModels, interviewerModel: choice };
   return { yourModels };
 }
@@ -231,11 +236,15 @@ export function settingsWithEffort(settings: Settings, choice: ModelChoice, effo
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
 export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;
 
+/** The model that checks the interviewer's words: the one picked for it, else the interviewer's. */
+export const checkModel = (settings: Settings) => settings.checkModel ?? settings.interviewerModel;
+
 /** What removing some of your models changes: they leave your models, and are unpicked wherever they were picked. */
 export function settingsWithout(settings: Settings, removed: (choice: ModelChoice) => boolean): Partial<Settings> {
   const changes: Partial<Settings> = { yourModels: settings.yourModels.filter((choice) => !removed(choice)) };
   if (settings.interviewerModel && removed(settings.interviewerModel)) changes.interviewerModel = null;
   if (settings.feedbackModel && removed(settings.feedbackModel)) changes.feedbackModel = null;
+  if (settings.checkModel && removed(settings.checkModel)) changes.checkModel = null;
   return changes;
 }
 

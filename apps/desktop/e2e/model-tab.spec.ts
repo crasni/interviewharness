@@ -172,3 +172,19 @@ test("shows no reasoning picker for a model that doesn't reason", async () => {
   await expect(settings().getByText('Feedback reasoning')).toHaveCount(0);
   await expect(picker(settings(), 'Interviewer reasoning')).toHaveText('low');
 });
+
+test('picks a Reply check model apart from the interviewer, and removing it goes back to the interviewer’s', async () => {
+  await openModelTab();
+  await expect(picker(settings(), 'Reply check model')).toHaveText('Same as interviewer');
+  ollama.reply({ text: 'OK' });
+
+  await choose(settings(), 'Reply check model', 'Add a model…');
+  await settings().getByRole('option', { name: 'qwen3:0.6b' }).click();
+
+  await expect(picker(settings(), 'Reply check model')).toHaveText('qwen3:0.6b · Ollama');
+  await expect.poll(settingsFile).toMatchObject({ checkModel: { provider: 'ollama', model: 'qwen3:0.6b' } });
+  await expect(picker(settings(), 'Interviewer model')).toHaveText('gpt-5-mini · ChatGPT');
+
+  await choose(settings(), 'Reply check model', 'Same as interviewer');
+  await expect.poll(settingsFile).toMatchObject({ checkModel: null });
+});

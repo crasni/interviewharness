@@ -165,7 +165,7 @@ export type FeedbackResult =
   | { ok: false; error: ModelErrorKind | 'no-model' | 'no-round' | 'nothing-said' };
 
 /** Which model a choice is for: the interviewer's words, or the Feedback. */
-export type Slot = 'interviewer' | 'feedback';
+export type Slot = 'interviewer' | 'feedback' | 'check';
 
 /**
  * A model to pick for a slot, with the address (Ollama, a server) or key (a pasted API key, a server's

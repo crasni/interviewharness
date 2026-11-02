@@ -1261,6 +1261,32 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(record.mistakes).toEqual([]);
   });
 
+  it('runs on its own model when one is given, and the log names it', async () => {
+    const clock = fakeClock(10_000);
+    const log = fakeLog();
+    const writer = scriptedModel({ 'interviewer-reply': ['Hi, I am Sam.', reply('answer', 'Could you trace [5, 1, 5]?', { heard: 'done' })] });
+    const checker = scriptedModel({ 'reply-check': [verdict()] }, { provider: 'fast', model: 'checker-1' });
+    const interviewer = createInterviewer({ clock, round: startRound('coding', clock), lines: testLines(), log, model: writer.model, checkModel: checker.model, problem, toneGuide: '', onEvent: () => {} });
+    const wait = (ms: number) => {
+      for (let elapsed = 0; elapsed < ms; elapsed += 100) {
+        clock.advance(100);
+        interviewer.onSignal({ type: 'tick' });
+      }
+    };
+    wait(1_000);
+    await settle();
+    wait(10_000);
+
+    interviewer.onSignal({ type: 'said', text: 'done coding' });
+    wait(1_000);
+    await settle();
+
+    expect(writer.requests.map((r) => r.purpose)).toEqual(['interviewer-reply', 'interviewer-reply']);
+    expect(checker.requests.map((r) => r.purpose)).toEqual(['reply-check']);
+    const calls = log.entries.flatMap((e) => ('modelCall' in e ? [(e as ModelCallEntry).modelCall] : []));
+    expect(calls.at(-1)).toMatchObject({ outcome: 'spoken', checkModel: { provider: 'fast', model: 'checker-1' } });
+  });
+
   it('is not waited on for plain answers', async () => {
     const { interviewer, wait, model } = await afterIntro([answer('Yes, values can repeat.')]);
 

@@ -109,6 +109,7 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => 
   const problem = pickProblem(name);
   endCurrentRound();
   const model = models.interviewerModel();
+  const checkModel = models.checkModel();
   const log = createEventsLog(dataDir(), new Date());
   log.write({ at: systemClock.now(), started: { kind, problem: problem.name } });
   const running = runRound({
@@ -117,6 +118,7 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => 
     lines: createLineBook(linesFile),
     log,
     model,
+    ...(checkModel ? { checkModel } : {}),
     problem,
     toneGuide: linesFile,
     onEvent: (event) => window?.webContents.send(channels.decision, event),
