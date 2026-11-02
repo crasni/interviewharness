@@ -206,7 +206,14 @@ void app.whenReady().then(() => {
   createWindow();
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', () => app.quit());
+
+// Every way out comes through here, including ⌘Q and the Quit menu, which skip window-all-closed.
+let readyToQuit = false;
+app.on('will-quit', (event) => {
+  if (readyToQuit) return;
+  event.preventDefault();
+  readyToQuit = true;
   endCurrentRound();
   // The last change may still be on its way to disk.
   void settings.flush().finally(() => app.quit());

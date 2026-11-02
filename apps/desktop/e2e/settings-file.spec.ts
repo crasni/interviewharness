@@ -25,7 +25,7 @@ function storedOnDisk(text: string) {
     try {
       data = readFileSync(join(dir, name));
     } catch {
-      return false; // on Windows, Chromium keeps some of these files locked (EBUSY) while the app runs
+      return false; // a file still held by an app that is only just closing
     }
     return data.includes(Buffer.from(text, 'latin1')) || data.includes(Buffer.from(text, 'utf16le'));
   });
@@ -54,12 +54,16 @@ test('settings are kept in settings.json in the data folder, and survive a resta
 
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
   // As v0.0 left things: settings only in browser storage, no settings.json.
-  await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
-  // Chromium writes browser storage to disk lazily, and on Windows even a flush can still be under way when the
-  // app closes. Wait until the value is in the storage files on disk.
-  await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
-  await expect.poll(() => storedOnDisk('neon')).toBe(true);
-  await closeApp(app);
+  // Chromium writes browser storage to disk lazily and, on Windows, keeps the files locked while the app runs, so
+  // they're read once it has closed; a write that didn't reach the disk in time is made again.
+  for (let attempt = 1; ; attempt++) {
+    await window.evaluate(() => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: 'neon' })));
+    await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
+    await closeApp(app);
+    if (storedOnDisk('neon') || attempt === 3) break;
+    ({ app, window } = await launchApp({ dataDir }));
+  }
+  expect(storedOnDisk('neon')).toBe(true);
   rmSync(join(dataDir, 'settings.json'));
   ({ app, window } = await launchApp({ dataDir }));
 
