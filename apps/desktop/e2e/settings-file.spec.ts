@@ -34,11 +34,6 @@ function storedOnDisk(text: string) {
 const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
 const body = () => window.locator('body');
 
-async function relaunch() {
-  await closeApp(app);
-  ({ app, window } = await launchApp({ dataDir }));
-}
-
 test('settings are kept in settings.json in the data folder, and survive a restart', async () => {
   // Written just after launch, not before the window shows.
   await expect.poll(settingsFile).toMatchObject({ version: 2, textSize: 'medium' });
@@ -46,10 +41,13 @@ test('settings are kept in settings.json in the data folder, and survive a resta
   await window.getByRole('button', { name: 'Settings' }).click();
   await window.getByRole('dialog', { name: 'Settings' }).getByText('Large', { exact: true }).click();
   await expect(body()).toHaveCSS('font-size', '16.1px');
-  await relaunch();
+  // Quitting straight away, as ⌘Q does, waits for the change to reach the disk, then quits on its own.
+  const quit = await Promise.race([app.close().then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), 3_000))]);
+  expect(quit).toBe(true);
+  expect(settingsFile()).toMatchObject({ textSize: 'large' });
+  ({ app, window } = await launchApp({ dataDir }));
 
   await expect(body()).toHaveCSS('font-size', '16.1px');
-  await expect.poll(settingsFile).toMatchObject({ textSize: 'large' });
 });
 
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
