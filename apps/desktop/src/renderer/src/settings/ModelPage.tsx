@@ -256,7 +256,8 @@ export function ModelPage() {
                 {/* Back goes to the list, or closes the dialog when it opened on one connection to change. */}
                 <PickedHead
                   item={setup.editing ? { ...setup.item, name: setup.editing.name } : setup.item}
-                  onCancel={() => setSetup(setup.replacing || setup.editing ? null : { item: null })}
+                  leave={setup.replacing || setup.editing ? 'Cancel' : 'Back'}
+                  onLeave={() => setSetup(setup.replacing || setup.editing ? null : { item: null })}
                 />
                 <p className="settings-hint">
                   {setup.editing

@@ -296,7 +296,7 @@ export function ModelSetup({
           <Row way="key" open={way} onOpen={open} name={ids.way} icon={<KeyRound className="provider-icon" size={16} strokeWidth={1.75} aria-hidden />} title="API key" description="A key from a provider like OpenAI or Anthropic, or a server of your own.">
             {keyItem ? (
               <>
-                <PickedHead item={keyItem} onCancel={() => pickKey(null)} />
+                <PickedHead item={keyItem} onLeave={() => pickKey(null)} />
                 {keyFields}
               </>
             ) : (

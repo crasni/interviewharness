@@ -98,16 +98,19 @@ export function AddList({ items, onPick }: { items: readonly AddableItem[]; onPi
   );
 }
 
-/** Over a picked item's fields: its name, and Cancel back to the list. */
-export function PickedHead({ item, onCancel }: { item: AddableItem; onCancel: () => void }) {
+/**
+ * Over a picked item's fields: its name, and a button that leaves them: Back to the list, or Cancel when they
+ * were opened straight on one connection (editing a server, replacing a key) and leaving closes them.
+ */
+export function PickedHead({ item, leave = 'Back', onLeave }: { item: AddableItem; leave?: 'Back' | 'Cancel'; onLeave: () => void }) {
   return (
     <div className="add-list-picked">
       <h4 className="add-list-picked-name">
         <ProviderIcon provider={item.provider} />
         {item.name}
       </h4>
-      <button type="button" onClick={onCancel}>
-        Cancel
+      <button type="button" onClick={onLeave}>
+        {leave}
       </button>
     </div>
   );

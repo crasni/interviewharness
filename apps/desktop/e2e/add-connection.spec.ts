@@ -65,7 +65,7 @@ test('picking an item from the keyboard shows only its fields, and Cancel goes b
   await expect(well().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
   await expect(well().getByRole('button', { name: 'Check and save' })).toBeDisabled();
 
-  await well().getByRole('button', { name: 'Cancel' }).click();
+  await well().getByRole('button', { name: 'Back' }).click();
   await expect(well().getByRole('group', { name: 'API keys' }).getByRole('option', { name: 'OpenRouter' })).toBeVisible();
   await window.keyboard.press('Escape');
   await expect(well()).toHaveCount(0);
