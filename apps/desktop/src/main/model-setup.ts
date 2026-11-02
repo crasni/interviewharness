@@ -69,7 +69,15 @@ export function setUpModels({
       if (fake !== undefined) return fake;
       const choice = settings.values().interviewerModel;
       if (!choice) throw new Error('Pick a model before starting a round');
-      return providers.model(withEffort(settings.values(), choice));
+      // Built again for each call, so an effort changed mid-round applies to the next reply.
+      const now = () => providers.model(withEffort(settings.values(), choice));
+      return {
+        get identity() {
+          return now().identity;
+        },
+        streamText: (request, onText) => now().streamText(request, onText),
+        generateObject: (request) => now().generateObject(request),
+      };
     },
 
     /** The model that checks the interviewer's words, when one is picked apart from the interviewer's. */

@@ -337,7 +337,13 @@ export interface RoundStartEntry {
 }
 
 /** Everything the round's log records: how it started, the Floor Manager's decisions and the model calls behind its words. */
-export type RoundLogEntry = RoundStartEntry | FloorLogEntry | ModelCallEntry | GradingEntry;
+/** The candidate changed the interviewer's model's reasoning effort mid-round; the next call uses the new one. */
+export interface EffortChangedEntry {
+  at: number;
+  effortChanged: { model: ModelIdentity; from: string; to: string };
+}
+
+export type RoundLogEntry = RoundStartEntry | FloorLogEntry | ModelCallEntry | GradingEntry | EffortChangedEntry;
 
 export interface RoundLog {
   write(entry: RoundLogEntry): void;

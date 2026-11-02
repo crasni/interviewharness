@@ -2,6 +2,8 @@ import { type CodeSnapshot, type HelpedBySayingAgain, type ModelErrorKind, sayin
 import type { RoomSnapshot } from '../../../shared/api.ts';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { phaseLabels, roundLabel } from '../rounds.ts';
+import { withEffort } from '../../../shared/settings.ts';
+import { Reasoning } from '../models/Reasoning.tsx';
 import { useSettings } from '../settings/settings.tsx';
 import type { PresenceState } from '../ui/PresenceDot.tsx';
 import { Mic, PanelBottomClose, PanelBottomOpen, Settings as SettingsIcon } from 'lucide-react';
@@ -135,6 +137,8 @@ export function Room({ initial, onEnd }: { initial: RoomSnapshot; onEnd: (code: 
             {notice.text}
           </span>
         )}
+        {/* The interviewer's model's effort, to make a slow interviewer quicker mid-round: the next reply uses it. */}
+        {settings.interviewerModel && <Reasoning label="Reasoning" className="room-reasoning" model={withEffort(settings, settings.interviewerModel)} />}
         <span className="room-timer" data-testid="timer">
           {formatElapsed(round.elapsedMs)}
         </span>

@@ -1,8 +1,9 @@
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { ProviderStatus, Slot } from '../../../shared/api.ts';
-import { checkModel, choiceFromKey, defaultEffort, type EffortLevel, feedbackModel, type ModelChoice, modelKey, type Server, withEffort } from '../../../shared/settings.ts';
+import { checkModel, choiceFromKey, feedbackModel, type ModelChoice, modelKey, type Server, withEffort } from '../../../shared/settings.ts';
 import { AddList, PickedHead } from '../models/AddList.tsx';
+import { Reasoning } from '../models/Reasoning.tsx';
 import { type AddableItem, addable } from '../models/addable.ts';
 import { ModelSetup } from '../models/ModelSetup.tsx';
 import { useConnect } from '../models/useConnect.ts';
@@ -103,7 +104,7 @@ export function ModelPage() {
           onChange={(key) => pick('interviewer', key)}
         />
       </div>
-      {settings.interviewerModel && <Reasoning role="Interviewer" model={withEffort(settings, settings.interviewerModel)} />}
+      {settings.interviewerModel && <Reasoning label="Interviewer reasoning" className="settings-row" model={withEffort(settings, settings.interviewerModel)} />}
 
       <div className="settings-row">
         <label htmlFor={feedbackId}>Feedback model</label>
@@ -118,7 +119,7 @@ export function ModelPage() {
           onChange={(key) => pick('feedback', key)}
         />
       </div>
-      {grader && <Reasoning role="Feedback" model={withEffort(settings, grader)} />}
+      {grader && <Reasoning label="Feedback reasoning" className="settings-row" model={withEffort(settings, grader)} />}
 
       <div className="settings-row">
         <label htmlFor={checkId}>Reply check model</label>
@@ -133,7 +134,7 @@ export function ModelPage() {
           onChange={(key) => pick('check', key)}
         />
       </div>
-      {checker && <Reasoning role="Reply check" model={withEffort(settings, checker)} />}
+      {checker && <Reasoning label="Reply check reasoning" className="settings-row" model={withEffort(settings, checker)} />}
       <p className="settings-hint">Checks the interviewer's words for help you didn't ask for before they're said. Uses the interviewer's model unless you pick another.</p>
       {adding && (
         <div className="add-model" role="group" aria-label="Add a model">
@@ -285,36 +286,6 @@ export function ModelPage() {
         )}
       </section>
     </>
-  );
-}
-
-/**
- * A role's model's reasoning effort, by the levels that model offers; nothing for a model that doesn't reason.
- * The effort is the model's: setting it here sets it for every role using that model.
- */
-function Reasoning({ role, model }: { role: string; model: ModelChoice }) {
-  const id = useId();
-  const [levels, setLevels] = useState<EffortLevel[]>([]);
-  const key = modelKey(model);
-  useEffect(() => {
-    let current = true;
-    void window.harness.models.effortLevels(model).then((found) => current && setLevels(found));
-    return () => {
-      current = false;
-    };
-    // The levels belong to the model, not to its effort: looked up again only for another model.
-  }, [key]);
-  if (!levels.length) return null;
-  return (
-    <div className="settings-row">
-      <label htmlFor={id}>{role} reasoning</label>
-      <Picker
-        id={id}
-        value={model.effort ?? defaultEffort}
-        options={levels.map((level) => ({ value: level, label: level }))}
-        onChange={(effort) => void window.harness.models.setEffort(model, effort as EffortLevel)}
-      />
-    </div>
   );
 }
 
