@@ -379,3 +379,27 @@
   flex: 1;
   max-height: none;
 }
+
+/* The dialog reads one step larger than the lists inline: it has the room, and it's all there is to look at. */
+.setup-dialog-title {
+  font-size: var(--text-voice);
+  line-height: var(--leading-voice);
+}
+
+.setup-dialog-body .settings-hint,
+.setup-dialog-body .add-list-search,
+.setup-dialog-body .add-list-item,
+.setup-dialog-body .add-list-empty {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+.setup-dialog-body .add-list-group-label {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.setup-dialog-body .add-list-picked-name {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
