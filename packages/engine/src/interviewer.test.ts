@@ -578,6 +578,28 @@ describe('the conversation sets the phase', () => {
     expect(events.filter((e) => e.kind === 'suggest-phase')).toEqual([expect.objectContaining({ next: 'test' })]);
   });
 
+  it('tells the model how to reply in the phase their turn may move to, so a done turn is written once', async () => {
+    const followUp = answer('Okay. What if the list were sorted?', { heard: 'done', movesTo: 'complexity', asks: 'follow-up' });
+    const helpers = await afterIntro([ack('Okay.', 'test'), followUp], [verdict()]);
+    const { interviewer, wait, model, modelCalls } = helpers;
+    interviewer.onSignal({ type: 'said', text: 'let me test it with [2, 7]' });
+    wait(1_000);
+    await settle();
+    wait(5_000);
+    model.requests.length = 0;
+
+    interviewer.onSignal({ type: 'said', text: "It's O(n) time and O(n) space. I think I'm done." });
+    wait(1_000);
+    await settle();
+
+    const written = model.requests.filter((r) => r.purpose === 'interviewer-reply');
+    expect(written).toHaveLength(1);
+    const prompt = `${written[0]!.system}\n${written[0]!.messages.at(-1)!.text}`;
+    expect(prompt).toContain('If their turn moves the round on to complexity');
+    expect(prompt).toContain('What if the list were sorted?'); // the follow-ups come after complexity
+    expect(modelCalls().at(-1)).not.toHaveProperty('rejected');
+  });
+
   it('logs what each reply observed, which the round follows', async () => {
     const { interviewer, wait, modelCalls } = await afterIntro([ack('Okay.', 'approach')]);
 

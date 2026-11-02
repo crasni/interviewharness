@@ -25,6 +25,8 @@ export interface RoundSoFar {
   offered: LaterPhase | null;
   /** The phase to offer when the candidate is done with this one, or null at the last. */
   nextPhase: LaterPhase | null;
+  /** The phase to offer when they're done with the next one: their turn may move the round on and finish it too. */
+  phaseAfterNext: LaterPhase | null;
   /** Each hint rung given, in order. */
   hints: Exclude<HintLevel, 'none'>[];
   /** The hint rung the interviewer may give next if asked, or null when all three are given. */
@@ -168,12 +170,12 @@ const phaseParts: Record<CodingPhase, string> = {
   'wrap-up': "Answer their questions briefly. Don't review how they did: feedback comes after the round.",
 };
 
-/** What to do when the candidate is done with the phase the round is in. */
-function whenDone({ phase, soFar }: ReplyPromptInput): string {
-  const offer = soFar.nextPhase === 'follow-up'
+/** What to do when the candidate is done with `phase`, whose next phase is `next`. */
+function whenDone({ soFar }: ReplyPromptInput, phase: CodingPhase, next: LaterPhase | null): string {
+  const offer = next === 'follow-up'
     ? 'ask the first follow-up question (kind "answer", asks "follow-up") instead of offering anything'
-    : soFar.nextPhase
-      ? `offer to move on to ${soFar.nextPhase} (kind "offer-next-phase")`
+    : next
+      ? `offer to move on to ${next} (kind "offer-next-phase")`
       : 'acknowledge it';
   switch (phase) {
     case 'code':
@@ -193,6 +195,20 @@ function whenDone({ phase, soFar }: ReplyPromptInput): string {
   }
 }
 
+/**
+ * How to reply if the turn moves the round on to the next phase, so the reply is written for the phase they're in
+ * after it and not thrown away for offering the phase they just reached. Only the next phase: further jumps are rare.
+ */
+function movesOn(input: ReplyPromptInput): string | null {
+  const next = input.soFar.nextPhase;
+  if (!next) return null;
+  return [
+    `# If their turn moves the round on to ${next}`,
+    `Reply for ${next}, not this phase: never offer to move on to ${next}. In ${next}: ${phaseParts[next]}`,
+    `If they're done with ${next} too: ${whenDone(input, next, input.soFar.phaseAfterNext)}`,
+  ].join('\n\n');
+}
+
 /** What to do about a mistake, when to probe, and when to stay quiet: one place, so no other part repeats it. */
 const mistakesAndProbes = `- Until they say they're done or ask you, don't comment on their code or probe.
 - Don't grade answers mid-round: no "great", "correct" or "that's wrong". A neutral "okay" is fine.
@@ -210,7 +226,8 @@ function turnInstruction(input: ReplyPromptInput) {
     'First report what you observed about their turn (heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed), then give your reply (kind, words, hintLevel, pointsOutMistake, asks).',
     `# Each kind of turn, and how to reply\n\n${replyByTurn}`,
     `# In this phase\n\n${phaseParts[input.phase]}`,
-    `# When they're done\n\n${whenDone(input)}`,
+    `# When they're done\n\n${whenDone(input, input.phase, input.soFar.nextPhase)}`,
+    movesOn(input),
     `# Mistakes, probes and staying quiet\n\n${mistakesAndProbes}`,
     `# Help\n\nA hint only when they ask for help or accept your offer: the next rung of the hint ladder, in your own words, kept to what they're blocked on. Offer help in a short question such as "Want a hint?" (asks "offer-help") only when they say they're stuck or after repeated failed attempts, and never after they've declined it.`,
   ].join('\n\n');
@@ -250,7 +267,7 @@ export function buildReplyPrompt(input: ReplyPromptInput): { system: string; mes
     `# The problem (the candidate sees this too)\n\n${input.problem.statement.trim()}`,
     `# Your notes on the problem (never shown to the candidate)\n\n${input.problem.notes}`,
     input.phase === 'wrap-up' ? null : hintLadder(input.problem),
-    input.phase === 'follow-up' || input.soFar.nextPhase === 'follow-up' ? followUps(input.problem) : null,
+    [input.phase, input.soFar.nextPhase, input.soFar.phaseAfterNext].includes('follow-up') ? followUps(input.problem) : null,
     `# The reference solution\n\nNEVER reveal, quote or paraphrase this code, or describe its approach. It is only for you to judge the candidate's code against.\n\n\`\`\`${input.problem.reference.language}\n${input.problem.reference.code.trim()}\n\`\`\``,
     `# How you sound\n\nExamples of an interviewer's lines. Match their tone and length; don't repeat them word for word.\n\n${input.toneGuide.trim()}`,
   ]

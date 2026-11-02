@@ -538,14 +538,19 @@ export function createInterviewer(options: InterviewerOptions) {
   /** The round so far, as the model is told it every time. */
   function soFar(): RoundSoFar {
     const { phase, elapsedMs } = round.snapshot();
-    let next = nextPhase(phase);
-    while (next && skipsPhase(next)) next = nextPhase(next);
+    const after = (from: CodingPhase) => {
+      let next = nextPhase(from);
+      while (next && skipsPhase(next)) next = nextPhase(next);
+      return next;
+    };
+    const next = after(phase);
     return {
       elapsedMs,
       roundMs: codingRoundMs,
       phases,
       offered,
       nextPhase: next,
+      phaseAfterNext: next && after(next),
       hints,
       nextHint: nextHint(),
       mistakesPointedOut: mistakes.filter((m) => m.foundBy === 'interviewer').length,
