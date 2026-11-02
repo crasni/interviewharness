@@ -287,6 +287,21 @@
   width: 280px;
 }
 
+/* A model's reasoning effort, right after its picker: narrow, since a level is one short word. */
+.settings-row .model-effort .picker-button {
+  width: 104px;
+}
+
+/* The model picker shares its row with the effort, so the two sit together at the right, close. */
+.settings-row:has(.model-effort) {
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+.settings-row:has(.model-effort) > .picker-button {
+  margin-left: auto;
+}
+
 @keyframes connection-state-in {
   from {
     opacity: 0;

@@ -6,7 +6,7 @@ import { Picker } from '../ui/Picker.tsx';
  * A model's reasoning effort, by the levels that model offers; nothing for a model that doesn't reason.
  * The effort is the model's: setting it here sets it for every role using that model.
  */
-export function Reasoning({ label, className, model }: { label: string; className: string; model: ModelChoice }) {
+export function Reasoning({ label, hideLabel = false, className, model }: { label: string; hideLabel?: boolean; className: string; model: ModelChoice }) {
   const id = useId();
   const [levels, setLevels] = useState<EffortLevel[]>([]);
   const key = modelKey(model);
@@ -20,14 +20,16 @@ export function Reasoning({ label, className, model }: { label: string; classNam
   }, [key]);
   if (!levels.length) return null;
   return (
-    <div className={className}>
-      <label htmlFor={id}>{label}</label>
+    <span className={className}>
+      <label htmlFor={id} className={hideLabel ? 'visually-hidden' : undefined}>
+        {label}
+      </label>
       <Picker
         id={id}
         value={model.effort ?? defaultEffort}
         options={levels.map((level) => ({ value: level, label: level }))}
         onChange={(effort) => void window.harness.models.setEffort(model, effort as EffortLevel)}
       />
-    </div>
+    </span>
   );
 }
