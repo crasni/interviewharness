@@ -1,8 +1,9 @@
 import type { ModelChoice, Server } from '@interviewharness/providers';
-import { defaultOllamaAddress, keyProviderTable, serverFormats } from '@interviewharness/providers/defaults';
+import { allEffortLevels, defaultEffort, type EffortLevel, defaultOllamaAddress, keyProviderTable, serverFormats } from '@interviewharness/providers/defaults';
 import { isTheme, type Theme } from './api.ts';
 
-export type { ModelChoice, Server };
+export type { EffortLevel, ModelChoice, Server };
+export { defaultEffort };
 
 export const textSizes = ['small', 'medium', 'large'] as const;
 export type TextSize = (typeof textSizes)[number];
@@ -98,11 +99,20 @@ export const isServerId = (value: unknown): value is string => typeof value === 
 /** A well-formed model choice; nothing else rides along with it (a key, say). */
 export const isModelChoice = (value: unknown): value is ModelChoice => {
   if (typeof value !== 'object' || value === null) return false;
-  const { provider, model, server, ...rest } = value as Record<string, unknown>;
+  const { provider, model, server, effort, ...rest } = value as Record<string, unknown>;
   // A server's model names its server; no other model names one.
   const serverNamed = provider === 'server' ? isServerId(server) : server === undefined;
-  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && serverNamed && !Object.keys(rest).length;
+  return (
+    modelProviders.includes(provider as ModelChoice['provider']) &&
+    typeof model === 'string' &&
+    model.length > 0 &&
+    serverNamed &&
+    (effort === undefined || isEffortLevel(effort)) &&
+    !Object.keys(rest).length
+  );
 };
+
+export const isEffortLevel = (value: unknown): value is EffortLevel => (allEffortLevels as readonly unknown[]).includes(value);
 
 /** A server's name, as the candidate typed it: something to tell it by, and short. */
 export const isServerName = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 80;
@@ -204,6 +214,18 @@ export function choiceFromKey(key: string): ModelChoice | null {
   const choice = provider === 'server' ? { provider, server: rest.slice(0, serverSlash), model: rest.slice(serverSlash + 1) } : { provider, model: rest };
   const whole = slash > 0 && (provider !== 'server' || serverSlash > 0);
   return whole && isModelChoice(choice) ? (choice as ModelChoice) : null;
+}
+
+/** A picked model with the effort set on it in your models: a model's effort is the model's, whichever role uses it. */
+export function withEffort(settings: Settings, choice: ModelChoice): ModelChoice {
+  const model: ModelChoice = { provider: choice.provider, model: choice.model, ...(choice.server ? { server: choice.server } : {}) };
+  const effort = settings.yourModels.find((yours) => modelKey(yours) === modelKey(choice))?.effort;
+  return effort ? { ...model, effort } : model;
+}
+
+/** What setting a model's effort changes: its entry in your models. */
+export function settingsWithEffort(settings: Settings, choice: ModelChoice, effort: EffortLevel): Partial<Settings> {
+  return { yourModels: settings.yourModels.map((yours) => (modelKey(yours) === modelKey(choice) ? { ...yours, effort } : yours)) };
 }
 
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */

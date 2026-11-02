@@ -6,9 +6,11 @@ Spec: `.scratch/v0-1-3/spec.md`
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] settings.json keeps `effort` per model; migration sets `low` on models that reason
-- [ ] Your models rows and the role pickers show and change it, only for models with levels
-- [ ] Calls send the model's effort; `modelCall` events record it
-- [ ] Providers tests assert the effort sent; end-to-end tests cover changing it
+- [x] settings.json keeps `effort` per model; migration sets `low` on models that reason
+- [x] Your models rows and the role pickers show and change it, only for models with levels
+- [x] Calls send the model's effort; `modelCall` events record it
+- [x] Providers tests assert the effort sent; end-to-end tests cover changing it
+
+Done: `effort` rides on your models' entries (`withEffort` gives a role's model its effort). No migration was needed: an absent effort means `defaultEffort` (`low`), which is what v0.1.2 sent. Settings → Model shows an "<Role> reasoning" picker under each role whose model has levels; there is no separate Your models list, so the role rows are where it's set. Ollama lists no levels for now.

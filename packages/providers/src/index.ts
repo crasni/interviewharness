@@ -1,4 +1,4 @@
-export { createProviders, defaultChatGPTModel, defaultEffort, errorKind, keyProviders, smallModelParameters } from './providers.ts';
+export { allEffortLevels, createProviders, defaultChatGPTModel, defaultEffort, errorKind, keyProviders, smallModelParameters } from './providers.ts';
 export type { ChatGPTLoginOptions, EffortLevel, KeyProviderName, OpenRouterSignInOptions, ModelChoice, ModelListing, ProviderName, Providers, ProvidersOptions, Connection } from './providers.ts';
 export { defaultOllamaAddress } from './ollama.ts';
 export { resolveServer } from './servers.ts';

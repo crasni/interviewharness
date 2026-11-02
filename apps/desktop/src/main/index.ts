@@ -185,6 +185,8 @@ ipcMain.handle(channels.replaceKey, (_event, replacement: unknown) => models.rep
 
 ipcMain.handle(channels.logout, (_event, provider: unknown, server: unknown) => models.logout(provider, server));
 ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
+ipcMain.handle(channels.effortLevels, (_event, model: unknown) => models.effortLevels(model));
+ipcMain.handle(channels.setEffort, (_event, model: unknown, effort: unknown) => models.setEffort(model, effort));
 ipcMain.handle(channels.listServer, (_event, listing: unknown) => models.listServer(listing));
 ipcMain.handle(channels.addServer, (_event, setup: unknown) => models.addServer(setup));
 ipcMain.handle(channels.editServer, (_event, setup: unknown) => models.editServer(setup));

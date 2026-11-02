@@ -2,7 +2,7 @@ import type { RoundKind } from '@interviewharness/core';
 import type { CodeSnapshot, Difficulty, FeedbackPoint, InterviewerEvent, ModelErrorKind, RoundSnapshot, Signal } from '@interviewharness/engine';
 import type { Verdict } from '@interviewharness/core';
 import type { Connection, ModelListing, Server } from '@interviewharness/providers';
-import type { ModelChoice, Settings } from './settings.ts';
+import type { EffortLevel, ModelChoice, Settings } from './settings.ts';
 
 /** Signals the candidate can send. Ticks come from the main process, never the renderer. */
 export const candidateSignalTypes = [
@@ -106,6 +106,10 @@ export interface HarnessApi {
     signInToOpenRouter(): Promise<LoginResult>;
     /** Takes a model off your models, and unpicks it wherever it was picked (announced through settings.onChange). */
     removeModel(model: ModelChoice): Promise<void>;
+    /** The reasoning efforts a model offers, by its provider's names; none for a model that doesn't reason. */
+    effortLevels(model: ModelChoice): Promise<EffortLevel[]>;
+    /** Sets one of your models' reasoning effort, shared by every role using it (announced through settings.onChange). */
+    setEffort(model: ModelChoice, effort: EffortLevel): Promise<void>;
     /** Opens the page where a key provider's keys are made, in the browser. Main opens only the pages in the table of key providers. */
     openKeyPage(provider: ModelChoice['provider']): void;
     /** A server's models: a saved one's, or through an address, format or key not saved yet. */
@@ -219,6 +223,8 @@ export const channels = {
   logout: 'models:logout',
   signInToOpenRouter: 'models:openrouter-sign-in',
   removeModel: 'models:remove-model',
+  effortLevels: 'models:effort-levels',
+  setEffort: 'models:set-effort',
   openKeyPage: 'models:open-key-page',
   listServer: 'models:server-list',
   addServer: 'models:server-add',

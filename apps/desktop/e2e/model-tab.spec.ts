@@ -150,3 +150,25 @@ test('signed in to ChatGPT, adding it again offers its models instead of signing
   await expect(picker(settings(), 'Model')).toHaveText('GPT-6.1 Sol');
   await expect(settings().getByRole('button', { name: 'Use this model' })).toBeEnabled();
 });
+
+test("sets a model's reasoning effort next to each role, shared by every role using that model", async () => {
+  await openModelTab();
+  await expect(picker(settings(), 'Interviewer reasoning')).toHaveText('low');
+
+  await choose(settings(), 'Interviewer reasoning', 'high');
+
+  await expect.poll(settingsFile).toMatchObject({ yourModels: [{ provider: 'chatgpt', model: 'gpt-5-mini', effort: 'high' }] });
+  await expect(picker(settings(), 'Feedback reasoning')).toHaveText('high'); // "Same as interviewer": the same model
+});
+
+test("shows no reasoning picker for a model that doesn't reason", async () => {
+  await openModelTab();
+  ollama.reply({ text: 'OK' });
+
+  await choose(settings(), 'Feedback model', 'Add a model…');
+  await settings().getByRole('option', { name: 'qwen2.5:32b' }).click();
+
+  await expect(picker(settings(), 'Feedback model')).toHaveText('qwen2.5:32b · Ollama');
+  await expect(settings().getByText('Feedback reasoning')).toHaveCount(0);
+  await expect(picker(settings(), 'Interviewer reasoning')).toHaveText('low');
+});

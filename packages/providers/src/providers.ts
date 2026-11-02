@@ -9,7 +9,6 @@ import {
   type Message,
   type Model as PiModel,
   type Models,
-  type ModelThinkingLevel,
   getSupportedThinkingLevels,
   type ProviderAuth,
   type Tool,
@@ -28,6 +27,7 @@ import { registerKeyProviders } from './key-provider-factories.ts';
 import { keyProviderTable, type TableKeyProviderName } from './key-providers.ts';
 import { defaultOllamaAddress, ollamaModel, ollamaModels } from './ollama.ts';
 import { type OpenRouterLoginConfig, openrouterOAuth } from './openrouter-login.ts';
+import { defaultEffort, type EffortLevel } from './defaults.ts';
 import { adoptOldServerKey, resolveServer, type Server, type ServerFormat, serverCredentialId, serverModel, serverModels, serverProvider } from './servers.ts';
 
 /** The providers the candidate can pick, in our own words. pi-ai's ids stay inside this package. */
@@ -47,11 +47,7 @@ export interface ModelChoice {
   effort?: EffortLevel;
 }
 
-/** A reasoning effort, by the names pi-ai gives each provider's levels. */
-export type EffortLevel = Exclude<ModelThinkingLevel, 'off'>;
-
-/** The effort of a reasoning model nobody set one for: an interviewer reply needs little thought, and every second of it is silence in the room. */
-export const defaultEffort: EffortLevel = 'low';
+export { allEffortLevels, defaultEffort, type EffortLevel } from './defaults.ts';
 
 export { defaultChatGPTModel } from './defaults.ts';
 

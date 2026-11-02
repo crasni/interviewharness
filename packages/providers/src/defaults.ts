@@ -24,3 +24,12 @@ export const defaultOllamaAddress = 'http://localhost:11434';
 /** The API formats a server of the candidate's own can speak: OpenAI's Chat Completions, or Anthropic's Messages. */
 export const serverFormats = ['openai', 'anthropic'] as const;
 export type ServerFormat = (typeof serverFormats)[number];
+
+/** A reasoning effort, by the names pi-ai gives each provider's levels (its `ModelThinkingLevel`, less "off"). */
+export type EffortLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+/** Every effort any model may offer, lowest first; each model offers some of them (`effortLevels`). */
+export const allEffortLevels: readonly EffortLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/** The effort of a reasoning model nobody set one for: an interviewer reply needs little thought, and every second of it is silence in the room. */
+export const defaultEffort: EffortLevel = 'low';
