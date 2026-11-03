@@ -1,6 +1,6 @@
 # v0.2.0: voice in and out
 
-Status: ready-for-agent
+Status: ready-for-agent (tickets 01–09 in issues/)
 
 Decisions: ADR 0022 (grilled 2026-11-03), with ADR 0019 (the check), 0021 (connections) and 0015 (the look). Research: `docs/research/14-v02-voice-engines.md`. Prototype: branch `prototype/voice-engines`, `apps/desktop/prototype-voice/` (its findings are in ADR 0022's Consequences and under Further Notes here).
 
