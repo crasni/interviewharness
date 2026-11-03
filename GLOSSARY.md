@@ -93,11 +93,11 @@ _Avoid_: Score, grade, result
 ### Models
 
 **Connection**:
-One way the candidate brings models to the app: a plan they signed in to (ChatGPT, OpenRouter), an API key for a named provider, Ollama on their computer, or one of their own named servers. Settings → Model lists every connection with a short status ("Signed in", "Key saved", "Running · 3 models", "Not answering"). Removing one forgets its key or login and removes its models from your models.
+One way the candidate brings models to the app: a plan they signed in to (ChatGPT, OpenRouter), an API key for a named provider, Ollama on their computer, or one of their own named servers. A key for a speech service (Deepgram) is a connection too, of the Speech kind: it turns the candidate's voice into text rather than writing the interviewer's words. Settings → Model lists every connection with a short status ("Signed in", "Key saved", "Running · 3 models", "Not answering"). Removing one forgets its key or login and removes its models from your models.
 _Avoid_: Provider (that's the company behind it), account, integration, source
 
 **Your models**:
-The models the candidate has added, each checked to answer with one short reply when it was added, and each from one of their connections. The Interviewer, Feedback and Reply check model pickers list only these; "Add a model…" searches every connection's models to add another. Removing a connection removes its models.
+The models the candidate has added, each checked to answer with one short reply when it was added, and each from one of their connections. The Interviewer, Feedback and Reply check model pickers list only these; "Add a model…" searches every connection's models to add another. Removing a connection removes its models. Speech models are added the same way and listed in the Speech to text picker: one on the candidate's computer is added by downloading it, a cloud one by checking it with a short clip.
 _Avoid_: Favourites, saved models, model list
 
 **Reasoning effort**:
