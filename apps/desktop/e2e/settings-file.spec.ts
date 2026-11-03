@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import { closeApp, launchApp } from './launch.ts';
@@ -16,20 +16,8 @@ test.afterEach(async () => {
   await closeApp(app);
 });
 
-/** Whether `text` is in Chromium's browser-storage files in the data folder (stored as Latin-1 or UTF-16). */
-function storedOnDisk(text: string) {
-  const dir = join(dataDir, 'Local Storage', 'leveldb');
-  if (!existsSync(dir)) return false;
-  return readdirSync(dir).some((name) => {
-    let data: Buffer;
-    try {
-      data = readFileSync(join(dir, name));
-    } catch {
-      return false; // a file still held by an app that is only just closing
-    }
-    return data.includes(Buffer.from(text, 'latin1')) || data.includes(Buffer.from(text, 'utf16le'));
-  });
-}
+/** Chromium's browser storage as v0.0 left it: its settings, under the key v0.0 used. */
+const v00Storage = join(import.meta.dirname, 'fixtures', 'v0.0-browser-storage');
 
 const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
 const body = () => window.locator('body');
@@ -51,23 +39,11 @@ test('settings are kept in settings.json in the data folder, and survive a resta
 });
 
 test("v0.0's settings in browser storage are carried into settings.json once, then cleared", async () => {
-  // As v0.0 left things: settings only in browser storage, no settings.json.
-  // Chromium writes browser storage to disk lazily and, on Windows, keeps the files locked while the app runs, so
-  // they're read once it has closed; a write that didn't reach the disk in time is made again. Each attempt writes
-  // its own value: a late write from an earlier attempt can land and be cleared by the relaunch, leaving its text in
-  // the files, which mustn't pass for this attempt's.
-  let theme: string;
-  for (let attempt = 1; ; attempt++) {
-    theme = `neon${attempt}`;
-    await window.evaluate((value) => localStorage.setItem('settings', JSON.stringify({ textSize: 'large', theme: value })), theme);
-    await app.evaluate(({ session }) => session.defaultSession.flushStorageData());
-    await closeApp(app);
-    if (storedOnDisk(theme) || attempt === 3) break;
-    ({ app, window } = await launchApp({ dataDir }));
-  }
-  expect(storedOnDisk(theme)).toBe(true);
-  rmSync(join(dataDir, 'settings.json'));
-  ({ app, window } = await launchApp({ dataDir }));
+  // As v0.0 left things: settings only in browser storage, no settings.json. The storage is copied in from files a
+  // v0.0-style app wrote ({ textSize: 'large', theme: 'neon' }), rather than written by this run: Chromium writes it
+  // to disk lazily, and on Windows a write cut short at quit can leave files that look right but don't load.
+  await closeApp(app);
+  ({ app, window, dataDir } = await launchApp({ modelPicked: false, seed: (dir) => cpSync(v00Storage, join(dir, 'Local Storage'), { recursive: true }) }));
 
   await expect(body()).toHaveCSS('font-size', '16.1px');
   expect(await window.evaluate(() => localStorage.getItem('settings'))).toBeNull();
