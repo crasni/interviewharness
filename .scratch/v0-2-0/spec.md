@@ -2,7 +2,7 @@
 
 Status: ready-for-agent (tickets 01–09 in issues/)
 
-Decisions: ADR 0022 (grilled 2026-11-03), with ADR 0019 (the check), 0021 (connections) and 0015 (the look). Research: `docs/research/14-v02-voice-engines.md`. Prototype: branch `prototype/voice-engines`, `apps/desktop/prototype-voice/` (its findings are in ADR 0022's Consequences and under Further Notes here).
+Decisions: ADR 0023 (grilled 2026-11-03), with ADR 0019 (the check), 0021 (connections) and 0015 (the look). Research: `docs/research/14-v02-voice-engines.md`. Prototype: branch `prototype/voice-engines`, `apps/desktop/prototype-voice/` (its findings are in ADR 0023's Consequences and under Further Notes here).
 
 ## Problem Statement
 
@@ -183,7 +183,7 @@ v0.2.0 gives the round a voice in both directions, one turn at a time:
 - Voice cloning or voices from the candidate's own clips.
 - Languages other than English.
 - Packaging and installers (asar unpacking, the macOS microphone usage description and signing are noted above for when packaging arrives).
-- Kokoro: kept only as the prototype's comparison (ADR 0022 records why its word list would have needed more work).
+- Kokoro: kept only as the prototype's comparison (ADR 0023 records why its word list would have needed more work).
 
 ## Further Notes
 
