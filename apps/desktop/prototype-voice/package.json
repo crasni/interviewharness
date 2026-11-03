@@ -1,0 +1,21 @@
+{
+  "name": "prototype-voice",
+  "private": true,
+  "description": "PROTOTYPE, throwaway: v0.2.0 voice engine spike (ADR 0022). Not part of the app.",
+  "type": "module",
+  "scripts": {
+    "start": "node voice-spike.mjs",
+    "electron-check": "electron electron-check/main.cjs"
+  },
+  "dependencies": {
+    "sherpa-onnx-node": "2.0.1"
+  },
+  "devDependencies": {
+    "electron": "45.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+# PROTOTYPE, throwaway (ADR 0022): does sherpa-onnx-node run in an Electron utility process on every target?
+# Lives only on the prototype/voice-engines branch.
+name: Prototype voice
+
+on:
+  push:
+    branches: [prototype/voice-engines]
+    paths: [apps/desktop/prototype-voice/**, .github/workflows/prototype-voice.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux x64, runner: ubuntu-latest }
+          - { name: Linux arm64, runner: ubuntu-24.04-arm }
+          - { name: macOS arm64, runner: macos-latest }
+          - { name: macOS x64, runner: macos-15-intel }
+          - { name: Windows x64, runner: windows-latest }
+          - { name: Windows arm64, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/desktop/prototype-voice
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --ignore-workspace --frozen-lockfile
+
+      - name: Download Moonshine, Kokoro and Pocket TTS
+        run: |
+          mkdir -p models-PROTOTYPE-wipe-me && cd models-PROTOTYPE-wipe-me
+          B=https://github.com/k2-fsa/sherpa-onnx/releases/download
+          for u in asr-models/sherpa-onnx-moonshine-base-en-quantized-2026-02-27 tts-models/kokoro-int8-multi-lang-v1_0 tts-models/sherpa-onnx-pocket-tts-int8-2026-01-26; do
+            curl -sSfL "$B/$u.tar.bz2" -o m.tar.bz2 && tar xjf m.tar.bz2 && rm m.tar.bz2
+          done
+
+      - name: Allow Electron's sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Utility process check (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum pnpm electron-check
+      - name: Utility process check
+        if: runner.os != 'Linux'
+        run: pnpm electron-check
