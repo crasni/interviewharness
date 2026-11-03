@@ -14,7 +14,7 @@ test.afterEach(async () => {
 
 const settings = () => window.getByRole('dialog', { name: 'Settings' });
 const step = () => window.getByRole('region', { name: 'Pick a model' });
-const well = () => settings().getByRole('group', { name: 'Add a connection' });
+const well = () => window.getByRole('dialog', { name: 'Add a connection' });
 const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
 const groupNames = (scope: Locator) => scope.getByRole('listbox').getByRole('group').evaluateAll((groups) => groups.map((g) => g.getAttribute('aria-label')));
 
@@ -65,10 +65,11 @@ test('picking an item from the keyboard shows only its fields, and Cancel goes b
   await expect(well().getByRole('button', { name: 'Continue with ChatGPT' })).toHaveCount(0);
   await expect(well().getByRole('button', { name: 'Check and save' })).toBeDisabled();
 
-  await well().getByRole('button', { name: 'Cancel' }).click();
+  await well().getByRole('button', { name: 'Back' }).click();
   await expect(well().getByRole('group', { name: 'API keys' }).getByRole('option', { name: 'OpenRouter' })).toBeVisible();
-  await well().getByRole('button', { name: 'Cancel' }).click();
+  await window.keyboard.press('Escape');
   await expect(well()).toHaveCount(0);
+  await expect(settings()).toBeVisible(); // back to Settings, still open behind it
 });
 
 test('a server picked from the list is checked before it is saved, then listed as a connection', async () => {

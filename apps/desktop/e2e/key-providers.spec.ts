@@ -19,7 +19,7 @@ test.afterEach(async () => {
 });
 
 const settings = () => window.getByRole('dialog', { name: 'Settings' });
-const well = () => settings().getByRole('group', { name: 'Add a connection' });
+const well = () => window.getByRole('dialog', { name: 'Add a connection' });
 
 async function openModelTab() {
   await window.getByRole('button', { name: 'Settings' }).click();

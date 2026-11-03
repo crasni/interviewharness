@@ -138,3 +138,10 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+/* A way in's logo, then its name. */
+.model-setup-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

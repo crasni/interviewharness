@@ -1,8 +1,9 @@
 import type { ModelChoice, Server } from '@interviewharness/providers';
-import { defaultOllamaAddress, keyProviderTable, serverFormats } from '@interviewharness/providers/defaults';
+import { allEffortLevels, defaultEffort, type EffortLevel, defaultOllamaAddress, keyProviderTable, serverFormats } from '@interviewharness/providers/defaults';
 import { isTheme, type Theme } from './api.ts';
 
-export type { ModelChoice, Server };
+export type { EffortLevel, ModelChoice, Server };
+export { defaultEffort };
 
 export const textSizes = ['small', 'medium', 'large'] as const;
 export type TextSize = (typeof textSizes)[number];
@@ -39,6 +40,8 @@ export type Settings = {
   interviewerModel: ModelChoice | null;
   /** The model that writes the Feedback, if not the interviewer's (a stronger one, say). */
   feedbackModel: ModelChoice | null;
+  /** The model that checks the interviewer's words before they're said (ADR 0019), if not the interviewer's (a faster one, say). */
+  checkModel: ModelChoice | null;
   /** Models the candidate marked as small (see `modelKey`): their Feedback is marked rough. */
   smallModels: string[];
   /** Whether the candidate has been told their login isn't encrypted on this machine (Linux with no keyring). */
@@ -66,6 +69,7 @@ export const defaultSettings: Settings = {
   yourModels: [],
   interviewerModel: null,
   feedbackModel: null,
+  checkModel: null,
   smallModels: [],
   unencryptedLoginNoted: false,
   ollamaAddress: defaultOllamaAddress,
@@ -98,11 +102,20 @@ export const isServerId = (value: unknown): value is string => typeof value === 
 /** A well-formed model choice; nothing else rides along with it (a key, say). */
 export const isModelChoice = (value: unknown): value is ModelChoice => {
   if (typeof value !== 'object' || value === null) return false;
-  const { provider, model, server, ...rest } = value as Record<string, unknown>;
+  const { provider, model, server, effort, ...rest } = value as Record<string, unknown>;
   // A server's model names its server; no other model names one.
   const serverNamed = provider === 'server' ? isServerId(server) : server === undefined;
-  return modelProviders.includes(provider as ModelChoice['provider']) && typeof model === 'string' && model.length > 0 && serverNamed && !Object.keys(rest).length;
+  return (
+    modelProviders.includes(provider as ModelChoice['provider']) &&
+    typeof model === 'string' &&
+    model.length > 0 &&
+    serverNamed &&
+    (effort === undefined || isEffortLevel(effort)) &&
+    !Object.keys(rest).length
+  );
 };
+
+export const isEffortLevel = (value: unknown): value is EffortLevel => (allEffortLevels as readonly unknown[]).includes(value);
 
 /** A server's name, as the candidate typed it: something to tell it by, and short. */
 export const isServerName = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 80;
@@ -138,6 +151,7 @@ const validators: { [K in keyof Settings]: (value: unknown) => value is Settings
   yourModels: (value): value is ModelChoice[] => Array.isArray(value) && value.every(isModelChoice),
   interviewerModel: isPickedModel,
   feedbackModel: isPickedModel,
+  checkModel: isPickedModel,
   smallModels: isModelKeys,
   unencryptedLoginNoted: isBoolean,
   ollamaAddress: isServerAddress,
@@ -165,7 +179,7 @@ export function validSettings(raw: unknown): Partial<Settings> {
 export function validChanges(current: Settings, raw: unknown): Partial<Settings> {
   const changes = validSettings(raw);
   const yours = changes.yourModels ?? current.yourModels;
-  for (const slot of ['interviewerModel', 'feedbackModel'] as const) {
+  for (const slot of ['interviewerModel', 'feedbackModel', 'checkModel'] as const) {
     const picked = changes[slot];
     if (picked && !yours.some((choice) => sameModel(choice, picked))) delete changes[slot];
   }
@@ -188,9 +202,10 @@ export const withYourModel = (models: ModelChoice[], choice: ModelChoice) =>
  * What adding a model that answered changes: it joins your models, and is picked for `slot`. With no slot
  * (a connection added in Settings, a sign-in), it's picked for the interviewer only when none is picked yet.
  */
-export function settingsAfterAdding(settings: Settings, choice: ModelChoice, slot?: 'interviewer' | 'feedback'): Partial<Settings> {
+export function settingsAfterAdding(settings: Settings, choice: ModelChoice, slot?: 'interviewer' | 'feedback' | 'check'): Partial<Settings> {
   const yourModels = withYourModel(settings.yourModels, choice);
   if (slot === 'feedback') return { yourModels, feedbackModel: choice };
+  if (slot === 'check') return { yourModels, checkModel: choice };
   if (slot === 'interviewer' || !settings.interviewerModel) return { yourModels, interviewerModel: choice };
   return { yourModels };
 }
@@ -206,14 +221,30 @@ export function choiceFromKey(key: string): ModelChoice | null {
   return whole && isModelChoice(choice) ? (choice as ModelChoice) : null;
 }
 
+/** A picked model with the effort set on it in your models: a model's effort is the model's, whichever role uses it. */
+export function withEffort(settings: Settings, choice: ModelChoice): ModelChoice {
+  const model: ModelChoice = { provider: choice.provider, model: choice.model, ...(choice.server ? { server: choice.server } : {}) };
+  const effort = settings.yourModels.find((yours) => modelKey(yours) === modelKey(choice))?.effort;
+  return effort ? { ...model, effort } : model;
+}
+
+/** What setting a model's effort changes: its entry in your models. */
+export function settingsWithEffort(settings: Settings, choice: ModelChoice, effort: EffortLevel): Partial<Settings> {
+  return { yourModels: settings.yourModels.map((yours) => (modelKey(yours) === modelKey(choice) ? { ...yours, effort } : yours)) };
+}
+
 /** The model that writes the Feedback: the one picked for it, else the interviewer's. */
 export const feedbackModel = (settings: Settings) => settings.feedbackModel ?? settings.interviewerModel;
+
+/** The model that checks the interviewer's words: the one picked for it, else the interviewer's. */
+export const checkModel = (settings: Settings) => settings.checkModel ?? settings.interviewerModel;
 
 /** What removing some of your models changes: they leave your models, and are unpicked wherever they were picked. */
 export function settingsWithout(settings: Settings, removed: (choice: ModelChoice) => boolean): Partial<Settings> {
   const changes: Partial<Settings> = { yourModels: settings.yourModels.filter((choice) => !removed(choice)) };
   if (settings.interviewerModel && removed(settings.interviewerModel)) changes.interviewerModel = null;
   if (settings.feedbackModel && removed(settings.feedbackModel)) changes.feedbackModel = null;
+  if (settings.checkModel && removed(settings.checkModel)) changes.checkModel = null;
   return changes;
 }
 

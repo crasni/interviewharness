@@ -61,7 +61,7 @@ test('an API key is hidden as it is typed, and nothing can be saved without one'
   ({ app, window, dataDir } = await launchApp({ modelPicked: false }));
 
   const pickKey = (name: string) => step().getByRole('option', { name, exact: true }).click();
-  const backToList = () => step().getByRole('button', { name: 'Cancel' }).click();
+  const backToList = () => step().getByRole('button', { name: 'Back' }).click();
 
   await step().getByRole('radio', { name: /API key/ }).check();
   await pickKey('OpenAI');

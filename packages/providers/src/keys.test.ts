@@ -122,3 +122,40 @@ describe('a model reached with an API key', () => {
     }
   });
 });
+
+describe('reasoning effort', () => {
+  const ok = { status: 200, body: '' };
+
+  it("lists a model's own levels, and none for a model that doesn't reason", () => {
+    const providers = providersWith();
+
+    expect(providers.effortLevels({ provider: 'openai', model: 'gpt-5-mini' })).toEqual(['minimal', 'low', 'medium', 'high']);
+    expect(providers.effortLevels({ provider: 'openai', model: 'gpt-4o-mini' })).toEqual([]);
+  });
+
+  it("sends the model's effort and names it with the model, defaulting to low", async () => {
+    const providers = providersWith();
+    await providers.saveKey('openai', 'sk-openai-test');
+    fake.reply(ok);
+    fake.reply(ok);
+
+    const chosen = providers.model({ provider: 'openai', model: 'gpt-5-mini', effort: 'high' });
+    await chosen.streamText(request).catch(() => {});
+    await providers.model({ provider: 'openai', model: 'gpt-5-mini' }).streamText(request).catch(() => {});
+
+    expect(chosen.identity).toEqual({ provider: 'openai', model: 'gpt-5-mini', effort: 'high' });
+    expect(fake.requests.map((r) => (r.body.reasoning as { effort?: string } | undefined)?.effort)).toEqual(['high', 'low']);
+  });
+
+  it('sends Anthropic its own effort, not an OpenAI field', async () => {
+    const providers = providersWith();
+    await providers.saveKey('anthropic', 'sk-ant-test');
+    fake.reply(ok);
+
+    await providers.model({ provider: 'anthropic', model: 'claude-sonnet-4-6', effort: 'medium' }).streamText(request).catch(() => {});
+
+    const { body } = fake.requests[0]!;
+    expect(body.thinking).toBeDefined();
+    expect(body).not.toHaveProperty('reasoning');
+  });
+});

@@ -3,6 +3,7 @@ import {
   type Model,
   ModelError,
   type ModelErrorKind,
+  type ModelIdentity,
   type ModelPurpose,
   type ModelRequest,
   type RoundLogEntry,
@@ -102,7 +103,7 @@ interface Waiting {
  * A model that gives scripted replies per purpose, in order, and records every request it got.
  * Runs out loudly: a request with no reply left fails, so a test never passes on a reply it didn't script.
  */
-export function scriptedModel(script: ModelScript = {}) {
+export function scriptedModel(script: ModelScript = {}, identity: ModelIdentity = { provider: 'scripted', model: 'scripted-fake' }) {
   const queues = new Map(Object.entries(script).map(([purpose, replies]) => [purpose, [...replies]]));
   const requests: ModelRequest[] = [];
   const waiting: Waiting[] = [];
@@ -128,7 +129,7 @@ export function scriptedModel(script: ModelScript = {}) {
   }
 
   const model: Model = {
-    identity: { provider: 'scripted', model: 'scripted-fake' },
+    identity,
 
     async streamText(request, onText) {
       const text = String(await next(request, 'text'));

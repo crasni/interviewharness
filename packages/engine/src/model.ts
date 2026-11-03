@@ -4,7 +4,7 @@
  */
 
 /** What a model call is for. Logged with every call, and lets a fake script replies per purpose. */
-export type ModelPurpose = 'interviewer-reply' | 'reply-check' | 'grading' | 'feedback-prose' | 'setup-check';
+export type ModelPurpose = 'interviewer-reply' | 'reply-check' | 'grading' | 'feedback-prose' | 'setup-check' | 'transcript-judge';
 
 export interface ModelMessage {
   role: 'user' | 'assistant';
@@ -38,6 +38,8 @@ export interface ModelUsage {
 export interface ModelIdentity {
   provider: string;
   model: string;
+  /** The reasoning effort it was asked for, for a model that reasons. */
+  effort?: string;
 }
 
 export interface TextResult {

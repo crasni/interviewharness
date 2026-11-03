@@ -1,10 +1,12 @@
 import { Check, ChevronDown, X } from 'lucide-react';
-import { type KeyboardEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './picker.css';
 
 export interface PickerOption {
   value: string;
   label: string;
+  /** Shown before the label, in the list and on the button (a provider's logo, say). Decorative: the label names it. */
+  icon?: ReactNode;
 }
 
 export interface PickerGroup {
@@ -219,6 +221,7 @@ export function Picker({
             onClick={() => pick(option.value)}
           >
             <span className="picker-check">{selected && <Check size={14} strokeWidth={2} aria-hidden />}</span>
+            {option.icon}
             {option.label}
           </div>
         );
@@ -254,6 +257,7 @@ export function Picker({
           }
         }}
       >
+        {picked?.icon}
         <span className="picker-value">
           {picked ? picked.label : placeholder}
           {picked?.group && <span className="picker-group-name"> · {picked.group}</span>}

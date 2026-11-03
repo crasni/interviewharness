@@ -1,0 +1,12 @@
+/* A provider's logo beside its name: the size of a line of text, never squeezed. */
+.provider-icon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.provider-icon svg {
+  width: 100%;
+  height: 100%;
+}

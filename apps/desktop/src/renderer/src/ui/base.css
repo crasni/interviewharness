@@ -222,3 +222,13 @@ button:disabled {
     transition-duration: 0s !important;
   }
 }
+
+/* Named for screen readers and tests, not shown: a control whose neighbour already says what it's for. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -305,6 +305,19 @@ describe('the interviewer', () => {
       ]);
     });
 
+    it('gives a rewrite only what is left of the minute, and shows the notice, not the safe line, when it runs out', async () => {
+      const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait', 'wait']);
+      interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
+      wait(30_000);
+      model.waiting[0]!.answer(answer('Yes. Think about what you have seen.', { hintLevel: 'nudge' }).object); // a hint nobody asked for
+      await settle();
+      wait(replyRules.timeout - 30_000 + 1_000);
+
+      expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout', reply: 'turn' });
+      expect(spoken()).toEqual([]);
+      expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'timeout', rejected: ['hint-unasked'] }]);
+    });
+
     it('waits for a slow model: a reply after 30 seconds is still said', async () => {
       const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait']);
       interviewer.onSignal({ type: 'said', text: 'Can the list be empty?' });
@@ -403,6 +416,22 @@ describe('hints', () => {
       { askedForHelp: true, level: 'nudge' },
       { askedForHelp: true, level: 'question' },
     ]);
+  });
+
+  it('takes a guess fishing for confirmation as asking for help: told so, and the hint it gets is counted', async () => {
+    const { interviewer, wait, model, modelCalls } = await afterIntro(
+      [answer('Think about what you have already seen.', { ...help, hintLevel: 'nudge' })],
+      [verdict({ hintLevel: 'nudge' })],
+    );
+
+    interviewer.onSignal({ type: 'said', text: 'Is it something with a hash map?' });
+    wait(1_000);
+    await settle();
+
+    const turn = model.requests.find((r) => r.purpose === 'interviewer-reply')!;
+    expect(`${turn.system}\n${turn.messages.at(-1)!.text}`).toMatch(/asking-for-help[^\n]*a guess fishing for you to confirm/);
+    expect(modelCalls()).toMatchObject([{ hint: { askedForHelp: true, level: 'nudge' } }]);
+    expect(interviewer.record().hints).toEqual(['nudge']);
   });
 
   it('never skips a rung: a reply that jumps ahead is written again', async () => {
@@ -576,6 +605,28 @@ describe('the conversation sets the phase', () => {
     await settle();
 
     expect(events.filter((e) => e.kind === 'suggest-phase')).toEqual([expect.objectContaining({ next: 'test' })]);
+  });
+
+  it('tells the model how to reply in the phase their turn may move to, so a done turn is written once', async () => {
+    const followUp = answer('Okay. What if the list were sorted?', { heard: 'done', movesTo: 'complexity', asks: 'follow-up' });
+    const helpers = await afterIntro([ack('Okay.', 'test'), followUp], [verdict()]);
+    const { interviewer, wait, model, modelCalls } = helpers;
+    interviewer.onSignal({ type: 'said', text: 'let me test it with [2, 7]' });
+    wait(1_000);
+    await settle();
+    wait(5_000);
+    model.requests.length = 0;
+
+    interviewer.onSignal({ type: 'said', text: "It's O(n) time and O(n) space. I think I'm done." });
+    wait(1_000);
+    await settle();
+
+    const written = model.requests.filter((r) => r.purpose === 'interviewer-reply');
+    expect(written).toHaveLength(1);
+    const prompt = `${written[0]!.system}\n${written[0]!.messages.at(-1)!.text}`;
+    expect(prompt).toContain('If their turn moves the round on to complexity');
+    expect(prompt).toContain('What if the list were sorted?'); // the follow-ups come after complexity
+    expect(modelCalls().at(-1)).not.toHaveProperty('rejected');
   });
 
   it('logs what each reply observed, which the round follows', async () => {
@@ -1199,6 +1250,21 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(modelCalls()).toMatchObject([{ rejected: ['solution-leak'] }]);
   });
 
+  it('lets an asked-for hint at the next rung through, though it touches the solution: that is the help asked for', async () => {
+    const { interviewer, wait, spoken, modelCalls } = await afterIntro(
+      [answer('Think about what you have already seen as you go.', { ...help, hintLevel: 'nudge' })],
+      [verdict({ hintLevel: 'nudge', describesSolution: true })],
+    );
+
+    interviewer.onSignal({ type: 'said', text: 'Could you give me a small hint toward something faster?' });
+    wait(1_000);
+    await settle();
+
+    expect(spoken()).toEqual(['Think about what you have already seen as you go.']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'spoken', hint: { askedForHelp: true, level: 'nudge' } }]);
+    expect(modelCalls()[0]).not.toHaveProperty('rejected');
+  });
+
   it('rejects a later check-in that names their mistake, though it claims to give no hint', async () => {
     const { wait, spoken, modelCalls, model, interviewer } = await afterIntro(
       [
@@ -1226,6 +1292,32 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(record.mistakes).toEqual([]);
   });
 
+  it('runs on its own model when one is given, and the log names it', async () => {
+    const clock = fakeClock(10_000);
+    const log = fakeLog();
+    const writer = scriptedModel({ 'interviewer-reply': ['Hi, I am Sam.', reply('answer', 'Could you trace [5, 1, 5]?', { heard: 'done' })] });
+    const checker = scriptedModel({ 'reply-check': [verdict()] }, { provider: 'fast', model: 'checker-1' });
+    const interviewer = createInterviewer({ clock, round: startRound('coding', clock), lines: testLines(), log, model: writer.model, checkModel: checker.model, problem, toneGuide: '', onEvent: () => {} });
+    const wait = (ms: number) => {
+      for (let elapsed = 0; elapsed < ms; elapsed += 100) {
+        clock.advance(100);
+        interviewer.onSignal({ type: 'tick' });
+      }
+    };
+    wait(1_000);
+    await settle();
+    wait(10_000);
+
+    interviewer.onSignal({ type: 'said', text: 'done coding' });
+    wait(1_000);
+    await settle();
+
+    expect(writer.requests.map((r) => r.purpose)).toEqual(['interviewer-reply', 'interviewer-reply']);
+    expect(checker.requests.map((r) => r.purpose)).toEqual(['reply-check']);
+    const calls = log.entries.flatMap((e) => ('modelCall' in e ? [(e as ModelCallEntry).modelCall] : []));
+    expect(calls.at(-1)).toMatchObject({ outcome: 'spoken', checkModel: { provider: 'fast', model: 'checker-1' } });
+  });
+
   it('is not waited on for plain answers', async () => {
     const { interviewer, wait, model } = await afterIntro([answer('Yes, values can repeat.')]);
 
@@ -1236,19 +1328,18 @@ describe('the check, where help could slip (ADR 0019)', () => {
     expect(model.requests.map((r) => r.purpose)).toEqual(['interviewer-reply']);
   });
 
-  it('gets its own time limit, apart from the reply it checks', async () => {
-    const { interviewer, wait, spoken, model } = await afterIntro([reply('answer', 'Could you trace [5, 1, 5]?', { heard: 'done' })], ['wait']);
+  it('shares one minute with the reply it checks: running out mid-check shows the notice', async () => {
+    const { interviewer, wait, events, spoken, model, modelCalls } = await afterIntro(['wait'], ['wait']);
 
     interviewer.onSignal({ type: 'said', text: 'done coding' });
-    wait(1_000);
+    wait(40_000);
+    model.waiting[0]!.answer(reply('answer', 'Could you trace [5, 1, 5]?', { heard: 'done' }).object);
     await settle();
-    wait(replyRules.timeout - 500); // the check has waited nearly the limit; the whole reply has waited longer
+    wait(replyRules.timeout - 40_000 + 1_000); // the check has waited only 20 s, but the whole reply over a minute
+
+    expect(events).toContainEqual({ kind: 'model-failed', error: 'timeout', reply: 'turn' });
     expect(spoken()).toEqual([]);
-
-    model.waiting[0]!.answer(verdict().object);
-    await settle();
-
-    expect(spoken()).toEqual(['Could you trace [5, 1, 5]?']);
+    expect(modelCalls()).toMatchObject([{ outcome: 'failed', error: 'timeout' }]);
   });
 });
 

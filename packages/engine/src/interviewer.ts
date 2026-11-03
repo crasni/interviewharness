@@ -27,7 +27,10 @@ import { type Clock, codingRoundMs, type LaterPhase, nextPhase, type Round } fro
 
 /** Timing rules for the interviewer's words, in milliseconds. */
 export const replyRules = {
-  /** A reply that takes longer than this is given up on, and the fallback line is said instead. */
+  /**
+   * A reply that takes longer than this in all, every attempt and check included, is given up on: a reply to their
+   * turn shows the notice, other replies say their fallback line.
+   */
   timeout: 60_000,
   /** A cap on a reply's length, so small models stay short and in role (the words, and what the model observed). */
   maxOutputTokens: 300,
@@ -322,6 +325,8 @@ export interface ModelCallEntry {
     observed?: Observed;
     /** The check's verdict on the words that were said, when they were checked. It overrides the reply's own labels. */
     check?: CheckVerdict;
+    /** The model the check ran on, when it isn't the interviewer's. */
+    checkModel?: ModelIdentity;
   };
 }
 
@@ -332,7 +337,13 @@ export interface RoundStartEntry {
 }
 
 /** Everything the round's log records: how it started, the Floor Manager's decisions and the model calls behind its words. */
-export type RoundLogEntry = RoundStartEntry | FloorLogEntry | ModelCallEntry | GradingEntry;
+/** The candidate changed the interviewer's model's reasoning effort mid-round; the next call uses the new one. */
+export interface EffortChangedEntry {
+  at: number;
+  effortChanged: { model: ModelIdentity; from: string; to: string };
+}
+
+export type RoundLogEntry = RoundStartEntry | FloorLogEntry | ModelCallEntry | GradingEntry | EffortChangedEntry;
 
 export interface RoundLog {
   write(entry: RoundLogEntry): void;
@@ -351,6 +362,8 @@ export interface InterviewerOptions {
   log: RoundLog;
   /** Writes the interviewer's words. With none, the example lines are said as written, as in v0.0. */
   model: Model | null;
+  /** Checks the words before they're said (ADR 0019): the interviewer's model unless another is given, a faster one say. */
+  checkModel?: Model;
   /** The round's problem: what the candidate sees, and the notes, hints and solution only the interviewer sees. */
   problem: Problem;
   /** The example-lines file, given to the model as guidance for tone and length. */
@@ -396,9 +409,10 @@ function reviewedOnly(reply: Reply) {
 interface Call {
   id: number;
   reply: Reply;
+  /** When the reply began: its attempts and checks share the time limit from here. */
   startedAt: number;
-  /** When the model call now running began: the reply, then its check, each get the time limit. */
-  stepAt: number;
+  /** Why each attempt so far was thrown away, logged however the reply ends. */
+  rejected: Rejection[];
   controller: AbortController;
   /** The candidate's line it replies to, if any. */
   about: string | null;
@@ -487,7 +501,7 @@ export function createInterviewer(options: InterviewerOptions) {
         model: model!.identity,
         ms: now - call.startedAt,
         outcome,
-        ...(outcome === 'failed' && call.during ? { during: call.during } : {}),
+        ...(outcome === 'failed' && call.during ? { during: call.during, ...(options.checkModel ? { checkModel: options.checkModel.identity } : {}) } : {}),
         ...(call.observed ? { observed: call.observed } : {}),
         ...extra,
       },
@@ -500,7 +514,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (!call) return;
     pending = null;
     call.controller.abort();
-    logCall(call, outcome, error ? { error } : {});
+    logCall(call, outcome, { ...(error ? { error } : {}), ...(call.rejected.length ? { rejected: call.rejected } : {}) });
   }
 
   function handle(decision: Decision) {
@@ -538,14 +552,19 @@ export function createInterviewer(options: InterviewerOptions) {
   /** The round so far, as the model is told it every time. */
   function soFar(): RoundSoFar {
     const { phase, elapsedMs } = round.snapshot();
-    let next = nextPhase(phase);
-    while (next && skipsPhase(next)) next = nextPhase(next);
+    const after = (from: CodingPhase) => {
+      let next = nextPhase(from);
+      while (next && skipsPhase(next)) next = nextPhase(next);
+      return next;
+    };
+    const next = after(phase);
     return {
       elapsedMs,
       roundMs: codingRoundMs,
       phases,
       offered,
       nextPhase: next,
+      phaseAfterNext: next && after(next),
       hints,
       nextHint: nextHint(),
       mistakesPointedOut: mistakes.filter((m) => m.foundBy === 'interviewer').length,
@@ -573,7 +592,6 @@ export function createInterviewer(options: InterviewerOptions) {
       correction,
     });
     const request = { purpose: 'interviewer-reply' as const, ...prompt, signal: call.controller.signal, maxOutputTokens: replyRules.maxOutputTokens };
-    call.stepAt = clock.now();
     if (call.reply.kind === 'turn') {
       const { object, usage } = await model!.generateObject({ ...request, schema: turnSchema });
       const { heard, movesTo, checkedCode, foundOwnMistake, saysCodeDone, attemptFailed, pointsOutMistake } = object;
@@ -617,10 +635,9 @@ export function createInterviewer(options: InterviewerOptions) {
    */
   async function checked(call: Call, written: Written): Promise<Written> {
     if (!risky(call, written)) return written;
-    call.stepAt = clock.now();
     call.during = 'check';
     const prompt = buildCheckPrompt({ problem: options.problem, transcript, code, words: written.words });
-    const { object: check, usage } = await model!.generateObject({
+    const { object: check, usage } = await (options.checkModel ?? model!).generateObject({
       purpose: 'reply-check',
       ...prompt,
       schema: checkSchema,
@@ -663,7 +680,9 @@ export function createInterviewer(options: InterviewerOptions) {
     if (asks === 'probe' && written.heard && midWork.includes(written.heard)) return 'probe-mid-work';
     // The round closes the way a real one does: they're asked once for their questions before any goodbye.
     if (written.kind === 'goodbye' && !askedForQuestions && !saidGoodbye) return 'goodbye-too-soon';
-    if (written.check?.describesSolution) return 'solution-leak';
+    // An asked-for hint is part of the solution by design: within its rung (checked above), it's the help they asked for.
+    // Unasked, or as the reference code itself, it's a leak.
+    if (written.check?.describesSolution && !(written.mayHint && level !== 'none')) return 'solution-leak';
     return quotesSolution(written.words, options.problem.reference.code) ? 'solution-leak' : null;
   }
 
@@ -694,7 +713,7 @@ export function createInterviewer(options: InterviewerOptions) {
    * from those two tries; only a turn that moves the round can cost that call.
    */
   async function compose(call: Call) {
-    const rejected: Rejection[] = [];
+    const { rejected } = call;
     for (let tries = 0; tries < 2; tries++) {
       // A barge-in or the time limit may have ended this reply while the last attempt was checked.
       if (call.controller.signal.aborted) throw new ModelError('aborted');
@@ -769,7 +788,7 @@ export function createInterviewer(options: InterviewerOptions) {
     if (!model || reviewedOnly(reply)) return sayFallback(fallbackSituation(reply), reply.kind === 'time-reminder' ? { minutes: reply.minutesLeft } : undefined);
 
     const about = reply.kind === 'turn' ? (transcript.findLast((l) => l.who === 'candidate')?.id ?? null) : null;
-    const call: Call = { id: ++calls, reply, startedAt: clock.now(), stepAt: clock.now(), controller: new AbortController(), about };
+    const call: Call = { id: ++calls, reply, startedAt: clock.now(), rejected: [], controller: new AbortController(), about };
     pending = call;
     compose(call).then(
       ({ written, rejected }) => {
@@ -789,6 +808,7 @@ export function createInterviewer(options: InterviewerOptions) {
           ...(written.askedForHelp !== undefined ? { hint: { askedForHelp: written.askedForHelp, level } } : {}),
           ...(written.observed ? { observed: written.observed } : {}),
           ...(written.check ? { check: written.check } : {}),
+          ...(written.check && options.checkModel ? { checkModel: options.checkModel.identity } : {}),
           ...extra,
         };
         // After the goodbye only a real question gets an answer: thanks, bye or a second goodbye doesn't reopen
@@ -835,7 +855,7 @@ export function createInterviewer(options: InterviewerOptions) {
       if (signal.type === 'editor-activity') declinedHelp = false;
       if (signal.type === 'round-end') abandon('aborted');
       handle(floor.onSignal(signal));
-      if (signal.type === 'tick' && pending && clock.now() - pending.stepAt >= replyRules.timeout) {
+      if (signal.type === 'tick' && pending && clock.now() - pending.startedAt >= replyRules.timeout) {
         const { reply } = pending;
         abandon('failed', 'timeout');
         fallBack(reply, 'timeout');

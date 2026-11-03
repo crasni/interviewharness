@@ -1,7 +1,7 @@
 import { type ModelErrorKind, modelErrorKind } from '@interviewharness/engine';
 import { type Connection, defaultChatGPTModel, type KeyProviderName, keyProviders, keyProviderTable, type ModelChoice, type ProviderName, type Providers } from '@interviewharness/providers';
 import type { ConnectResult, KeyReplacement, ModelConnection, ModelList } from '../shared/api.ts';
-import { isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterAdding, settingsAfterLogout, settingsAfterRemoving } from '../shared/settings.ts';
+import { isEffortLevel, isModelChoice, isServerAddress, isServerId, type Settings, settingsAfterAdding, settingsAfterLogout, settingsAfterRemoving, settingsWithEffort } from '../shared/settings.ts';
 import { plainServerError, serverConnections } from './server-connections.ts';
 
 /** Each provider as the candidate knows it. */
@@ -32,7 +32,7 @@ function isConnection(provider: ProviderName, value: unknown): value is Connecti
 function isModelConnection(value: unknown): value is ModelConnection {
   if (typeof value !== 'object' || value === null) return false;
   const { slot, provider, model, server, ...connection } = value as Record<string, unknown>;
-  if (slot !== undefined && slot !== 'interviewer' && slot !== 'feedback') return false;
+  if (slot !== undefined && slot !== 'interviewer' && slot !== 'feedback' && slot !== 'check') return false;
   if (!isProviderName(provider)) return false;
   if (typeof model !== 'string' || !model || model.length > 200) return false;
   // A server's model is picked from a saved server (added through serverConnections), by its id.
@@ -163,6 +163,17 @@ export function modelChooser({
     removeModel(model: unknown) {
       if (!isModelChoice(model)) return;
       settings.change(settingsAfterRemoving(settings.values(), model));
+    },
+
+    /** The reasoning efforts a model offers; none for one that doesn't reason. */
+    effortLevels(model: unknown) {
+      return isModelChoice(model) ? providers.effortLevels(model) : [];
+    },
+
+    /** Sets one of your models' reasoning effort, if it's a level that model offers. */
+    setEffort(model: unknown, effort: unknown) {
+      if (!isModelChoice(model) || !isEffortLevel(effort) || !providers.effortLevels(model).includes(effort)) return;
+      settings.change(settingsWithEffort(settings.values(), model, effort));
     },
 
     /** Forgets a provider's login or key, and removes its models from your models. For a server, `server` says which; it goes too. */

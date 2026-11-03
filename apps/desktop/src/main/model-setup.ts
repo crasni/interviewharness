@@ -3,7 +3,7 @@ import { scriptedModel } from '@interviewharness/engine/test';
 import { createProviders, keyProviders, type ProviderName } from '@interviewharness/providers';
 import { app, type BrowserWindow, safeStorage, shell } from 'electron';
 import type { LoginResult, ProviderStatus } from '../shared/api.ts';
-import { feedbackModel, modelKey, type Server, type Settings } from '../shared/settings.ts';
+import { feedbackModel, modelKey, type Server, type Settings, withEffort } from '../shared/settings.ts';
 import { openCredentialStore } from './credential-store.ts';
 import { modelChooser, providerNames } from './model-choice.ts';
 import { migratedServerId } from './server-migration.ts';
@@ -69,7 +69,22 @@ export function setUpModels({
       if (fake !== undefined) return fake;
       const choice = settings.values().interviewerModel;
       if (!choice) throw new Error('Pick a model before starting a round');
-      return providers.model(choice);
+      // Built again for each call, so an effort changed mid-round applies to the next reply.
+      const now = () => providers.model(withEffort(settings.values(), choice));
+      return {
+        get identity() {
+          return now().identity;
+        },
+        streamText: (request, onText) => now().streamText(request, onText),
+        generateObject: (request) => now().generateObject(request),
+      };
+    },
+
+    /** The model that checks the interviewer's words, when one is picked apart from the interviewer's. */
+    checkModel(): Model | undefined {
+      if (fake !== undefined) return undefined;
+      const choice = settings.values().checkModel;
+      return choice ? providers.model(withEffort(settings.values(), choice)) : undefined;
     },
 
     /**
@@ -81,7 +96,7 @@ export function setUpModels({
       const choice = feedbackModel(settings.values());
       if (!choice) return null;
       const rough = settings.values().smallModels.includes(modelKey(choice)) || (await providers.isSmall(choice));
-      return { model: providers.model(choice), rough };
+      return { model: providers.model(withEffort(settings.values(), choice)), rough };
     },
 
     async continueWithChatGPT(): Promise<LoginResult> {
@@ -172,6 +187,8 @@ export function setUpModels({
     replaceKey: chooser.replaceKey,
     logout: chooser.removeConnection,
     removeModel: chooser.removeModel,
+    effortLevels: chooser.effortLevels,
+    setEffort: chooser.setEffort,
     listServer: chooser.servers.list,
     addServer: chooser.servers.add,
     editServer: chooser.servers.edit,

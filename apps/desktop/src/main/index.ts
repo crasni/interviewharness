@@ -24,6 +24,7 @@ import { keyPageFor } from './key-pages.ts';
 import { setUpModels } from './model-setup.ts';
 import { roundsByProblem } from './problem-history.ts';
 import { loadProblems } from './problems.ts';
+import { defaultEffort, withEffort } from '../shared/settings.ts';
 import { openSettingsFile } from './settings-file.ts';
 import { installAppMenu, setUpWindowChrome, windowChromeOptions } from './window-chrome.ts';
 
@@ -109,6 +110,7 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => 
   const problem = pickProblem(name);
   endCurrentRound();
   const model = models.interviewerModel();
+  const checkModel = models.checkModel();
   const log = createEventsLog(dataDir(), new Date());
   log.write({ at: systemClock.now(), started: { kind, problem: problem.name } });
   const running = runRound({
@@ -117,6 +119,7 @@ ipcMain.handle(channels.startRound, (_event, kind: RoundKind, name: unknown) => 
     lines: createLineBook(linesFile),
     log,
     model,
+    ...(checkModel ? { checkModel } : {}),
     problem,
     toneGuide: linesFile,
     onEvent: (event) => window?.webContents.send(channels.decision, event),
@@ -185,6 +188,15 @@ ipcMain.handle(channels.replaceKey, (_event, replacement: unknown) => models.rep
 
 ipcMain.handle(channels.logout, (_event, provider: unknown, server: unknown) => models.logout(provider, server));
 ipcMain.handle(channels.removeModel, (_event, model: unknown) => models.removeModel(model));
+ipcMain.handle(channels.effortLevels, (_event, model: unknown) => models.effortLevels(model));
+ipcMain.handle(channels.setEffort, (_event, model: unknown, effort: unknown) => {
+  const picked = settings.values().interviewerModel;
+  const from = picked && (withEffort(settings.values(), picked).effort ?? defaultEffort);
+  models.setEffort(model, effort);
+  // A change to the interviewer's model mid-round is logged: the replies after it may be quicker or slower for it.
+  const to = picked && (withEffort(settings.values(), picked).effort ?? defaultEffort);
+  if (round && picked && from !== to) round.log.write({ at: systemClock.now(), effortChanged: { model: { provider: picked.provider, model: picked.model }, from: from!, to: to! } });
+});
 ipcMain.handle(channels.listServer, (_event, listing: unknown) => models.listServer(listing));
 ipcMain.handle(channels.addServer, (_event, setup: unknown) => models.addServer(setup));
 ipcMain.handle(channels.editServer, (_event, setup: unknown) => models.editServer(setup));

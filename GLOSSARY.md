@@ -27,7 +27,7 @@ One coding question a round is on, kept as plain files: the statement the candid
 _Avoid_: Question, exercise, challenge, task
 
 **Check**:
-A second, separate look at the interviewer's words before they're said, on turns where help could slip in: do they name a mistake, give a hint, or describe the solution? Its verdict, not the interviewer's own label, is what's recorded and graded.
+A second, separate look at the interviewer's words before they're said, on turns where help could slip in: do they name a mistake, give a hint, or describe the solution? Its verdict, not the interviewer's own label, is what's recorded and graded. It runs on the **Reply check model**: the interviewer's, unless another (a faster one, say) is picked in Settings → Model.
 _Avoid_: Guardrail, filter, review
 
 ### Turn-taking
@@ -97,5 +97,9 @@ One way the candidate brings models to the app: a plan they signed in to (ChatGP
 _Avoid_: Provider (that's the company behind it), account, integration, source
 
 **Your models**:
-The models the candidate has added, each checked to answer with one short reply when it was added, and each from one of their connections. The Interviewer and Feedback model pickers list only these; "Add a model…" searches every connection's models to add another. Removing a connection removes its models.
+The models the candidate has added, each checked to answer with one short reply when it was added, and each from one of their connections. The Interviewer, Feedback and Reply check model pickers list only these; "Add a model…" searches every connection's models to add another. Removing a connection removes its models.
 _Avoid_: Favourites, saved models, model list
+
+**Reasoning effort**:
+How hard a model thinks before it answers, by the levels that model offers and its provider's own names (low, medium, high…). It belongs to the model: every role using one model shares its effort. Set under each role's picker in Settings → Model, and for the interviewer in the room. A model that doesn't reason has none.
+_Avoid_: Thinking budget, speed, quality, mode

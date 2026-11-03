@@ -19,7 +19,7 @@ test.afterEach(async () => {
 });
 
 const settings = () => window.getByRole('dialog', { name: 'Settings' });
-const well = (name = 'Add a connection') => settings().getByRole('group', { name });
+const well = (name = 'Add a connection') => window.getByRole('dialog', { name });
 const row = (name: string) => settings().getByRole('listitem').filter({ hasText: name });
 const settingsFile = () => JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8'));
 

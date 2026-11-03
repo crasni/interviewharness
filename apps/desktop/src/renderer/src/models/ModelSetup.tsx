@@ -1,4 +1,4 @@
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, KeyRound } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useId, useState } from 'react';
 import type { ModelList } from '../../../shared/api.ts';
 import { defaultChatGPTModel, defaultModels } from '@interviewharness/providers/defaults';
@@ -7,6 +7,7 @@ import { iconProps } from '../ui/IconButton.tsx';
 import { Picker } from '../ui/Picker.tsx';
 import { RefreshButton, useRefresh } from '../ui/RefreshButton.tsx';
 import { AddList, PickedHead } from './AddList.tsx';
+import { ProviderIcon } from './ProviderIcon.tsx';
 import { type AddableItem, addable } from './addable.ts';
 import { type SignInProvider, useSignIn } from './useSignIn.ts';
 import { useConnect } from './useConnect.ts';
@@ -189,7 +190,7 @@ export function ModelSetup({
   const chatgptFields = chatgpt.signedIn && (
     <div className="model-setup-field">
       <label htmlFor={ids.chatgptModel}>Model</label>
-      <Picker id={ids.chatgptModel} value={chatgptModel} options={chatgpt.models} onChange={setChatgptModel} />
+      <Picker id={ids.chatgptModel} value={chatgptModel} options={chatgpt.models.map((m) => ({ ...m, icon: <ProviderIcon provider={signInProvider} /> }))} onChange={setChatgptModel} />
     </div>
   );
 
@@ -222,7 +223,7 @@ export function ModelSetup({
       {ollama?.ok && ollama.models.length > 0 && (
         <div className="model-setup-field">
           <label htmlFor={ids.ollamaModel}>Model</label>
-          <Picker id={ids.ollamaModel} value={ollamaModel} options={ollama.models.map((m) => ({ value: m.id, label: m.name }))} onChange={setOllamaModel} />
+          <Picker id={ids.ollamaModel} value={ollamaModel} options={ollama.models.map((m) => ({ value: m.id, label: m.name, icon: <ProviderIcon provider="ollama" /> }))} onChange={setOllamaModel} />
         </div>
       )}
     </>
@@ -251,7 +252,7 @@ export function ModelSetup({
       {keyModels?.ok && (
         <div className="model-setup-field">
           <label htmlFor={ids.model}>Model</label>
-          <Picker id={ids.model} value={keyModel} options={keyModels.models.map((m) => ({ value: m.id, label: m.name }))} onChange={setKeyModel} />
+          <Picker id={ids.model} value={keyModel} options={keyModels.models.map((m) => ({ value: m.id, label: m.name, icon: provider && <ProviderIcon provider={provider} /> }))} onChange={setKeyModel} />
         </div>
       )}
     </>
@@ -284,18 +285,18 @@ export function ModelSetup({
         </div>
       ) : (
         <div className="model-setup-ways" role="radiogroup" aria-label="How the interviewer gets a model">
-          <Row way="chatgpt" open={way} onOpen={open} name={ids.way} title="ChatGPT" description={chatgptDescription}>
+          <Row way="chatgpt" open={way} onOpen={open} name={ids.way} icon={<ProviderIcon provider="chatgpt" />} title="ChatGPT" description={chatgptDescription}>
             {chatgptFields}
           </Row>
 
-          <Row way="ollama" open={way} onOpen={open} name={ids.way} title="Ollama" description={ollamaDescription}>
+          <Row way="ollama" open={way} onOpen={open} name={ids.way} icon={<ProviderIcon provider="ollama" />} title="Ollama" description={ollamaDescription}>
             {ollamaFields}
           </Row>
 
-          <Row way="key" open={way} onOpen={open} name={ids.way} title="API key" description="A key from a provider like OpenAI or Anthropic, or a server of your own.">
+          <Row way="key" open={way} onOpen={open} name={ids.way} icon={<KeyRound className="provider-icon" size={16} strokeWidth={1.75} aria-hidden />} title="API key" description="A key from a provider like OpenAI or Anthropic, or a server of your own.">
             {keyItem ? (
               <>
-                <PickedHead item={keyItem} onCancel={() => pickKey(null)} />
+                <PickedHead item={keyItem} onLeave={() => pickKey(null)} />
                 {keyFields}
               </>
             ) : (
@@ -344,6 +345,7 @@ function Row({
   open,
   onOpen,
   name,
+  icon,
   title,
   description,
   children,
@@ -352,6 +354,7 @@ function Row({
   open: Way | null;
   onOpen: (way: Way) => void;
   name: string;
+  icon: ReactNode;
   title: string;
   description: string;
   children?: ReactNode;
@@ -361,7 +364,10 @@ function Row({
     <div className="model-setup-way" data-open={isOpen}>
       <label className="model-setup-choice">
         <input type="radio" name={name} value={way} checked={isOpen} onChange={() => onOpen(way)} />
-        <span className="model-setup-title">{title}</span>
+        <span className="model-setup-title">
+          {icon}
+          {title}
+        </span>
         <span className="model-setup-description">{description}</span>
       </label>
       {isOpen && children && <div className="model-setup-fields">{children}</div>}
